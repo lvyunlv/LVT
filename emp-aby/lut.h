@@ -178,12 +178,37 @@ void LUT<IO>::generate_shares(int64_t* lut_share, bool* rotation, int num_shares
         v.get();
     res.clear();
 
-    if (party != num_party)
-        he->deserialize_recv(ciphertext, num_party);
-    else
-        he->serialize_sendall(ciphertext);
+    uint ct_size = ceil((double)n / batch_size);
+    if(party == num_party)
+        assert(ciphertext.size() == ct_size);
+    uint max_cts = 1024;
+    if (ct_size > max_cts) {
+        std::vector<lbcrypto::Ciphertext<lbcrypto::DCRTPoly>> tmp;
+        uint steps = ceil((double)ct_size / max_cts);
+        for (uint i = 0; i < steps; ++i){
+            uint num_cts = max_cts;
+            if((i + 1)*num_cts > ct_size)
+                num_cts = ct_size - i * max_cts;
 
-    he->enc_to_share(ciphertext, lut_share, n);
+            if (party != num_party)
+                he->deserialize_recv(tmp, num_party);
+            else{
+                for (uint j = 0; j < num_cts; ++j)
+                    tmp.push_back(ciphertext[i * max_cts + j]);
+                he->serialize_sendall(tmp);
+            }
+            he->enc_to_share(tmp, lut_share + (i * max_cts) * batch_size, num_cts * batch_size);
+            tmp.clear();
+        }
+    }
+    else {
+        if (party != num_party)
+            he->deserialize_recv(ciphertext, num_party);
+        else
+            he->serialize_sendall(ciphertext);
+
+        he->enc_to_share(ciphertext, lut_share, n);
+    }
 }
 
 template <typename IO>

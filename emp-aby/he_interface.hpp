@@ -497,7 +497,7 @@ public:
 
                     for (int j = 0; j < n; ++j) {
                         partial_decs[j][i - 1] = partial_decs_encs[j];
-                        if (i == 1)
+                        if (new_ciphertext.size() <= j)
                             new_ciphertext.push_back(partial_decs_encs[ciphertext.size() + j]);
                         else
                             cc->EvalAddInPlace(new_ciphertext[j], partial_decs_encs[ciphertext.size() + j]);
