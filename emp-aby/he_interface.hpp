@@ -123,7 +123,8 @@ public:
         s.read(c, string_size);
         io->send_data(i, c, string_size, j, mt);
         io->flush(i, j);
-        // free(c);
+        free(c);
+        s.clear();
     }
 
     template <typename T>
@@ -147,7 +148,8 @@ public:
         for (auto& fut : res)
             fut.get();
         res.clear();
-        // free(c);
+        free(c);
+        s.clear();
     }
 
     template <typename T>
@@ -156,8 +158,10 @@ public:
         int string_size = 0;
         char* c         = (char*)io->recv_data(i, string_size, j, mt);
         s.write(c, string_size);
-        // free(c);
+        // printf("%d %d\n", party, string_size);
+        free(c);
         lbcrypto::Serial::Deserialize(obj, s, lbcrypto::SerType::BINARY);
+        s.clear();
     }
 
     void setup_cryptocontext(bool YAO = false) {
@@ -523,5 +527,61 @@ public:
             }
         }
     }
+
+
+    void enc_to_share(lbcrypto::Ciphertext<lbcrypto::DCRTPoly> ciphertext, int64_t* share,
+                      PlaintextEncodings encoding = PACKED_ENCODING) {
+        uint batch_size = this->cc->GetCryptoParameters()->GetElementParams()->GetCyclotomicOrder() / 2;
+        auto ctxts      = {ciphertext};
+        if (party == ALICE) {
+            auto pt = cc->MultipartyDecryptLead(ctxts, kp.secretKey);
+            std::vector<lbcrypto::Ciphertext<lbcrypto::DCRTPoly>> partial_decs;
+
+            partial_decs.resize(num_party, pt[0]);
+            
+            std::vector<lbcrypto::Ciphertext<lbcrypto::DCRTPoly>> partial_decs_i;
+            for (int i = 2; i <= num_party; ++i) {
+                deserialize_recv(partial_decs_i, i, 0, BOOT_RSP_MSG);
+                partial_decs[i - 1] = partial_decs_i[0];
+            }
+            partial_decs_i.clear();
+
+            lbcrypto::Plaintext ptxt;
+            cc->MultipartyDecryptFusion(partial_decs, &ptxt);
+            vector<int64_t> tmp;
+            if (encoding == COEF_PACKED_ENCODING)
+                tmp = ptxt->GetCoefPackedValue();
+            else
+                tmp = ptxt->GetPackedValue();
+
+            memcpy(share, tmp.data(), batch_size * sizeof(int64_t));
+            tmp.clear();
+        }
+        else {
+            this->prg.random_data(share, batch_size * sizeof(int64_t));
+            for (int i = 0; i < batch_size; ++i) {
+                share[i] = ((share[i] % this->q) + this->q) % this->q;
+                if (encoding == COEF_PACKED_ENCODING) {
+                    if (share[i] > this->q / 2)
+                        share[i] -= this->q;
+                }
+            }
+            auto partial_dec_i = cc->MultipartyDecryptMain(ctxts, kp.secretKey);
+
+            vector<int64_t> tmp;
+            tmp.resize(batch_size);
+            memcpy(tmp.data(), share, batch_size * sizeof(int64_t));
+
+            lbcrypto::Plaintext ptxt;
+            if (encoding == COEF_PACKED_ENCODING)
+                ptxt = cc->MakeCoefPackedPlaintext(tmp);
+            else
+                ptxt = cc->MakePackedPlaintext(tmp);
+            partial_dec_i[0] = cc->EvalSub(partial_dec_i[0], ptxt);
+            tmp.clear();
+            this->serialize_send(partial_dec_i, ALICE, 0, BOOT_RSP_MSG);
+        }
+    }
+
 };
 }  // namespace emp

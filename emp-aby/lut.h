@@ -14,7 +14,7 @@ private:
     int num_used = 0;
     ThreadPool* pool;
     bool* rotation;
-//    int64_t* lut_share;
+    //    int64_t* lut_share;
     HE<IO>* he;
     MPIOChannel<IO>* io;
     PRG prg;
@@ -22,7 +22,7 @@ private:
     void shuffle(lbcrypto::Ciphertext<lbcrypto::DCRTPoly>& c, bool* rotation, size_t batch_size, size_t i);
 
 public:
-    int64_t *lut_share;
+    int64_t* lut_share;
     int num_party;
     int party;
     int64_t table[2];
@@ -102,7 +102,7 @@ void LUT<IO>::generate_shares(int64_t* lut_share, bool* rotation, int num_shares
     prg.random_bool((bool*)rotation, num_shares);
     std::vector<lbcrypto::Ciphertext<lbcrypto::DCRTPoly>> ciphertext;
     vector<std::future<void>> res;
-    res.push_back(pool->enqueue([this, n, rotation, batch_size, &ciphertext, table]() {
+    res.push_back(pool->enqueue([this, n, rotation, batch_size, &ciphertext, table, lut_share]() {
         // auto start = clock_start();
         for (int i = 0; i < ceil((double)n / (double)batch_size); ++i) {
             lbcrypto::Ciphertext<lbcrypto::DCRTPoly> c;
@@ -154,8 +154,12 @@ void LUT<IO>::generate_shares(int64_t* lut_share, bool* rotation, int num_shares
                     he->bootstrap(c, party, party + 1);
                 }
             }
-            if (party == num_party)
+            if (party == num_party){
                 ciphertext.push_back(c);
+            he->serialize_sendall(ciphertext, 1, BOOT_REQ_MSG);
+            he->enc_to_share(c, lut_share + i * batch_size, PACKED_ENCODING);
+                ciphertext.clear();
+            }
         }
         // double timeused = time_from(start);
         // std::cout << party << "\tprocessing time\t" << timeused / 1000 << std::endl;
@@ -174,41 +178,20 @@ void LUT<IO>::generate_shares(int64_t* lut_share, bool* rotation, int num_shares
         }
     }
 
+    if(party != num_party){
+        res.push_back(pool->enqueue([this, batch_size, n, lut_share]() {
+            std::vector<lbcrypto::Ciphertext<lbcrypto::DCRTPoly>> c;
+            for (int i = 0; i < ceil((double)n / (double)batch_size); ++i) {
+                he->deserialize_recv(c, num_party, 1, BOOT_REQ_MSG);
+                he->enc_to_share(c[0], lut_share + i * batch_size, PACKED_ENCODING);
+            }
+        }));
+    }
+
     for (auto& v : res)
         v.get();
     res.clear();
 
-    uint ct_size = ceil((double)n / batch_size);
-    if(party == num_party)
-        assert(ciphertext.size() == ct_size);
-    uint max_cts = 1024;
-    if (ct_size > max_cts) {
-        std::vector<lbcrypto::Ciphertext<lbcrypto::DCRTPoly>> tmp;
-        uint steps = ceil((double)ct_size / max_cts);
-        for (uint i = 0; i < steps; ++i){
-            uint num_cts = max_cts;
-            if((i + 1)*num_cts > ct_size)
-                num_cts = ct_size - i * max_cts;
-
-            if (party != num_party)
-                he->deserialize_recv(tmp, num_party);
-            else{
-                for (uint j = 0; j < num_cts; ++j)
-                    tmp.push_back(ciphertext[i * max_cts + j]);
-                he->serialize_sendall(tmp);
-            }
-            he->enc_to_share(tmp, lut_share + (i * max_cts) * batch_size, num_cts * batch_size);
-            tmp.clear();
-        }
-    }
-    else {
-        if (party != num_party)
-            he->deserialize_recv(ciphertext, num_party);
-        else
-            he->serialize_sendall(ciphertext);
-
-        he->enc_to_share(ciphertext, lut_share, n);
-    }
 }
 
 template <typename IO>
