@@ -2,7 +2,7 @@
 #define _FFT
 
 #include <mcl/bls12_381.hpp>
-#include "BLS12381/BLS12381Element.h"
+#include "elgl/BLS12381Element.h"
 #include <vector>
 
 /**

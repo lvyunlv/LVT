@@ -4,6 +4,7 @@
 #include "Ciphertext.h"
 #include "BLS12381Element.h"
 #include "ELGL/Plaintext.h"
+#include <map>
 class ELGL_PK;
 class Ciphertext;
 class ELGL_SK{
@@ -17,30 +18,26 @@ class ELGL_SK{
 
     void assign_sk(const Fr& sk_){sk = sk_;};
 
-    void assign_sk(const bigint& sk_){
-        sk.setMpz(sk_);
+    void assign_sk(const std::string sk_){
+        sk.setStr(sk_);
     };
 
     ELGL_SK(){};
 
-    void pack(octetStream& os) const{
-        std::ostringstream ss;
-        sk.save(ss);
-        std::string str = ss.str();
-        os.store_int(str.size(), 8);
-        os.append((octet*)str.c_str(), str.size());
+    void pack(std::stringstream& os) const{
+        sk.save(os);
     };
 
-    void unpack(octetStream& os){
-        size_t length = os.get_int(8);
-        assert(length > 0);
-        std::string str((char*)os.consume(length), length);
-        std::istringstream ss(str);
-        sk.load(ss);
+    void unpack(std::stringstream& os){
+        sk.load(os);
     };
-    void decrypt(Plaintext &m, const Ciphertext& c, const std::map<Fp, Fr>& P_to_m) const;
 
-    Plaintext decrypt(const Ciphertext& c, const std::map<Fp, Fr>& P_to_m) const;
+    static bool DeserializFromFile(std::string filepath, ELGL_SK& p);
+    static bool SerializeToFile(std::string filepath, ELGL_SK& p);
+
+    void decrypt(BLS12381Element &m, const Ciphertext& c) const;
+
+    BLS12381Element decrypt(const Ciphertext& c) const;
 
     friend void KeyGen(ELGL_PK& PK, ELGL_SK& SK);
 
@@ -71,20 +68,23 @@ class ELGL_PK{
 
     ELGL_PK(ELGL_SK& sk);
 
-    void encrypt(Ciphertext &c, const Plaintext& m, std::map<Fp, Fr>& P_to_m) const;
+    void encrypt(Ciphertext &c, const Plaintext& m) const;
 
-    Ciphertext encrypt(const Plaintext& mess, std::map<Fp, Fr>& P_to_m) const;
+    Ciphertext encrypt(const Plaintext& mess) const;
 
-    void encrypt(Ciphertext& c, const Plaintext& mess, const Random_C rc, std::map<Fp, Fr>& P_to_m) const;
+    void encrypt(Ciphertext& c, const Plaintext& mess, const Random_C rc) const;
 
-    Ciphertext encrypt(const Plaintext& mess, const Random_C rc, std::map<Fp, Fr>& P_to_m) const;
+    Ciphertext encrypt(const Plaintext& mess, const Random_C rc) const;
 
     friend void KeyGen(ELGL_PK& PK, ELGL_SK& SK);
     void KeyGen(ELGL_SK & sk);
 
-    void pack(octetStream& os) const {pk.pack(os);};
+    void pack(std::stringstream& os) const {pk.pack(os);};
 
-    void unpack(octetStream& os) {pk.unpack(os);};
+    void unpack(std::stringstream& os) {pk.unpack(os);};
+
+    static bool DeserializFromFile(std::string filepath, ELGL_PK& p);
+    static bool SerializeToFile(std::string filepath, ELGL_PK& p);
 
     bool operator!= (const ELGL_PK& other) const{
         return pk!= other.pk;

@@ -17,6 +17,9 @@ find_path(CMAKE_FOLDER NAMES cmake/emp-tool-config.cmake)
 include(${CMAKE_FOLDER}/cmake/emp-base.cmake)
 
 find_package(OpenFHE REQUIRED)
+add_subdirectory(external/mcl)
+
+include_directories(external/mcl/include)
 
 include_directories(${OPENMP_INCLUDES})
 include_directories(${OpenFHE_INCLUDE})

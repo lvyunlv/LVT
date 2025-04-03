@@ -79,73 +79,71 @@ void IFFT(const vector<BLS12381Element>& input, vector<BLS12381Element>& output,
     }
 }
 
-//------------------------------------------------------
-// 主函数：设置 FFT 参数，执行 FFT 和 IFFT 验证
-//------------------------------------------------------
-int main() {
-    // 初始化 BLS12-381 参数（MCL库调用）
-    BLS12381Element::init();
-    srand((unsigned)time(NULL));
+// //------------------------------------------------------
+// // 主函数：设置 FFT 参数，执行 FFT 和 IFFT 验证
+// //------------------------------------------------------
+// int main() {
+//     // 初始化 BLS12-381 参数（MCL库调用）
+//     BLS12381Element::init();
+//     srand((unsigned)time(NULL));
 
-    // 设定 FFT 长度 N，必须为 2 的幂。真实应用可取 N = 2^16，此处为了调试取较小值。
-    size_t N = 64;
-    cout << "FFT length N = " << N << endl;
+//     // 设定 FFT 长度 N，必须为 2 的幂。真实应用可取 N = 2^16，此处为了调试取较小值。
+//     size_t N = 64;
+//     cout << "FFT length N = " << N << endl;
 
-    // 构造 G1 群的生成元 G
-    BLS12381Element G = BLS12381Element(Fr(1)); // 此处构造方式表示 G = g*1
+//     // 构造 G1 群的生成元 G
+//     BLS12381Element G = BLS12381Element(Fr(1)); // 此处构造方式表示 G = g*1
 
-    // 获取 Fr 的阶 p（Fr::getOp().mp 为 Fr 的模，注意 p 较大）
-    mpz_class p = Fr::getOp().mp;
-    cout << "Fr field order p: " << p.get_str(16) << endl;
+//     // 获取 Fr 的阶 p（Fr::getOp().mp 为 Fr 的模，注意 p 较大）
+//     mpz_class p = Fr::getOp().mp;
 
-    // 为 FFT 需要找到一个 N-th 原始单位根 ω ∈ Fr。
-    // 方法：令 exp = (p - 1) / N，然后令 ω = g^exp，其中 g 取为一个生成元。
-    // 这里我们用 Plaintext 类计算（你们的 Plaintext 支持大整数运算）。
-    Plaintext g_plain;
-    g_plain.assign(5); // 选定一个数 5（假设它是 Fr 的生成元之一）
-    Plaintext exp;
-    exp.assign((p - 1) / N);
-    Plaintext omega_pt;
-    Plaintext::pow(omega_pt, g_plain, exp);
-    cout << "Computed omega (as plaintext integer): " << omega_pt.get_message() << endl;
+//     // 为 FFT 需要找到一个 N-th 原始单位根 ω ∈ Fr。
+//     // 方法：令 exp = (p - 1) / N，然后令 ω = g^exp，其中 g 取为一个生成元。
+//     // 这里我们用 Plaintext 类计算（你们的 Plaintext 支持大整数运算）。
+//     Plaintext g_plain;
+//     g_plain.assign(5); // 选定一个数 5（假设它是 Fr 的生成元之一）
+//     Plaintext exp;
+//     exp.assign((p - 1) / N);
+//     Plaintext omega_pt;
+//     Plaintext::pow(omega_pt, g_plain, exp);
+//     cout << "Computed omega (as plaintext integer): " << omega_pt.get_message() << endl;
 
-    // 将 omega_pt 转换为 Fr。注意：这里假设 omega_pt.get_message() 返回一个可转换为字符串的整数表示，
-    // 并用 Fr 的构造函数进行初始化。
-    Fr omega;
-    omega = Fr(omega_pt.get_message());
-    // 输出 omega 以检查（可以通过 omega.getStr() 查看）
-    cout << "omega in Fr: " << omega << endl;
+//     // 将 omega_pt 转换为 Fr。注意：这里假设 omega_pt.get_message() 返回一个可转换为字符串的整数表示，
+//     // 并用 Fr 的构造函数进行初始化。
+//     Fr omega;
+//     omega = Fr(omega_pt.get_message());
+//     // 输出 omega 以检查（可以通过 omega.getStr() 查看）
+//     cout << "omega in Fr: " << omega << endl;
 
-    // 构造 FFT 输入向量：长度为 N 的 BLS12381Element 数组。这里我们简单设定 input[i] = G * i,
-    // 即将 Fr(i) 与 G 做标量乘法。
-    vector<BLS12381Element> input(N);
-    for (size_t i = 0; i < N; i++) {
-        Fr scalar(i);
-        input[i] = G * scalar;
-    }
+//     // 构造 FFT 输入向量：长度为 N 的 BLS12381Element 数组。这里我们简单设定 input[i] = G * i,
+//     // 即将 Fr(i) 与 G 做标量乘法。
+//     vector<BLS12381Element> input(N);
+//     for (size_t i = 0; i < N; i++) {
+//         Fr scalar(i);
+//         input[i] = G * scalar;
+//     }
 
-    // 执行 FFT
-    vector<BLS12381Element> output;
-    FFT(input, output, omega, N);
+//     // 执行 FFT
+//     vector<BLS12381Element> output;
+//     FFT(input, output, omega, N);
 
-    // 执行 IFFT
-    vector<BLS12381Element> inv_output;
-    IFFT(output, inv_output, omega, N);
+//     // 执行 IFFT
+//     vector<BLS12381Element> inv_output;
+//     IFFT(output, inv_output, omega, N);
 
-    // 验证 IFFT 结果是否与输入完全相同
-    bool ok = true;
-    for (size_t i = 0; i < N; i++) {
-        // 如果需要比较前归一化，可调用 BLS12381Element::check() 或对点归一化后比较
-        if (inv_output[i] != input[i]) {
-            cout << "Mismatch at index " << i << endl;
-            ok = false;
-        }
-    }
-    if (ok)
-        cout << "FFT and IFFT verified successfully." << endl;
-    else
-        cout << "FFT/IFFT verification failed." << endl;
+//     // 验证 IFFT 结果是否与输入完全相同
+//     bool ok = true;
+//     for (size_t i = 0; i < N; i++) {
+//         // 如果需要比较前归一化，可调用 BLS12381Element::check() 或对点归一化后比较
+//         if (inv_output[i] != input[i]) {
+//             cout << "Mismatch at index " << i << endl;
+//             ok = false;
+//         }
+//     }
+//     if (ok)
+//         cout << "FFT and IFFT verified successfully." << endl;
+//     else
+//         cout << "FFT/IFFT verification failed." << endl;
 
-    BLS12381Element::finish();
-    return 0;
-}
+//     return 0;
+// }

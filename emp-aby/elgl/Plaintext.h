@@ -12,8 +12,9 @@ class Plaintext{
     void assign_zero();
     void assign_one();
     void set_random();
-    void set_random(unsigned int bound);
-    void assign(const bigint& num);
+    void set_random(mcl::Vint bound);
+    void assign(const std::string num);
+    void assign(const mpz_class num);
     const Fr& get_message() const{return message;};
     void set_message(const Fr& message_){message = message_;};
 
@@ -83,8 +84,11 @@ class Plaintext{
         return !equals(other);
     }
 
-    void pack(octetStream& os) const;
-    void unpack(octetStream& os);
+    void pack(std::stringstream& os) const;
+    void unpack(std::stringstream& os);
+
+    static bool DeserializFromFile(std::string filepath, Plaintext& p);
+    static bool SerializeToFile(std::string filepath, Plaintext& p);
 };
 
 #endif

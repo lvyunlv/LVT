@@ -22,6 +22,7 @@ public:
 
     void setup_ot_ios();
     void send_data(int dst, const void* data, int len, int j = 0, MESSAGE_TYPE msg_type = NORM_MSG);
+    void broadcast_data(int party_num, const void* data, int len, int j, MESSAGE_TYPE msg_type = NORM_MSG);
     void recv_data(int src, void* data, int len, int j = 0, MESSAGE_TYPE msg_type = NORM_MSG);
     void* recv_data(int src, int& len, int j = 0, MESSAGE_TYPE msg_type = NORM_MSG);
 
@@ -147,7 +148,22 @@ void MultiIO::send_data(int dst, const void* data, int len, int j, MESSAGE_TYPE 
         error("sending to invalid party");
     }
 }
+void MultiIO::broadcast_data(int party_num, const void* data, int len, int j, MESSAGE_TYPE msg_type) {
+    ThreadPool pool(party_num<std::thread::hardware_concurrency()? party_num: std::thread::hardware_concurrency());
+    std::vector<std::future<void>> futures;
 
+    for (int i = 1; i <= party_num; ++i) {
+        if (i!= party) {
+            futures.push_back(pool.enqueue([this, i, data, len, j, msg_type]() {
+                this->send_data(i, data, len, j, msg_type);
+            }));
+        }
+    }
+
+    for (auto& fut : futures) {
+        fut.get();
+    }
+}
 void MultiIO::recv_data(int src, void* data, int len, int j, MESSAGE_TYPE msg_type) {
     if (src != 0 && src != party) {
         MultiIOBase* io = ios[src];

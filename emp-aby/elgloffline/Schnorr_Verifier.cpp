@@ -1,0 +1,46 @@
+#include "Schnorr_Verifier.h"
+
+
+Schnorr_Verifier::Schnorr_Verifier(Schnorr_Proof& proof) :
+    P(proof)
+{
+    // rd.resize(proof.n_tilde);
+}
+
+
+
+void Schnorr_Verifier::NIZKPoK(std::vector<BLS12381Element>& c, std::stringstream& ciphertexts, std::stringstream& cleartexts){
+    // int V;
+    std::vector<BLS12381Element> R;
+    R.resize(P.n_tilde);
+    P.set_challenge(ciphertexts);
+    for (size_t i = 0; i < P.n_tilde; i++){
+        // c = g^x 
+        c[i].unpack(ciphertexts);
+    }
+    
+    // cleartexts.get(V);
+    // if (V != P.n_tilde)
+    //     throw length_error("number of received commitments incorrect");
+
+    for (size_t i = 0; i < P.n_tilde; i++){
+        R[i].unpack(ciphertexts);
+    }
+
+    Plaintext z;
+    BLS12381Element Left, Right;
+    // check g^z = R * c^challenge
+    for (size_t i = 0; i < P.n_tilde; i++){
+        z.unpack(cleartexts);
+
+        Right = c[i] * P.challenge.get_message();
+        Right += R[i];
+
+        Left = BLS12381Element(z.get_message());
+
+        if (Left != Right){
+            throw std::runtime_error("invalid proof");
+        }
+    }
+    std::cout << "valid proof" << std::endl;
+}

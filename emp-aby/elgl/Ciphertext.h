@@ -51,12 +51,12 @@ class Ciphertext{
         return *this;
     }
 
-    void pack(octetStream& os) const{
+    void pack(std::stringstream& os) const{
         c0.pack(os);
         c1.pack(os);
     };
 
-    void unpack(octetStream& os){
+    void unpack(std::stringstream& os){
         c0.unpack(os);
         c1.unpack(os);
     };
@@ -65,5 +65,31 @@ class Ciphertext{
         return G1::getSerializedByteSize() * 2;
     };
 
+    static bool DeserializFromFile(std::string filepath, Ciphertext& p){
+        // load message from file
+        std::ifstream file(filepath);
+        if (file.is_open()){
+            p.c0.getPoint().load(file);
+            p.c1.getPoint().load(file);
+            file.close();
+            return true;
+        }else{
+            std::cerr << "Error opening file: " << filepath << std::endl;
+            return false;
+        }
+
+    }
+    static bool SerializeToFile(std::string filepath, Ciphertext& p){
+        // pack message into file
+        std::ofstream file(filepath);
+        if (file.is_open()){
+            p.c0.getPoint().save(file);
+            p.c1.getPoint().save(file);
+            file.close();
+            return true;
+        }else{
+            std::cerr << "Error opening file: " << filepath << std::endl;
+            return false;
+        }
+    }
 };
-#endif

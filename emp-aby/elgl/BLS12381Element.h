@@ -13,7 +13,6 @@ class BLS12381Element{
 
     public:
     static int size() { return 0; }
-    // TODO: check if this is correct
     static int length() { return 384; }
     static std::string type_string() { return "BLS12381"; }
     void print_str() const;
@@ -21,7 +20,6 @@ class BLS12381Element{
     G1 getPoint() { return point; }
 
     static void init();
-    static void finish();
 
     BLS12381Element();
     BLS12381Element(const BLS12381Element& other);
@@ -44,12 +42,12 @@ class BLS12381Element{
     bool operator==(const BLS12381Element& other) const;
     bool operator!=(const BLS12381Element& other) const;
 
-    void pack(octetStream& os, int = -1) const;
-    void unpack(octetStream& os, int = -1);
+    void pack(std::stringstream& os, int = -1) const;
+    void unpack(std::stringstream& os, int = -1);
     
-    void output(ostream& s, bool human) const;
+    void output(std::ostream& s, bool human) const;
 
-    friend ostream& operator<<(ostream& s, const BLS12381Element& x);
+    friend std::ostream& operator<<(std::ostream& s, const BLS12381Element& x);
 };
 
 BLS12381Element operator*(const Fr& a, const BLS12381Element& b);

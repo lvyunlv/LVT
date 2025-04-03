@@ -5,10 +5,6 @@ void BLS12381Element::init()
     initPairing(mcl::BLS12_381);
 }
 
-void BLS12381Element::finish()
-{
-}
-
 BLS12381Element::BLS12381Element(){
     point = G1();
     point.clear();
@@ -85,35 +81,22 @@ bool BLS12381Element::operator!=(const BLS12381Element& other) const{
     return point != other.point;
 }
 
-void BLS12381Element::pack(octetStream& os, int) const{
-    std::ostringstream ss;
-    point.save(ss);
-    std::string str = ss.str();
-    os.append((octet*)str.c_str(), str.size());
+void BLS12381Element::pack(std::stringstream& os, int) const{
+    point.save(os);
 }
 
-void BLS12381Element::unpack(octetStream& os, int){
-    std::string str((char*)os.consume(48), 48);
-    std::istringstream ss(str);
-    try
-    {
-        point.load(ss);
-    } catch(const cybozu::Exception &e)
-    {
-        std::cerr << e.what() << '\n';
-    } catch (const std::exception &e) {
-        std::cerr << "Caught std::exception: " << e.what() << std::endl;
-    }
+void BLS12381Element::unpack(std::stringstream& os, int){
+    point.load(os);
 }
 
-ostream& operator<<(ostream& s, const BLS12381Element& x){
+std::ostream& operator<<(std::ostream& s, const BLS12381Element& x){
     std::ostringstream ss;
     x.point.save(ss);
     s << ss.str();
     return s;
 }
 
-void BLS12381Element::output(ostream& s, bool human) const{
+void BLS12381Element::output(std::ostream& s, bool human) const{
     assert(human);
     s << *this;
 }

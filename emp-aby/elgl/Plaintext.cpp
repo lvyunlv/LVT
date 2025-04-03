@@ -1,4 +1,5 @@
 #include "Plaintext.h"
+#include <fstream>
 // #include "gmpxx.h"
 
 Plaintext::Plaintext(){
@@ -24,7 +25,7 @@ void Plaintext::set_random(){
     message.setByCSPRNG();
 }
 
-void Plaintext::set_random(unsigned int bound){
+void Plaintext::set_random(mcl::Vint bound){
     message.setByCSPRNG();
     if (message.getMpz() > bound){
         message.setMpz(message.getMpz() % bound);
@@ -36,7 +37,11 @@ void Plaintext::setHashof(const void *msg, size_t msgSize){
     message.setHashOf(msg, msgSize);
 }
 
-void Plaintext::assign(const bigint& num){
+void Plaintext::assign(const std::string num){
+    message.setStr(num);
+}
+
+void Plaintext::assign(const mpz_class num){
     message.setMpz(num);
 }
 
@@ -64,11 +69,12 @@ void Plaintext::pow(Plaintext &ret, const Plaintext &x, const Plaintext &exp){
     exp.get_message().getMpz(b_mpz);
     std::string p;
     Fr::getModulo(p);
-    p_mpz.set_str(p, 10);
+    p_mpz.setStr(p, 10);
 
 
     // 计算a^b mod p
-    mpz_powm(result.get_mpz_t(), a_mpz.get_mpz_t(), b_mpz.get_mpz_t(), p_mpz.get_mpz_t());
+    mcl::gmp::powMod(result, a_mpz, b_mpz, p_mpz);
+    ret.assign(result);
     ret.assign(result);
 }
 
@@ -81,18 +87,36 @@ bool Plaintext::equals(const Plaintext &other) const{
     return message == other.message;
 }
 
-void Plaintext::pack(octetStream& os) const{
-    std::ostringstream ss;
-    this->message.save(ss);
-    std::string str = ss.str();
-    os.store_int(str.size(), 8);
-    os.append((octet*)str.c_str(), str.size());
+void Plaintext::pack(std::stringstream& os) const{
+    this->message.save(os);
 
 }
-void Plaintext::unpack(octetStream& os){
-    size_t length = os.get_int(8);
-    assert(length > 0);
-    std::string str((char*)os.consume(length), length);
-    std::istringstream ss(str);
-    message.load(ss);
+void Plaintext::unpack(std::stringstream& os){
+    message.load(os);
+}
+
+bool Plaintext::DeserializFromFile(std::string filepath, Plaintext& p){
+    // load message from file
+    std::ifstream file(filepath);
+    if (file.is_open()){
+        p.message.load(file);
+        file.close();
+        return true;
+    } else {
+        std::cerr << "Unable to open file";
+        return false;
+    }
+}
+
+bool Plaintext::SerializeToFile(std::string filepath, Plaintext& p){
+    // pack message into file
+    std::ofstream file(filepath);
+    if (file.is_open()){
+        p.message.save(file);
+        file.close();
+        return true;
+    }else{
+        std::cerr << "Unable to open file";
+        return false;
+    }
 }
