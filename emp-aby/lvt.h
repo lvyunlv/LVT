@@ -24,12 +24,13 @@ class LVT{
     ThreadPool* pool;
     Fr* rotation;
     std::map<std::string, Fr> P_to_m;
-    vector<vector<BLS12381Element>> ciph_;
+    vector<vector<BLS12381Element>> cip_lut;
 
     std::vector<ELGL_PK> user_pk;
     ELGL_PK global_pk;
     ELGL<IO>* elgl;
     MPIOChannel<IO>* io;
+    std::vector<Ciphertext> cr_i;
     PRG prg;
     Fr alpha;
     size_t tb_size;
@@ -44,8 +45,8 @@ class LVT{
     LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, ELGL<IO>* elgl, std::string tableFile, Fr& alpha, int table_size);
     void DistKeyGen();
     ~LVT();
-    void generate_shares(vector<Plaintext>& lut_share, Plaintext rotation, int num_shares, vector<int64_t> table);
-    void lookup(int64_t* out, bool* in, size_t length);
+    void generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation, vector<int64_t> table);
+    void lookup_online(Plaintext& out, vector<Plaintext>& lut_share, Fr& rotate, Plaintext& x_share, vector<Ciphertext> x_cipher);
 };
 
 template <typename IO>
@@ -56,9 +57,10 @@ LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, EL
     this->pool = pool;
     this->elgl = elgl;
     this->user_pk.resize(num_party);
-    this->user_pk[party] = elgl->kp.get_pk();
+    this->user_pk[party-1] = elgl->kp.get_pk();
     this->tb_size = 1 << table_size;
-    this->ciph_.resize(num_party);
+    this->cip_lut.resize(num_party);
+    this->cr_i.resize(num_party);
 }
 
 template <typename IO>
@@ -66,25 +68,47 @@ LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, EL
     : LVT(num_party, party, io, pool, elgl, alpha, table_size) {
     // load table from file
     deserializeTable(this->table, this->tb_size, table.c_str());
+        // everybody calculate their own P_to_m table
+    for (size_t i = 0; i < tb_size; i++){
+        P_to_m[BLS12381Element(table[i]).getPoint().getStr()] = table[i];
+    }
 }
 
 
 template <typename IO>
-void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext rotation, int num_shares, vector<int64_t> table) {
-    std::vector<Ciphertext> ciphertexts;
+void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation, vector<int64_t> table) {
     vector<std::future<void>> res;
-    // everybody calculate their own P_to_m table
-    for (size_t i = 0; i < tb_size; i++){
-        P_to_m[BLS12381Element(table[i]).getPoint().getStr()] = table[i];
-    }
 
-    res.push_back(pool->enqueue([this, rotation, &ciphertexts, table, lut_share](){
+    res.push_back(pool->enqueue([this, rotation, table, lut_share](){
+        rotation.set_random(tb_size);
+
+        Ciphertext cipher_rot =  elgl->kp.get_pk().encrypt(rotation);
+        cr_i[party-1] = cipher_rot;
+
+        std::stringstream crss;
+        cipher_rot.pack(crss);
+        // broadcast 
+        elgl->serialize_sendall(crss);
+        // accept 
+
+        for (size_t i = 0; i < num_party; i++){
+            if (i+1 != party ){
+                std::stringstream crs;
+                elgl->deserialize_recv(crs, i+1);
+                cr_i[i].unpack(crs);
+            }
+            
+        }
+        
         vector<BLS12381Element> c0;
         vector<BLS12381Element> c1;
         vector<BLS12381Element> c0_;
         vector<BLS12381Element> c1_;
         RotationProof proof(global_pk, global_pk, tb_size);
         RotationVerifier verifier(proof);
+        // gen cri
+
+
         if (party == ALICE) {
             // encrypt the table
             std::stringstream comm, response, encMap;
@@ -119,7 +143,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext rotation, 
             verifier.NIZKPoK(ak, bk, mk, nk, comm_ro, response_ro, global_pk, global_pk);
         }
         // rotate
-        rotation.set_random(tb_size);
+
         Plaintext beta, betak;
         Plaintext::pow(beta, alpha, rotation);
         betak.assign("1");
@@ -132,7 +156,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext rotation, 
             betak *= beta;
             sk[i].set_random();
             dk[i] += BLS12381Element(sk[i]);
-            ek[i] += global_pk.get_pk()[i] * sk[i];
+            ek[i] += global_pk.get_pk() * sk[i];
         }
 
         
@@ -184,7 +208,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext rotation, 
                     l_alice[j] += y2[j];
                 }
                 
-                ciph_[i-1] = y3;
+                cip_lut[i-1] = y3;
             }
             
             for (size_t i = 0; i < tb_size; i++){
@@ -203,20 +227,18 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext rotation, 
                 BLS12381Element l(q);
                 l += c0_[i] * elgl->kp.get_sk().get_sk();
                 L.push_back(l);
-                ciph_[0][i] = BLS12381Element(r) + global_pk * elgl->kp.get_sk().get_sk();
+                cip_lut[0][i] = BLS12381Element(r) + global_pk * elgl->kp.get_sk().get_sk();
             }
 
             std::stringstream commit_ss, response_ss;
             RangeProof proof(global_pk, tb_size);
             RangeProver prover(proof);
-            prover.NIZKPoK(proof, commit_ss, response_ss, global_pk, c0_, ciph_[0], L, lut_share, elgl->kp.get_sk().get_sk());
+            prover.NIZKPoK(proof, commit_ss, response_ss, global_pk, c0_, cip_lut[0], L, lut_share, elgl->kp.get_sk().get_sk());
 
             elgl->serialize_sendall(commit_ss);
             elgl->serialize_sendall(response_ss);
             // serialize d
 
-            
-            
         }else{
             // sample x_i
             mcl::Vint bound = tb_size;
@@ -248,7 +270,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext rotation, 
                 // pack cip_i into cip_i_stream
                 // cip_.pack(cip_i_stream);
             }
-            ciph_[party] = cip_v;
+            cip_lut[party-1] = cip_v;
             RangeProof proof(global_pk, tb_size);
             RangeProver prover(proof);
 
@@ -268,8 +290,8 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext rotation, 
                     elgl->deserialize_recv(commit_ro, i);
                     elgl->deserialize_recv(response_ro, i);
                     RangeVerifier verifier(proof);
-                    verifier.NIZKPoK(user_pk[i], y3, y2, commit_ro, response_ro, c0_, global_pk);
-                    ciph_[i] = y3;
+                    verifier.NIZKPoK(user_pk[i-1], y3, y2, commit_ro, response_ro, c0_, global_pk);
+                    cip_lut[i-1] = y3;
                 }
             }
 
@@ -281,10 +303,13 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext rotation, 
             vector<BLS12381Element> y2;
             vector<BLS12381Element> y3;
             verifier.NIZKPoK(user_pk[0], y3, y2, commit_ro, response_ro, c0_, global_pk);
-            ciph_[0] = y3;
+            cip_lut[0] = y3;
         }
     }
     ));
+    for (auto& v : res)
+        v.get();
+    res.clear();
 }
 
 template <typename IO>
@@ -299,7 +324,7 @@ void LVT<IO>::DistKeyGen(){
                 // rcv other's pk
                 ELGL_PK pk;
                 elgl->deserialize_recv(pk, i);
-                this->user_pk[i] = pk;
+                this->user_pk[i-1] = pk;
             }));
         }
     }
@@ -309,6 +334,32 @@ void LVT<IO>::DistKeyGen(){
     }
 }
 
+template <typename IO>
+void LVT<IO>::lookup_online(Plaintext& out,  vector<Plaintext>& lut_share, Fr& rotate, Plaintext& x_share, vector<Ciphertext> x_cipher){
+    vector<std::future<void>>;
+    res.push_back(pool->enqueue([this, rotate, lut_share, x_share, x_cipher](){
+        // cal c
+        Ciphertext c = cr_i[0] + x_cipher[0];
+        for (int i=1; i<num_party; i++){
+            c += cr_i[i] + x_cipher[i];
+        }
+        Plaintext ui = rotate + x_share;
+        elgl->serialize_sendall(ui);
+        Plaintext tmp;
+        for (size_t i = 1; i <= num_party; i++)
+        {
+            if (i!= party){
+                elgl->deserialize_recv(tmp, i);
+                ui += tmp;
+            }
+        }
+        uint64_t index = ui.get_message().getUint64();
+        out = lut_share[index];
+    }));
+    for (auto& v : res)
+        v.get();
+    res.clear();
+}
 template <typename IO>
 LVT<IO>::~LVT(){
     delete[] rotation;

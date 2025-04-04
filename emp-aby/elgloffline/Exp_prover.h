@@ -2,7 +2,7 @@
 #define EXP_PROVER_H
 
 #include "Exp_proof.h"
-#include "elgl/Ciphertext.h"
+#include "emp-aby/elgl/Ciphertext.h"
 
 class ExpProver{
     vector <Plaintext> k;

@@ -1,4 +1,4 @@
-#include "ELGL_Key.h"
+#include "emp-aby/elgl/ELGL_Key.h"
 #include <fstream>
 ELGL_PK::ELGL_PK(ELGL_SK& sk){
     pk = BLS12381Element(sk.get_sk());

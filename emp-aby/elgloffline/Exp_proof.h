@@ -1,7 +1,7 @@
 #ifndef EXP_PROOF_H
 #define EXP_PROOF_H
 
-#include "elgl/Ciphertext.h"
+#include "emp-aby/elgl/Ciphertext.h"
 
 using namespace std;
 class ExpProof{

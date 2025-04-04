@@ -1,4 +1,4 @@
-#include "BLS12381Element.h"
+#include "emp-aby/elgl/BLS12381Element.h"
 using namespace mcl::bn;
 void BLS12381Element::init()
 {

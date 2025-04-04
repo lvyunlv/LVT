@@ -1,9 +1,9 @@
 #pragma once
 
-#include "Plaintext.h"
-#include "ELGL_Key.h"
-#include "BLS12381Element.h"
-
+#include "emp-aby/elgl/Plaintext.h"
+#include "emp-aby/elgl/ELGL_Key.h"
+#include "emp-aby/elgl/BLS12381Element.h"
+#include <fstream>
 class Ciphertext{
     BLS12381Element c0;
     BLS12381Element c1;

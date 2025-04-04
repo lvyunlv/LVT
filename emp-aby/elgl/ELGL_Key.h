@@ -1,9 +1,9 @@
 #ifndef _ELGL_Key
 #define _ELGL_Key
 
-#include "Ciphertext.h"
-#include "BLS12381Element.h"
-#include "ELGL/Plaintext.h"
+#include "emp-aby/elgl/Ciphertext.h"
+#include "emp-aby/elgl/BLS12381Element.h"
+#include "emp-aby/elgl/Plaintext.h"
 #include <map>
 class ELGL_PK;
 class Ciphertext;
