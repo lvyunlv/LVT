@@ -9,7 +9,7 @@ int main(){
     ELGL_KeyPair key;
     key.generate();
     
-    RangeProof proof(key.get_pk(), 65536, 4);
+    RangeProof proof(key.get_pk(), 65536, 65536);
     Plaintext r;
     r.set_random();
     ELGL_PK pk = key.get_pk();
