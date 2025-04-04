@@ -1,7 +1,7 @@
-#include "emp-aby/elgloffline/ZKP_Enc_Prover.h"
-#include "emp-aby/elgloffline/ZKP_Enc_Verifier.h"
-#include "emp-aby/elgl/ELGL_Key.h"
-#include "emp-aby/elgl/Plaintext.h"
+#include "libelgl/elgloffline/ZKP_Enc_Prover.h"
+#include "libelgl/elgloffline/ZKP_Enc_Verifier.h"
+#include "libelgl/elgl/ELGL_Key.h"
+#include "libelgl/elgl/Plaintext.h"
 
 using namespace std;
 int main(){

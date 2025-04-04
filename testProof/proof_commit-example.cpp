@@ -1,8 +1,8 @@
-#include "emp-aby/elgloffline/Commit_proof.h"
-#include "emp-aby/elgloffline/Commit_prover.h"
-#include "emp-aby/elgloffline/Commit_verifier.h"
-#include "emp-aby/elgl/ELGL_Key.h"
-#include "emp-aby/elgl/Plaintext.h"
+#include "libelgl/elgloffline/Commit_proof.h"
+#include "libelgl/elgloffline/Commit_prover.h"
+#include "libelgl/elgloffline/Commit_verifier.h"
+#include "libelgl/elgl/ELGL_Key.h"
+#include "libelgl/elgl/Plaintext.h"
 
 using namespace std;
 int main(){

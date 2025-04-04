@@ -1,5 +1,5 @@
-#include "emp-aby/elgl/ELGL_Key.h"
-#include "emp-aby/elgl/Plaintext.h"
+#include "libelgl/elgl/ELGL_Key.h"
+#include "libelgl/elgl/Plaintext.h"
 
 int main(){
     BLS12381Element::init();

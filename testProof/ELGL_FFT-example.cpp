@@ -1,6 +1,6 @@
-#include "emp-aby/elgl//FFT.h"
-#include "emp-aby/elgl/Plaintext.h"
-#include "emp-aby/elgl/BLS12381Element.h"
+#include "libelgl/elgl/FFT.h"
+#include "libelgl/elgl/Plaintext.h"
+#include "libelgl/elgl/BLS12381Element.h"
 #include <iostream>
 using namespace std;
 int main() {

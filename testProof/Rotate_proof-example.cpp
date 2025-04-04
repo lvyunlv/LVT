@@ -1,8 +1,8 @@
-#include "emp-aby/elgloffline/RotationProof.h"
-#include "emp-aby/elgloffline/RotationProver.h"
-#include "emp-aby/elgloffline/RotationVerifier.h"
-#include "emp-aby/elgl/ELGL_Key.h"
-#include "emp-aby/elgl/Plaintext.h"
+#include "libelgl/elgloffline/RotationProof.h"
+#include "libelgl/elgloffline/RotationProver.h"
+#include "libelgl/elgloffline/RotationVerifier.h"
+#include "libelgl/elgl/ELGL_Key.h"
+#include "libelgl/elgl/Plaintext.h"
 
 using namespace std;
 int main(){

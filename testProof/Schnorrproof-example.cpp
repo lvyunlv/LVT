@@ -1,8 +1,8 @@
-#include "emp-aby/elgloffline/Schnorr_Proof.h"
-#include "emp-aby/elgloffline/Schnorr_Prover.h"
-#include "emp-aby/elgloffline/Schnorr_Verifier.h"
-#include "emp-aby/elgl/ELGL_Key.h"
-#include "emp-aby/elgl/Plaintext.h"
+#include "libelgl/elgloffline/Schnorr_Proof.h"
+#include "libelgl/elgloffline/Schnorr_Prover.h"
+#include "libelgl/elgloffline/Schnorr_Verifier.h"
+#include "libelgl/elgl/ELGL_Key.h"
+#include "libelgl/elgl/Plaintext.h"
 using namespace std;
 
 int main(){

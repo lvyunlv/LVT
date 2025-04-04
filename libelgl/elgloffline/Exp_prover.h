@@ -1,0 +1,28 @@
+#ifndef EXP_PROVER_H
+#define EXP_PROVER_H
+
+#include "Exp_proof.h"
+#include "libelgl/elgl/Ciphertext.h"
+
+class ExpProver{
+    vector <Plaintext> k;
+    public:
+
+    ExpProver(ExpProof& proof);
+    
+    size_t NIZKPoK(ExpProof& P, std::stringstream&  ciphertexts, std::stringstream&  cleartexts, const vector<BLS12381Element>& g1, const vector<BLS12381Element>& y1, const vector<BLS12381Element>& y2, const vector<Plaintext>& x);
+
+    size_t NIZKPoK(ExpProof& P, std::stringstream&  ciphertexts, std::stringstream&  cleartexts,
+        const BLS12381Element& g1,
+        const vector<BLS12381Element>& y1,
+        const vector<BLS12381Element>& y2,
+        const vector<Plaintext>& x);
+
+    size_t report_size();
+
+    // void report_size(MemoryUsage& res);
+
+    // void report_size(ReportType type, MemoryUsage& res);
+};
+
+#endif

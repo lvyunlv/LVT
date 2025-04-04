@@ -1,7 +1,7 @@
 #Testing macro
 macro (add_test_executable_with_lib _name libs)
 	add_executable(test_${_name} "${_name}.cpp")
-	target_link_libraries(test_${_name} ${EMP-OT_LIBRARIES} mcl ${libs})
+	target_link_libraries(test_${_name} ${EMP-OT_LIBRARIES} mcl libelgl ${libs})
 endmacro()
 
 macro (add_test_case _name)
@@ -26,3 +26,4 @@ add_test_case_with_run(elgl)
 add_test_case_with_run(Point-test)
 add_test_case_with_run(Rotate_proof-example)
 add_test_case_with_run(proof-example)
+add_test_case_with_run(Range-example)

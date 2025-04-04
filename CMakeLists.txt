@@ -18,8 +18,11 @@ include(${CMAKE_FOLDER}/cmake/emp-base.cmake)
 
 find_package(OpenFHE REQUIRED)
 add_subdirectory(external/mcl)
+add_subdirectory(libelgl)
+
 
 include_directories(external/mcl/include)
+include_directories(libelgl)
 
 include_directories(${OPENMP_INCLUDES})
 include_directories(${OpenFHE_INCLUDE})
