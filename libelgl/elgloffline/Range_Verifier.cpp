@@ -1,5 +1,5 @@
 #include "Range_Verifier.h"
-
+#include <future>
 RangeVerifier::RangeVerifier(RangeProof& proof) :
     P(proof)
 {
@@ -22,9 +22,7 @@ void RangeVerifier::NIZKPoK(const BLS12381Element y1, std::vector<BLS12381Elemen
         
         y2[i].unpack(ciphertexts);
         y3[i].unpack(ciphertexts);
-        // print c and y2
-        std::cout << "y2[" << i << "]: " << std::endl;
-        y2[i].print_str();
+
     }
 
     // bigint tmp;
@@ -37,33 +35,33 @@ void RangeVerifier::NIZKPoK(const BLS12381Element y1, std::vector<BLS12381Elemen
     t2.resize(P.n_proofs);
     t3.resize(P.n_proofs);
 
-    BLS12381Element gsr, gsx, gsxhsr;
-    BLS12381Element t1y1lamda, t2y2lamda;        
-    BLS12381Element gsxg1sr, t3y3lambda;
     for (int i = 0; i < P.n_proofs; i++){
         sx_tmp[i].unpack(cleartexts);
         sr_tmp[i].unpack(cleartexts);
         // print sx and sr
 
-        std::cout << "sx[" << i << "]: " << sx_tmp[i].get_message() << std::endl;
-        std::cout << "sr[" << i << "]: " << sr_tmp[i].get_message() << std::endl;
-
         t1[i].unpack(ciphertexts);
         t2[i].unpack(ciphertexts);
         t3[i].unpack(ciphertexts);
-        // print t1 t2 t3
-        std::cout << "t1[" << i << "]: " << std::endl;
-        t1[i].print_str();
-        std::cout << "t2[" << i << "]: " << std::endl;
-        t2[i].print_str();
-        std::cout << "t3[" << i << "]: " << std::endl;
-        t3[i].print_str();
+    }
 
-        // g^sr 1 eq left
-        gsr = BLS12381Element(sr_tmp[i].get_message());
-        gsx = BLS12381Element(sx_tmp[i].get_message());
-        
-        // g^sx * h^sr2 2 eq left
+    std::vector<std::future<void>> futures;
+    futures.reserve(P.n_proofs);
+
+    for (size_t i = 0; i < P.n_proofs; i++){
+        futures.push_back(std::async(std::launch::async, [&, i]() {
+            BLS12381Element gsr, gsx, gsxhsr;
+            BLS12381Element t1y1lamda, t2y2lamda;        
+            BLS12381Element gsxg1sr, t3y3lambda;
+            gsr = BLS12381Element(sr_tmp[i].get_message());
+            gsx = BLS12381Element(sx_tmp[i].get_message());
+            gsxhsr = pk.get_pk() * sr_tmp[i].get_message();
+        gsxhsr += gsx;
+
+        // t1 * y1^lambda 1 eq right 
+        // RangeProof::Power_modp(t1y1lamda, c[i].get_c0(), P.challenge, pk);
+        t1y1lamda = y1 * P.challenge.get_message();
+        t1y1lamda += t1[i];
         gsxhsr = pk.get_pk() * sr_tmp[i].get_message();
         gsxhsr += gsx;
 
@@ -95,6 +93,15 @@ void RangeVerifier::NIZKPoK(const BLS12381Element y1, std::vector<BLS12381Elemen
         if (gsr != t1y1lamda || gsxhsr != t3y3lambda || gsxg1sr != t2y2lamda){
             throw std::runtime_error("invalid proof");
         }
+        }));
     }
+
+    for (auto& future : futures) {
+        future.get();
+    }
+    
+    futures.clear();
+
+
     std::cout << "valid proof" << std::endl;
 }

@@ -1,9 +1,11 @@
 #include "Range_Prover.h"
+#include <future>
 
 RangeProver::RangeProver(RangeProof& proof) {
     r1.resize(proof.n_proofs);
     r2.resize(proof.n_proofs);
 }
+
 
 size_t RangeProver::NIZKPoK(RangeProof& P,
     std::stringstream& ciphertexts,
