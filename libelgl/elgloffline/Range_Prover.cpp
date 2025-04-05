@@ -10,6 +10,8 @@ struct thread_return1 {
     BLS12381Element t1;
     BLS12381Element t2;
     BLS12381Element t3;
+    Plaintext rr1;
+    Plaintext rr2;
 };
 
 struct thread_return2 {
@@ -40,24 +42,27 @@ size_t RangeProver::NIZKPoK(RangeProof& P,
     std::vector<std::future<thread_return1>> futures1;
     futures1.reserve(P.n_proofs);
     for (int i = 0; i < P.n_proofs; i++) {
-        r1[i].set_random();
-        r2[i].set_random();
+        // r1[i].set_random();
+        // r2[i].set_random();
         futures1.emplace_back(std::async(std::launch::async, [this, &pk, &g1, i]() -> thread_return1 {
+            Plaintext rr1, rr2;
+            rr1.set_random();
+            rr2.set_random();
             BLS12381Element c_0, c_1, c_2, c_3;
-            c_0 = BLS12381Element(r1[i].get_message());
+            c_0 = BLS12381Element(rr1.get_message());
 
             // t3 = pk^r1 * g^r2
-            c_1 = pk.get_pk() * r1[i].get_message();
+            c_1 = pk.get_pk() * rr1.get_message();
     
-            c_2 = BLS12381Element(r2[i].get_message());
+            c_2 = BLS12381Element(rr2.get_message());
     
             c_1 += c_2;
     
             // t2 = g1^r1 * g^r2
-            c_2 = g1[i] * r1[i].get_message(); 
-            c_3 = BLS12381Element(r2[i].get_message());
+            c_2 = g1[i] * rr1.get_message(); 
+            c_3 = BLS12381Element(rr2.get_message());
             c_2 += c_3;
-            return {c_0, c_1, c_2};
+            return {c_0, c_1, c_2, rr1, rr2};
         }));
     }
 
@@ -67,6 +72,8 @@ size_t RangeProver::NIZKPoK(RangeProof& P,
         result.t1.pack(ciphertexts);
         result.t3.pack(ciphertexts);
         result.t2.pack(ciphertexts);
+        r1[i] = result.rr1;
+        r2[i] = result.rr2;
     }
     futures1.clear();
 

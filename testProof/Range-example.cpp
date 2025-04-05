@@ -33,11 +33,24 @@ int main(){
 
     RangeProver prover(proof);
     std::stringstream ciphertexts, cleartexts;
+    std::cout << "prove start" << std::endl;
+    auto start = std::chrono::high_resolution_clock::now();
 
     prover.NIZKPoK(proof, ciphertexts, cleartexts, pk, g1, y3, y2, x, r);
+
+    auto end = std::chrono::high_resolution_clock::now(); 
+    std::chrono::duration<double, std::milli> duration = end - start;
+    std::cout << "prove end. Time: " << duration.count() << " ms" << std::endl;
+    std::cout << "prove end" << std::endl;
     // verifier
 
     RangeVerifier verifier(proof);
+    std::cout << "verify start" << std::endl;
+    auto start2 = std::chrono::high_resolution_clock::now();
     verifier.NIZKPoK(y1, y3, y2, ciphertexts, cleartexts, g1, pk);
+    auto end2 = std::chrono::high_resolution_clock::now(); 
+    std::chrono::duration<double, std::milli> duration2 = end2 - start2;
+    std::cout << "verify end. Time: " << duration2.count() << " ms" << std::endl;
+    std::cout << "verify end" << std::endl;
     return 0;
 }
