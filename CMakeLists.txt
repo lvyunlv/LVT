@@ -48,6 +48,6 @@ install(FILES cmake/emp-aby-config.cmake DESTINATION cmake/)
 install(DIRECTORY emp-aby DESTINATION include/)
 
 ENABLE_TESTING()
-# ADD_SUBDIRECTORY(test)
+ADD_SUBDIRECTORY(test)
 ADD_SUBDIRECTORY(testProof)
 

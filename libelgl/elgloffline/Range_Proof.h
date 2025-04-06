@@ -11,13 +11,13 @@ class RangeProof{
     
     const ELGL_PK* pk;
 
-    int n_proofs;
+    size_t n_proofs;
 
     Plaintext challenge;
 
     mpz_class bound;
 
-    RangeProof(const ELGL_PK& pk, const mpz_class& b, int n_proofs = 1) : pk(&pk), n_proofs(n_proofs), bound(b) {};
+    RangeProof(const ELGL_PK& pk, const mpz_class& b, size_t n_proofs = 1) : pk(&pk), n_proofs(n_proofs), bound(b) {};
 
     // protected:
     virtual ~RangeProof() {}

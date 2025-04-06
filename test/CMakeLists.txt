@@ -1,7 +1,7 @@
 #Testing macro
 macro (add_test_executable_with_lib _name libs)
 	add_executable(test_${_name} "${_name}.cpp")
-	target_link_libraries(test_${_name} ${EMP-OT_LIBRARIES} mcl ${libs})
+	target_link_libraries(test_${_name} ${EMP-OT_LIBRARIES} mcl libelgl ${libs})
 endmacro()
 
 macro (add_test_case _name)
@@ -32,3 +32,6 @@ add_test_case_with_runarg(b2aconverter "2")
 add_test_case_with_runarg(a2bconverter "2")
 add_test_case_with_runarg(arithmetic_circ "2")
 add_test_case_with_runarg(mp_circuit "emp-aby/modsum.txt 2")
+add_test_case_with_run(gen_File)
+
+add_test_case_with_run(lvt)

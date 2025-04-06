@@ -18,7 +18,7 @@ void accept_base_connections(int expected_connections, int bind_port, string bin
     int mysocket         = socket(AF_INET, SOCK_STREAM, 0);
 
     setsockopt(mysocket, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse));
-    if (bind(mysocket, (struct sockaddr*)&serv, sizeof(struct sockaddr)) < 0) {
+    if (::bind(mysocket, (struct sockaddr*)&serv, sizeof(struct sockaddr)) < 0) {
         error("error: bind");
     }
 

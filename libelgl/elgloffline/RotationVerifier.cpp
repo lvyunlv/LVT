@@ -92,7 +92,7 @@ void RotationVerifier::NIZKPoK(std::vector<BLS12381Element> dx, std::vector<BLS1
         BLS12381Element L, R;
         Plaintext tmp;
         // use future to speed up
-        std::vector<std::future<void>> futures;
+        std::vector<std::future<void> >futures;
         futures.reserve(P.n_tilde);
         for (size_t i = 0; i < P.n_tilde; i++){
             futures.push_back(std::async(std::launch::async, [&, i](){

@@ -1,33 +1,49 @@
 #pragma once
-#include "emp-aby/elgl/BLS12381Element.h"
+#include "libelgl/elgl/BLS12381Element.h"
 #include "emp-aby/utils.h"
 #include "emp-aby/elgl_interface.hpp"
-#include "emp-aby/elgl/FFT.h"
-#include "emp-aby/elgl/Ciphertext.h"
-#include "emp-aby/elgloffline/RotationProof.h"
-#include "emp-aby/elgloffline/RotationProver.h"
-#include "emp-aby/elgloffline/RotationVerifier.h"
+#include "libelgl/elgl/FFT.h"
+#include "libelgl/elgl/Ciphertext.h"
+#include "libelgl/elgloffline/RotationProof.h"
+#include "libelgl/elgloffline/RotationProver.h"
+#include "libelgl/elgloffline/RotationVerifier.h"
 
-#include "emp-aby/elgloffline/Range_Proof.h"
-#include "emp-aby/elgloffline/Range_Prover.h"
-#include "emp-aby/elgloffline/Range_Verifier.h"
+#include "libelgl/elgloffline/Range_Proof.h"
+#include "libelgl/elgloffline/Range_Prover.h"
+#include "libelgl/elgloffline/Range_Verifier.h"
 
 // #include "cmath"
 // #include <poll.h>
 
 namespace emp{
 
+void deserializeTable(vector<int64_t>& table, const char* filename, size_t table_size = 1<<16) {
+    ifstream inFile(filename, ios::binary);
+    if (!inFile) {
+        cerr << "Error: Unable to open file for reading.\n";
+        return;
+    }
+
+    table.resize(table_size);  // 预分配空间
+    inFile.read(reinterpret_cast<char*>(table.data()), table_size * sizeof(int64_t));
+
+    // 计算实际读取的元素个数
+    size_t elementsRead = inFile.gcount() / sizeof(int64_t);
+    table.resize(elementsRead);  // 调整大小以匹配实际读取的内容
+
+    inFile.close();
+}
+
 template <typename IO>
 class LVT{
     private:
     int num_used = 0;
     ThreadPool* pool;
-    Fr* rotation;
+    Fr rotation;
     std::map<std::string, Fr> P_to_m;
     vector<vector<BLS12381Element>> cip_lut;
 
-    std::vector<ELGL_PK> user_pk;
-    ELGL_PK global_pk;
+
     ELGL<IO>* elgl;
     MPIOChannel<IO>* io;
     std::vector<Ciphertext> cr_i;
@@ -37,6 +53,8 @@ class LVT{
     // void shuffle(Ciphertext& c, bool* rotation, size_t batch_size, size_t i);
 
     public:
+    ELGL_PK global_pk;
+    std::vector<ELGL_PK> user_pk;
     vector<Plaintext> lut_share;
     int num_party;
     int party;
@@ -61,16 +79,17 @@ LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, EL
     this->tb_size = 1 << table_size;
     this->cip_lut.resize(num_party);
     this->cr_i.resize(num_party);
+    BLS12381Element::init();
 }
 
 template <typename IO>
 LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, ELGL<IO>* elgl, string tableFile, Fr& alpha, int table_size)
     : LVT(num_party, party, io, pool, elgl, alpha, table_size) {
     // load table from file
-    deserializeTable(this->table, this->tb_size, table.c_str());
+    deserializeTable(table, tableFile.c_str(), tb_size);
         // everybody calculate their own P_to_m table
-    for (size_t i = 0; i < tb_size; i++){
-        P_to_m[BLS12381Element(table[i]).getPoint().getStr()] = table[i];
+    for (size_t i = 0; i < tb_size * static_cast<size_t>(num_party); i++){
+        P_to_m[BLS12381Element(i).getPoint().getStr()] = i;
     }
 }
 
@@ -78,238 +97,340 @@ LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, EL
 template <typename IO>
 void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation, vector<int64_t> table) {
     vector<std::future<void>> res;
+    vector<BLS12381Element> c0;
+    vector<BLS12381Element> c1;
+    vector<BLS12381Element> c0_;
+    vector<BLS12381Element> c1_;
+    
+    RotationProof rot_proof(global_pk, global_pk, tb_size);
+    RotationVerifier Rot_verifier(rot_proof);
+    RotationProver Rot_prover(rot_proof);
 
-    res.push_back(pool->enqueue([this, rotation, table, lut_share](){
-        rotation.set_random(tb_size);
+    mcl::Vint bound;
+    bound.setStr(to_string(tb_size));
+    RangeProof Range_proof(global_pk, bound);
+    RangeVerifier Range_verifier(Range_proof);
+    RangeProver Range_prover(Range_proof);
 
+    c0.resize(tb_size);
+    c1.resize(tb_size);
+    c0_.resize(tb_size);
+    c1_.resize(tb_size);
+    // rotation.set_random(tb_size); //ok
+    // Ciphertext cipher_rot =  elgl->kp.get_pk().encrypt(rotation); //ok
+    // cr_i[party-1] = cipher_rot;
+
+    // tasks.push_back(pool->enqueue([this, cipher_rot]() {
+    //     elgl->serialize_sendall(cipher_rot);
+    // }));
+
+
+    // for (size_t i = 0; i < num_party; i++) {
+    //     if (i + 1 != party) {
+    //         tasks.push_back(pool->enqueue([this, i]() {
+    //             elgl->deserialize_recv(cr_i[i], i + 1);
+    //         }));
+    //     }
+    // }
+
+    // for (auto & task : tasks) {
+    //     task.get();
+    // }
+    // tasks.clear();
+
+
+    if (party == ALICE) {
+        // encrypt the table
+        std::stringstream comm, response, encMap;
+        elgl->DecProof(comm, response, encMap, table, tb_size, c0, c1);
+        // print comm response encMap
+        
+        std::stringstream comm_, response_, encMap_;
+
+        
+        std::string comm_raw = comm.str();
+        comm_ << base64_encode(comm_raw);
+
+        std::string response_raw = response.str();
+        response_ << base64_encode(response_raw);
+
+        std::string encMap_raw = encMap.str();
+        encMap_ << base64_encode(encMap_raw);
+
+        elgl->serialize_sendall_(response_);
+        elgl->serialize_sendall_(comm_);
+        elgl->serialize_sendall_(encMap_);
+    }else{
+        std::stringstream comm, response, encMap;
+        std::string comm_raw, response_raw, encMap_raw;
+        std::stringstream comm_, response_, encMap_;
+        elgl->deserialize_recv_(response, ALICE);
+        elgl->deserialize_recv_(comm, ALICE);
+        elgl->deserialize_recv_(encMap, ALICE);
+        
+        comm_raw = comm.str();
+        comm_ << base64_decode(comm_raw);
+        response_raw = response.str();
+        response_ << base64_decode(response_raw);
+        encMap_raw = encMap.str();
+        encMap_ << base64_decode(encMap_raw);
+
+        elgl->DecVerify(comm_, response_, encMap_, c0, c1, tb_size);
+    }
+
+    vector<BLS12381Element> ak;
+    vector<BLS12381Element> bk;
+    vector<BLS12381Element> dk;
+    vector<BLS12381Element> ek;
+    ak.resize(tb_size);
+    bk.resize(tb_size);
+    dk.resize(tb_size);
+    ek.resize(tb_size);
+    FFT(c0, ak, alpha, tb_size);
+    FFT(c1, bk, alpha, tb_size);
+
+    if (party == ALICE)
+    {
+        mcl::Vint bound;
+        bound.setStr(to_string(tb_size));
+        rotation.set_random(bound);
         Ciphertext cipher_rot =  elgl->kp.get_pk().encrypt(rotation);
         cr_i[party-1] = cipher_rot;
-
-        std::stringstream crss;
-        cipher_rot.pack(crss);
-        // broadcast 
-        elgl->serialize_sendall(crss);
-        // accept 
-
-        for (size_t i = 0; i < num_party; i++){
-            if (i+1 != party ){
-                std::stringstream crs;
-                elgl->deserialize_recv(crs, i+1);
-                cr_i[i].unpack(crs);
-            }
-            
-        }
-        
-        vector<BLS12381Element> c0;
-        vector<BLS12381Element> c1;
-        vector<BLS12381Element> c0_;
-        vector<BLS12381Element> c1_;
-        RotationProof proof(global_pk, global_pk, tb_size);
-        RotationVerifier verifier(proof);
-        // gen cri
-
-
-        if (party == ALICE) {
-            // encrypt the table
-            std::stringstream comm, response, encMap;
-            elgl->DecProof(comm, response, encMap, table, tb_size, c0, c1);
-            elgl->serialize_sendall(comm);
-            elgl->serialize_sendall(response);
-            elgl->serialize_sendall(encMap);
-        }else{
-            std::stringstream comm, response, encMap;
-            elgl->deserialize_recv(comm, ALICE);
-            elgl->deserialize_recv(response, ALICE);
-            elgl->deserialize_recv(encMap, ALICE);
-            elgl->DecVerify(comm, response, encMap, c0, c1, tb_size);
-        }
-
-        // everybody cal DFT
-        vector<BLS12381Element> ak;
-        vector<BLS12381Element> bk;
-        FFT(c0, ak, alpha, tb_size);
-        FFT(c1, bk, alpha, tb_size);
-        vector<BLS12381Element> dk;
-        vector<BLS12381Element> ek;
-        // read cipher before party
-        for (size_t i = 1; i < party; i++)
-        {
-            vector<BLS12381Element> mk;
-            vector<BLS12381Element> nk;
-            // TODO: read ciphertexts and proof
-            std::stringstream comm_ro, response_ro;
-            elgl->deserialize_recv(comm_ro, i);
-            elgl->deserialize_recv(response_ro, i);
-            verifier.NIZKPoK(ak, bk, mk, nk, comm_ro, response_ro, global_pk, global_pk);
-        }
-        // rotate
 
         Plaintext beta, betak;
         Plaintext::pow(beta, alpha, rotation);
         betak.assign("1");
         vector<Plaintext> sk;
         sk.resize(num_party);
-
         for (size_t i = 0; i < tb_size; i++){
-            dk[i] = ak[i] * betak;
-            ek[i] = ak[i] * betak;
+            dk[i] = ak[i] * betak.get_message();
+            ek[i] = bk[i] * betak.get_message();
             betak *= beta;
             sk[i].set_random();
-            dk[i] += BLS12381Element(sk[i]);
-            ek[i] += global_pk.get_pk() * sk[i];
+            dk[i] += BLS12381Element(sk[i].get_message());
+            ek[i] += global_pk.get_pk() * sk[i].get_message();
         }
-
         
-        RotationProver prover(proof);
         std::stringstream commit_ro, response_ro;
-        prover.NIZKPoK(proof, commit_ro, response_ro, global_pk, global_pk, dk, ek, ak, bk,beta, sk);
+        Rot_prover.NIZKPoK(rot_proof, commit_ro, response_ro, global_pk, global_pk, dk, ek, ak, bk, beta, sk);
 
-        elgl->serialize_sendall(commit_ro);
-        elgl->serialize_sendall(response_ro);
+        elgl->serialize_sendall_(commit_ro);
+        elgl->serialize_sendall_(response_ro);
+        elgl->serialize_sendall(cipher_rot);
+    }
+    
+    for (size_t i = 1; i <= num_party -1; i++){
+        size_t index = i - 1;
+        if (i == party) {
+            continue;
+        }else{
+            res.push_back(pool->enqueue([this, i, index, &c0, &c1, &dk, &ek, &Rot_prover,&rot_proof, &Rot_verifier, &rotation]() {
+                vector<BLS12381Element> mk;
+                vector<BLS12381Element> nk;
+                vector<BLS12381Element> qk;
+                vector<BLS12381Element> wk;
+                mk.resize(tb_size);
+                nk.resize(tb_size);
+                qk.resize(tb_size);
+                wk.resize(tb_size);
+                Ciphertext cipher_rot;
+                // TODO: read ciphertexts and proof
+                std::stringstream comm_ro, response_ro;
+                elgl->deserialize_recv_(comm_ro, i);
+                elgl->deserialize_recv_(response_ro, i);
+                elgl->deserialize_recv(cipher_rot, i);
+                this->cr_i[index] = cipher_rot;
+                Rot_verifier.NIZKPoK(qk, wk, mk, nk, comm_ro, response_ro, this->global_pk, this->global_pk);
+                if (i == this->party - 1)
+                {
+                    vector<BLS12381Element> dk_;
+                    vector<BLS12381Element> ek_;
+                    dk_.resize(tb_size);
+                    ek_.resize(tb_size);
+                    mcl::Vint bound;
+                    bound.setStr(to_string(tb_size));
+                    rotation.set_random(bound);
+                    Ciphertext cipher_rot =  elgl->kp.get_pk().encrypt(rotation);
+                    this->cr_i[this->party] = cipher_rot;
+                    Plaintext beta, betak;
+                    Plaintext::pow(beta, alpha, rotation);
+                    betak.assign("1");
+                    vector<Plaintext> sk;
+                    sk.resize(this->num_party);
+                    for (size_t i = 0; i < tb_size; i++){
+                        dk_[i] = qk[i] * betak.get_message();
+                        ek_[i] = wk[i] * betak.get_message();
+                        betak *= beta;
+                        // TODO: here use power function can parallel
+                        sk[i].set_random();
+                        dk_[i] += BLS12381Element(sk[i].get_message());
+                        ek_[i] += global_pk.get_pk() * sk[i].get_message();
+                    }
+                    std::stringstream commit_ro, response_ro;
+                    Rot_prover.NIZKPoK(rot_proof, commit_ro, response_ro, global_pk, global_pk, dk_, ek_, qk, wk, beta, sk);
+            
+                    elgl->serialize_sendall_(commit_ro);
+                    elgl->serialize_sendall_(response_ro);
+                    elgl->serialize_sendall(cipher_rot);
+                    if (this->num_party == this->party){
+                        dk = dk_;
+                        ek = ek_;
+                    }
+                }
+                
+            }));
+        }
+    }
 
+    for (auto& v : res)
+        v.get();
+    res.clear();
 
+    // all party wait for the last party
+    Ciphertext cipher_rot;
+    // TODO: read ciphertexts and proof
+    std::stringstream comm_ro, response_ro;
+    elgl->deserialize_recv_(comm_ro, num_party);
+    elgl->deserialize_recv_(response_ro, num_party);
+    elgl->deserialize_recv(cipher_rot, num_party);
+    cr_i[num_party-1] = cipher_rot;
+    dk.clear();
+    ek.clear();
+    ak.clear();
+    bk.clear();
+    Rot_verifier.NIZKPoK(dk, ek, ak, bk, comm_ro, response_ro, global_pk, global_pk);
+    
+    IFFT(dk, c0_, alpha, tb_size);
+    IFFT(ek, c1_, alpha, tb_size);
+
+    if (party == ALICE) {
+        vector<Plaintext> y_alice;
+        vector<Plaintext> d;
+        vector<BLS12381Element> L;
+        Plaintext exp;
+        ;
+        exp = Plaintext(Fr(to_string(tb_size))) * Plaintext(Fr(to_string(num_party))) - Plaintext(Fr(to_string(tb_size)));
+        vector<BLS12381Element> l_alice(tb_size,BLS12381Element(exp.get_message()));
         
-        // TODO: read ciphertexts after party
-        for (size_t i = party + 1; i <= num_party; i++){
-            std::stringstream comm_ro, response_ro;
-            elgl->deserialize_recv(comm_ro, i);
-            elgl->deserialize_recv(response_ro, i);
-            verifier.NIZKPoK(dk, ek, ak, bk, comm_ro, response_ro, global_pk, global_pk);
+        vector<BLS12381Element> l_(num_party);
+
+        // for each c_1
+        for (size_t i = 2; i <= num_party; i++)
+        {
+            vector<BLS12381Element> y3;
+            vector<BLS12381Element> y2;
+            std::stringstream commit_ro, response_ro;
+            elgl->deserialize_recv_(commit_ro, i);
+            elgl->deserialize_recv_(response_ro, i);
+            
+            BLS12381Element pk__ = user_pk[i-1].get_pk();
+            Range_verifier.NIZKPoK(pk__, y3, y2, commit_ro, response_ro, c0_, global_pk);
+            for (size_t j = 0; j < tb_size; j++)
+            {
+                l_alice[j] += y2[j];
+            }
+            
+            cip_lut[i-1] = y3;
+        }
+        
+        for (size_t i = 0; i < tb_size; i++){
+            l_alice[i] += c1_[i];
         }
 
-        // do idft and e to a
-        IFFT(dk, c0_, alpha, tb_size);
-        IFFT(ek, c1_, alpha, tb_size);
 
-        // E2A
-        if (party == ALICE) {
-            vector<Plaintext> y_alice;
-            vector<Plaintext> d;
-            vector<BLS12381Element> L;
-            Plaintext exp;
-            exp = tb_size * num_party;
-            exp -= tb_size;
-            vector<BLS12381Element> l_alice(tb_size,BLS12381Element(exp.get_message()));
-            
-            vector<BLS12381Element> l_(num_party);
+        // cal c0^-sk * l
+        for (size_t i = 0; i < tb_size; i++){
+            BLS12381Element Y = l_alice[i] - c0_[i] * elgl->kp.get_sk().get_sk(); 
+            Fr y = P_to_m[Y.getPoint().getStr()];
+            mcl::Vint q_, r_;
+            mcl::Vint y_;
+            y_ = y.getMpz();
+            mcl::gmp::divmod(q_, r_, y_, num_party);
+            Fr q, r;
+            q.setMpz(q_);
+            r.setMpz(r_);
+            lut_share.push_back(r);
+            d.push_back(q);
+            BLS12381Element l(q);
+            l += c0_[i] * elgl->kp.get_sk().get_sk();
+            L.push_back(l);
+            BLS12381Element pk_tmp = global_pk.get_pk();
+            cip_lut[0][i] = BLS12381Element(r) + pk_tmp * elgl->kp.get_sk().get_sk();
+        }
 
-            // for each c_1
-            for (size_t i = 2; i <= num_party; i++)
+        std::stringstream commit_ss, response_ss;
+        
+        
+        Range_prover.NIZKPoK(Range_proof, commit_ss, response_ss, global_pk, c0_, cip_lut[0], L, lut_share, elgl->kp.get_sk().get_sk());
+
+        elgl->serialize_sendall_(commit_ss);
+        elgl->serialize_sendall_(response_ss);
+        // serialize d
+
+    }else{
+        // sample x_i
+        mcl::Vint bound(to_string(tb_size));
+        // std::stringstream l_stream;
+        // std::stringstream cip_i_stream;
+        std::stringstream commit_ss;
+        std::stringstream response_ss;
+        vector<BLS12381Element> l_1_v;
+        vector<BLS12381Element> cip_v;
+        for (size_t i = 0; i < tb_size; i++)
+        {
+            lut_share[i].set_random(bound);
+            // cal l_1
+            BLS12381Element l_1, cip_;
+            Plaintext share_x_i_neg = lut_share[i];
+            Plaintext ski_neg = elgl->kp.get_sk().get_sk();
+            share_x_i_neg.negate();
+            ski_neg.negate();
+            l_1 = BLS12381Element(share_x_i_neg.get_message());
+            l_1 += c0_[i] * ski_neg.get_message();
+            l_1_v.push_back(l_1);
+            // pack l_1 into l_stream
+            // l_1.pack(l_stream);
+
+            // cal cip_i
+            cip_ = BLS12381Element(lut_share[i].get_message());
+            cip_ += global_pk.get_pk() * elgl->kp.get_sk().get_sk();
+            cip_v.push_back(cip_);
+            // pack cip_i into cip_i_stream
+            // cip_.pack(cip_i_stream);
+        }
+        cip_lut[party-1] = cip_v;
+
+        Range_prover.NIZKPoK(Range_proof, commit_ss, response_ss, global_pk, c0_, cip_v, l_1_v, lut_share, elgl->kp.get_sk().get_sk());
+
+        // sendall
+        elgl->serialize_sendall_(commit_ss);
+        elgl->serialize_sendall_(response_ss);
+
+        // receive all others commit and response
+        for (size_t i = 2; i <= num_party; i++){
+            if (i != party)
             {
                 vector<BLS12381Element> y3;
                 vector<BLS12381Element> y2;
                 std::stringstream commit_ro, response_ro;
-                elgl->deserialize_recv(commit_ro, i);
-                elgl->deserialize_recv(response_ro, i);
-                RangeVerifier verifier(proof);
-                verifier.NIZKPoK(user_pk[i-1], y3, y2, commit_ro, response_ro, c0_, global_pk);
-                for (size_t j = 0; j < tb_size; j++)
-                {
-                    l_alice[j] += y2[j];
-                }
-                
+                elgl->deserialize_recv_(commit_ro, i);
+                elgl->deserialize_recv_(response_ro, i);
+                BLS12381Element pk__ = user_pk[i-1].get_pk();
+                Range_verifier.NIZKPoK(pk__, y3, y2, commit_ro, response_ro, c0_, global_pk);
                 cip_lut[i-1] = y3;
             }
-            
-            for (size_t i = 0; i < tb_size; i++){
-                l_alice[i] += c1_[i];
-            }
-
-
-            // cal c0^-sk * l
-            for (size_t i = 0; i < tb_size; i++){
-                BLS12381Element Y = l_alice[i] - c0_[i] * elgl->kp.get_sk().get_sk(); 
-                Fr y = P_to_m[Y.getPoint().getStr()];
-                Fr q, r;
-                mcl::gmp::divmod(q, r, y, num_party);
-                lut_share.push_back(r);
-                d.push_back(q);
-                BLS12381Element l(q);
-                l += c0_[i] * elgl->kp.get_sk().get_sk();
-                L.push_back(l);
-                cip_lut[0][i] = BLS12381Element(r) + global_pk * elgl->kp.get_sk().get_sk();
-            }
-
-            std::stringstream commit_ss, response_ss;
-            RangeProof proof(global_pk, tb_size);
-            RangeProver prover(proof);
-            prover.NIZKPoK(proof, commit_ss, response_ss, global_pk, c0_, cip_lut[0], L, lut_share, elgl->kp.get_sk().get_sk());
-
-            elgl->serialize_sendall(commit_ss);
-            elgl->serialize_sendall(response_ss);
-            // serialize d
-
-        }else{
-            // sample x_i
-            mcl::Vint bound = tb_size;
-            // std::stringstream l_stream;
-            // std::stringstream cip_i_stream;
-            std::stringstream commit_ss;
-            std::stringstream response_ss;
-            vector<BLS12381Element> l_1_v;
-            vector<BLS12381Element> cip_v;
-            for (size_t i = 0; i < tb_size; i++)
-            {
-                lut_share[i].set_random(bound);
-                // cal l_1
-                BLS12381Element l_1, cip_;
-                Plaintext share_x_i_neg = lut_share[i];
-                Plaintext ski_neg = elgl.kp.get_sk();
-                share_x_i_neg.negate();
-                ski_neg.negate();
-                l_1 = BLS12381Element(share_x_i_neg.get_message());
-                l_1 += c0_[i] * ski_neg;
-                l_1_v.push_back(l_1);
-                // pack l_1 into l_stream
-                // l_1.pack(l_stream);
-
-                // cal cip_i
-                cip_ = BLS12381Element(lut_share[i].get_message());
-                cip_ += global_pk.get_pk().getPoint() * elgl->kp.get_sk().get_sk();
-                cip_v.push_back(cip_);
-                // pack cip_i into cip_i_stream
-                // cip_.pack(cip_i_stream);
-            }
-            cip_lut[party-1] = cip_v;
-            RangeProof proof(global_pk, tb_size);
-            RangeProver prover(proof);
-
-            prover.NIZKPoK(proof, commit_ss, response_ss, global_pk, c0_, cip_v, l_1_v, lut_share, elgl->kp.get_sk());
-
-            // sendall
-            elgl->serialize_sendall(commit_ss);
-            elgl->serialize_sendall(response_ss);
-
-            // receive all others commit and response
-            for (size_t i = 2; i <= num_party; i++){
-                if (i != party)
-                {
-                    vector<BLS12381Element> y3;
-                    vector<BLS12381Element> y2;
-                    std::stringstream commit_ro, response_ro;
-                    elgl->deserialize_recv(commit_ro, i);
-                    elgl->deserialize_recv(response_ro, i);
-                    RangeVerifier verifier(proof);
-                    verifier.NIZKPoK(user_pk[i-1], y3, y2, commit_ro, response_ro, c0_, global_pk);
-                    cip_lut[i-1] = y3;
-                }
-            }
-
-            // accept broadcast from alice
-            std::stringstream commit_ro, response_ro;
-            elgl->deserialize_recv(commit_ro, ALICE);
-            elgl->deserialize_recv(response_ro, ALICE);
-            RangeVerifier verifier(proof);
-            vector<BLS12381Element> y2;
-            vector<BLS12381Element> y3;
-            verifier.NIZKPoK(user_pk[0], y3, y2, commit_ro, response_ro, c0_, global_pk);
-            cip_lut[0] = y3;
         }
+
+        // accept broadcast from alice
+        std::stringstream commit_ro, response_ro;
+        elgl->deserialize_recv_(commit_ro, ALICE);
+        elgl->deserialize_recv_(response_ro, ALICE);
+        vector<BLS12381Element> y2;
+        vector<BLS12381Element> y3;
+        BLS12381Element pk__ = user_pk[0].get_pk();
+        Range_verifier.NIZKPoK(pk__, y3, y2, commit_ro, response_ro, c0_, global_pk);
+        cip_lut[0] = y3;
     }
-    ));
-    for (auto& v : res)
-        v.get();
-    res.clear();
 }
 
 template <typename IO>
@@ -317,7 +438,7 @@ void LVT<IO>::DistKeyGen(){
     // first broadcast my own pk
     vector<std::future<void>> tasks;
     global_pk = elgl->kp.get_pk();
-    elgl->serialize_sendall(elgl->kp.get_pk());
+    elgl->serialize_sendall(global_pk);
     for (size_t i = 1; i <= num_party; i++){
         if (i != party){
             tasks.push_back(pool->enqueue([this, i](){
@@ -328,16 +449,21 @@ void LVT<IO>::DistKeyGen(){
             }));
         }
     }
-    // cal global pk_
-    for (auto& pk : user_pk){
-        global_pk += pk;
+    for (auto & task : tasks) {
+        task.get();
     }
+    // cal global pk_
+    BLS12381Element global_pk_ = BLS12381Element(0);
+    for (auto& pk : user_pk){
+        global_pk_ += pk.get_pk();
+    }
+    global_pk.assign_pk(global_pk_);
 }
 
 template <typename IO>
 void LVT<IO>::lookup_online(Plaintext& out,  vector<Plaintext>& lut_share, Fr& rotate, Plaintext& x_share, vector<Ciphertext> x_cipher){
-    vector<std::future<void>>;
-    res.push_back(pool->enqueue([this, rotate, lut_share, x_share, x_cipher](){
+    vector<std::future<void>> res;
+    res.push_back(pool->enqueue([this, rotate, lut_share, x_share, x_cipher, &out](){
         // cal c
         Ciphertext c = cr_i[0] + x_cipher[0];
         for (int i=1; i<num_party; i++){
@@ -362,13 +488,11 @@ void LVT<IO>::lookup_online(Plaintext& out,  vector<Plaintext>& lut_share, Fr& r
 }
 template <typename IO>
 LVT<IO>::~LVT(){
-    delete[] rotation;
-    delete[] lut_share;
 }
 
 }
 
-void serializeTable(vector<int64_t>& table, size_t table_size = 1<<20, const char* filename) {
+void serializeTable(vector<int64_t>& table, const char* filename, size_t table_size = 1<<16) {
     if (table.size() > table_size) {
         cerr << "Error: Table size exceeds the given limit.\n";
         return;
@@ -384,19 +508,3 @@ void serializeTable(vector<int64_t>& table, size_t table_size = 1<<20, const cha
     outFile.close();
 }
 
-void deserializeTable(vector<int64_t>& table, size_t table_size = 1<<20, const char* filename) {
-    ifstream inFile(filename, ios::binary);
-    if (!inFile) {
-        cerr << "Error: Unable to open file for reading.\n";
-        return;
-    }
-
-    table.resize(table_size);  // 预分配空间
-    inFile.read(reinterpret_cast<char*>(table.data()), table_size * sizeof(int64_t));
-
-    // 计算实际读取的元素个数
-    size_t elementsRead = inFile.gcount() / sizeof(int64_t);
-    table.resize(elementsRead);  // 调整大小以匹配实际读取的内容
-
-    inFile.close();
-}

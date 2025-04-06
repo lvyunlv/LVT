@@ -137,6 +137,10 @@ int main(int argc, char** argv) {
     std::cout << party << "\tsetup\t" << timeused / 1000 << "ms" << std::endl;
 
     test_lookup(io, lut, he, table, 1 * n);
+    test_lookup(io, lut, he, table, 1 * n);
+    test_lookup(io, lut, he, table, 1 * n);
+    test_lookup(io, lut, he, table, 1 * n);
+    test_lookup(io, lut, he, table, 1 * n);
     test_generate_shares(he, lut, io, n);
     delete io;
 }

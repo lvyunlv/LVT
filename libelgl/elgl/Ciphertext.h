@@ -65,12 +65,15 @@ class Ciphertext{
         return G1::getSerializedByteSize() * 2;
     };
 
-    static bool DeserializFromFile(std::string filepath, Ciphertext& p){
+    static bool DeserializFromFile(std::string filepath, std::vector<Ciphertext>& p, size_t n){
         // load message from file
         std::ifstream file(filepath);
         if (file.is_open()){
-            p.c0.getPoint().load(file);
-            p.c1.getPoint().load(file);
+            for (size_t i = 0; i < n; i++)
+            {
+                p[i].c0.getPoint().load(file);
+                p[i].c1.getPoint().load(file);
+            }
             file.close();
             return true;
         }else{
@@ -79,12 +82,15 @@ class Ciphertext{
         }
 
     }
-    static bool SerializeToFile(std::string filepath, Ciphertext& p){
+    static bool SerializeToFile(std::string filepath, std::vector<Ciphertext>& p, size_t n){
         // pack message into file
         std::ofstream file(filepath);
         if (file.is_open()){
-            p.c0.getPoint().save(file);
-            p.c1.getPoint().save(file);
+            for (size_t i = 0; i < n; i++)
+            {
+                p[i].c0.getPoint().save(file);
+                p[i].c1.getPoint().save(file);
+            }
             file.close();
             return true;
         }else{

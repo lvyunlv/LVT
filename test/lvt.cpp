@@ -13,7 +13,15 @@ int num_party;
 
 // template <typename IO>
 
+template <typename IO>
+void test_generate_shares(ELGL<IO>* he, LVT<IO>* lut, MPIOChannel<IO>* io){
+    vector<Plaintext> lut_share;
+    Plaintext rotation;
+    lut->generate_shares(lut_share, rotation, lut->table);
+}
+
 int main(int argc, char** argv) {
+    BLS12381Element::init();
     if (argc < 4) {
         std::cout << "Format: lut PartyID port num_parties" << std::endl;
         return 0;
@@ -54,14 +62,19 @@ int main(int argc, char** argv) {
     ELGL<MultiIOBase>* elgl = new ELGL<MultiIOBase>(num_party, io, &pool, party);
 
     // table has been loaded from a file
-    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl);
-    for (int i = 0; i < party; ++i) {
-        // receive broadcast
-    }
-    // encrypt LUT (only party 0) and rotate
-    if (party == 0) {
-        // encrypt LUT
-        
-    }
-    
+    Plaintext alpha;
+    alpha.assign("0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000000");
+    Fr alpha_fr = alpha.get_message();
+    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "/Users/lvbao/Desktop/ScalableMixedModeMPC/table.txt",alpha_fr, 1);
+    std::cout << "dist key gen" << std::endl;
+    // dist key gen
+    lvt->DistKeyGen();
+    std::cout << "dist key gen done" << std::endl;
+    // print gpk
+    std::cout << "global pk: " << lvt->global_pk.get_pk().getPoint().getStr() << std::endl;
+    std::cout << "pk0: " << lvt->user_pk[0].get_pk().getPoint().getStr() << std::endl;
+    std::cout << "pk1: " << lvt->user_pk[1].get_pk().getPoint().getStr() << std::endl;
+
+    test_generate_shares(elgl, lvt, io);
+    return 0;
 }

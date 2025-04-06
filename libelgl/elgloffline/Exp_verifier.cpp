@@ -94,7 +94,7 @@ void ExpVerifier::NIZKPoK(BLS12381Element& g1, vector<BLS12381Element>& y1,vecto
         Right1 += Right2;
 
         if (v != Right1 ){
-            throw runtime_error("invalid proof");
+            throw runtime_error("invalid exp proof");
         }
     }
     cout << "valid proof" << endl;

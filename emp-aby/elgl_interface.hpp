@@ -3,17 +3,60 @@
 
 
 #include "emp-aby/io/mp_io_channel.h"
-#include "emp-aby/elgl/Ciphertext.h"
-#include "emp-aby/elgl/ELGL_Key.h"
-#include "emp-aby/elgl/Plaintext.h"
-#include "emp-aby/elgloffline/Exp_proof.h"
-#include "emp-aby/elgloffline/Exp_prover.h"
-#include "emp-aby/elgloffline/Exp_verifier.h"
+#include "libelgl/elgl/Ciphertext.h"
+#include "libelgl/elgl/ELGL_Key.h"
+#include "libelgl/elgl/Plaintext.h"
+#include "libelgl/elgloffline/Exp_proof.h"
+#include "libelgl/elgloffline/Exp_prover.h"
+#include "libelgl/elgloffline/Exp_verifier.h"
+
+#include <string>
+#include <sstream>
+#include <vector>
 
 // // Required to compile on mac, remove on ubuntu
 // #ifdef __APPLE__
 //     std::shared_ptr<lbcrypto::PRNG> lbcrypto::PseudoRandomNumberGenerator::m_prng = nullptr;
 // #endif
+
+
+static const std::string base64_chars =
+             "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+             "abcdefghijklmnopqrstuvwxyz"
+             "0123456789+/";
+
+std::string base64_encode(const std::string &in) {
+    std::string out;
+    int val=0, valb=-6;
+    for (unsigned char c : in) {
+        val = (val<<8) + c;
+        valb += 8;
+        while (valb>=0) {
+            out.push_back(base64_chars[(val>>valb)&0x3F]);
+            valb-=6;
+        }
+    }
+    if (valb>-6) out.push_back(base64_chars[((val<<8)>>(valb+8))&0x3F]);
+    while (out.size()%4) out.push_back('=');
+    return out;
+}
+
+std::string base64_decode(const std::string &in) {
+    std::vector<int> T(256,-1);
+    for (int i=0; i<64; i++) T[base64_chars[i]] = i;
+    std::string out;
+    int val=0, valb=-8;
+    for (unsigned char c : in) {
+        if (T[c] == -1) break;
+        val = (val<<6) + T[c];
+        valb += 6;
+        if (valb>=0) {
+            out.push_back(char((val>>valb)&0xFF));
+            valb-=8;
+        }
+    }
+    return out;
+}
 
 namespace emp {
     // whaaaaat?
@@ -55,44 +98,23 @@ namespace emp {
                         this->mult_depth = 1;
                     }
                 }
-                if (Ciphertext::DeserializFromFile("data/cc_" + std::to_string(party) + "_" + std::to_string(num_party) + ".txt", ciphertext)){
-                    
-                    ELGL_PK::DeserializeFromFile("data/pk_" + std::to_string(party) + "_" + std::to_string(num_party) + ".txt", pk);
-                    ELGL_PK::DeserializeFromFile("data/kp_public_" + std::to_string(party) + "_" + std::to_string(num_party) + ".txt", kp.publicKey);
-                    ELGL_SK::DeserializeFromFile("data/kp_secret_" + std::to_string(party) + "_" + std::to_string(num_party) + ".txt", kp.secretKey);
-                    // Ciphertext::DeserializeFromFile("data/eval_mult_key_" + std::to_string(party) + "_" + std::to_string(num_party) + ".txt", kp.evalMultKey);
-
-                }else{
-                    if (keygen){
-                        kp.generate();
-                    }
+                if (keygen){
+                    kp.generate();
                 }
             }
 
             ~ELGL(){
-                ELGL_PK::SerializeToFile("data/pk_" + std::to_string(party) + "_" + std::to_string(num_party) + ".txt", pk);
-                ELGL_PK::SerializeToFile("data/kp_public_" + std::to_string(party) + "_" + std::to_string(num_party) + ".txt", kp.publicKey);
-                ELGL_SK::SerializeToFile("data/kp_secret_" + std::to_string(party) + "_" + std::to_string(num_party) + ".txt", kp.secretKey);
-
-            }
-
-            void encryptMap(vector<Ciphertext> vec, int64_t* table, unsigned table_size){
-                vec.clear();
-                Ciphertext ct;
-                for (size_t i = 0; i < table_size; i++){
-                    pk.encrypt(ct, table[i]);
-                    vec.push_back(ct);
-                }
             }
 
             // 证明： (g, h, g^x, h^x)
-            void DecProof(std::stringstream& commitment, std::stringstream& response, std::stringstream& encMap, int64_t* table, unsigned table_size,vector<BLS12381Element>& EncTable_c0, vector<BLS12381Element>& EncTable_c1){
+            void DecProof(std::stringstream& commitment, std::stringstream& response, std::stringstream& encMap, vector<int64_t> table, unsigned table_size,vector<BLS12381Element>& EncTable_c0, vector<BLS12381Element>& EncTable_c1){
                 ExpProof proof(pk_global, table_size);
                 vector<BLS12381Element> y3;
                 vector<Plaintext> x(table_size);
                 // convert int 64 to Plaintext
                 for(size_t i = 0; i < table_size; i++){
-                    x[i] = Plaintext(strconv.Itoa(table[i]));
+                    
+                    x[i] = Plaintext(Fr(table[i]));
                 }
                 EncTable_c0.resize(table_size);
                 EncTable_c1.resize(table_size);
@@ -102,15 +124,16 @@ namespace emp {
                     r1.set_random();
                     //y1 = g^r, y2 = gpk^r
                     EncTable_c0[i] = BLS12381Element(r1.get_message());
-                    y3[i] = pk_global * r1.get_message();
-                    EncTable_c1[i] =  y3[i] + BLS12381Element(x[i]);
+                    y3[i] = pk_global.get_pk() * r1.get_message();
+                    EncTable_c1[i] =  y3[i] + BLS12381Element(x[i].get_message());
                     EncTable_c1[i].pack(encMap);
                 }
                 std::cout << "finish g1,y1,y2 gen" << std::endl;
                 std::cout << "prove start" << std::endl;
 
                 ExpProver prover(proof);
-                prover.NIZKPoK(proof, commitment, response, pk_global, EncTable_c0, y3, x);
+                BLS12381Element pk_ = pk_global.get_pk();
+                prover.NIZKPoK(proof, commitment, response, pk_, EncTable_c0, y3, x);
             }
 
             void DecVerify(std::stringstream& commitment, std::stringstream& response, std::stringstream& encMap, vector<BLS12381Element>& EncTable_c0, vector<BLS12381Element>& EncTable_c1, unsigned table_size){
@@ -118,7 +141,9 @@ namespace emp {
                 ExpProof proof(pk_global, table_size);
                 ExpVerifier verifier(proof);
                 vector<BLS12381Element> y3;
-                verifier.NIZKPoK(pk_global, EncTable_c0, y3, commitment, response);
+                y3.resize(table_size);
+                BLS12381Element pk_ = pk_global.get_pk();
+                verifier.NIZKPoK(pk_, EncTable_c0, y3, commitment, response);
 
                 for (size_t i = 0; i < 1<< table_size; i++){
                     EncTable_c1[i].unpack(encMap);
@@ -163,6 +188,27 @@ namespace emp {
             free(c);
             s.clear();
         }
+
+        void serialize_sendall_(std::stringstream& s, int j = 0, MESSAGE_TYPE mt = NORM_MSG) {
+            string str      = s.str();
+                int string_size = str.size();
+                char* c         = (char*)malloc(string_size);
+                s.read(c, string_size);
+            std::vector<std::future<void>> res;
+            for (int i = 1; i <= num_party; ++i) {
+                if (i != party) {
+                    res.push_back(std::async([this, i, c, string_size, j, mt]() {
+                        io->send_data(i, c, string_size, j, mt);
+                        io->flush(i, j);
+                    }));
+                }
+            }
+            for (auto& fut : res)
+                fut.get();
+            res.clear();
+            free(c);
+            s.clear();
+        }
         
             template <typename T>
             void deserialize_recv(T& obj, int i, int j = 0, MESSAGE_TYPE mt = NORM_MSG) {
@@ -174,6 +220,14 @@ namespace emp {
                 free(c);
                 obj.unpack(s);
                 s.clear();
+            }
+
+            void deserialize_recv_(std::stringstream& s, int i, int j = 0, MESSAGE_TYPE mt = NORM_MSG) {
+                int string_size = 0;
+                char* c         = (char*)io->recv_data(i, string_size, j, mt);
+                s.write(c, string_size);
+                // printf("%d %d\n", party, string_size);
+                free(c);
             }
     };
 
