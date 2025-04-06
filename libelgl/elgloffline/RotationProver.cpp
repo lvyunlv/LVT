@@ -32,7 +32,6 @@ size_t RotationProver::NIZKPoK(RotationProof& P, std::stringstream& ciphertexts,
 
     // ciphertexts.resize_precise(allocate);
     // ciphertexts.reset_write_head();
-        std::cout << "111111" << std::endl;
     for (size_t i = 0; i < P.n_tilde; i++)
     {
         ax[i].pack(ciphertexts);
@@ -41,7 +40,6 @@ size_t RotationProver::NIZKPoK(RotationProof& P, std::stringstream& ciphertexts,
         ex[i].pack(ciphertexts);
     }
 
-    std::cout << "222222" << std::endl;
     // PRNG G;
     // G.ReSeed();
 
@@ -55,7 +53,6 @@ size_t RotationProver::NIZKPoK(RotationProof& P, std::stringstream& ciphertexts,
     std::vector<BLS12381Element> ck(P.n_tilde + 1);
     ck[0] = g;
 
-    std::cout << "333333" << std::endl;
 
     std::vector<Plaintext> z(3);
     std::stringstream tmp_pack;
@@ -71,7 +68,6 @@ size_t RotationProver::NIZKPoK(RotationProof& P, std::stringstream& ciphertexts,
         z[i].setHashof(tmp_pack.str().c_str(), tmp_pack.str().size());
     }
     
-        std::cout << "444444" << std::endl;
     mk.resize(P.n_tilde);
     tk.resize(P.n_tilde);
     uk.resize(P.n_tilde);
@@ -140,10 +136,7 @@ size_t RotationProver::NIZKPoK(RotationProof& P, std::stringstream& ciphertexts,
     for (size_t i = 0; i < P.n_tilde; ++i) {
         futures.push_back(std::async(std::launch::async, [&, i]() -> PackResult {
             std::stringstream tmp_pack;
-    
-            if (i % 1000 == 0) {
-                std::cout << "循环iiiiii: " << i << std::endl;
-            }
+
     
             mk[i].set_random();
             uk[i].set_random();
@@ -207,7 +200,6 @@ size_t RotationProver::NIZKPoK(RotationProof& P, std::stringstream& ciphertexts,
 
     // fiat shamir
 
-    std::cout << "5555555" << std::endl;
     P.set_challenge(ciphertexts);
 
     std::vector<Plaintext> t_star(P.n_tilde + 1);
@@ -220,7 +212,6 @@ size_t RotationProver::NIZKPoK(RotationProof& P, std::stringstream& ciphertexts,
     Plaintext betak(1);
 
 
-    std::cout << "6666666" << std::endl;
     // t_star[0].assign_zero();
     for (size_t i = 0; i < P.n_tilde; i++){
         t_star[i+1] = beta * t_star[i];
@@ -248,7 +239,6 @@ size_t RotationProver::NIZKPoK(RotationProof& P, std::stringstream& ciphertexts,
     // cleartexts.resize_precise(allocate);
     // cleartexts.reset_write_head();
 
-    std::cout << "77777777" << std::endl;
 
     sigma.pack(cleartexts);
     eta.pack(cleartexts);

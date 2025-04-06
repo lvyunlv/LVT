@@ -22,7 +22,8 @@ int main() {
     cout << "g: " << g.get_message() << endl;
 
     exp.assign((p - 1)/N);
-    cout << "exp = (p-1)/N: " << exp.get_message() << endl;
+    cout << "exp = (p-1)/N: " << exp.get_message().getStr() << endl;
+
 
     // 计算 alpha = g^exp
     Plaintext::pow(alpha, g, exp);

@@ -119,12 +119,13 @@ namespace emp {
                 EncTable_c0.resize(table_size);
                 EncTable_c1.resize(table_size);
                 y3.resize(table_size);
-                Plaintext r1,r2;
+                vector<Plaintext> r1;
+                r1.resize(table_size);
                 for(size_t i = 0; i < table_size; i++){
-                    r1.set_random();
+                    r1[i].set_random();
                     //y1 = g^r, y2 = gpk^r
-                    EncTable_c0[i] = BLS12381Element(r1.get_message());
-                    y3[i] = pk_global.get_pk() * r1.get_message();
+                    EncTable_c0[i] = BLS12381Element(r1[i].get_message());
+                    y3[i] = pk_global.get_pk() * r1[i].get_message();
                     EncTable_c1[i] =  y3[i] + BLS12381Element(x[i].get_message());
                     EncTable_c1[i].pack(encMap);
                 }
@@ -133,7 +134,7 @@ namespace emp {
 
                 ExpProver prover(proof);
                 BLS12381Element pk_ = pk_global.get_pk();
-                prover.NIZKPoK(proof, commitment, response, pk_, EncTable_c0, y3, x);
+                prover.NIZKPoK(proof, commitment, response, pk_, EncTable_c0, y3, r1);
             }
 
             void DecVerify(std::stringstream& commitment, std::stringstream& response, std::stringstream& encMap, vector<BLS12381Element>& EncTable_c0, vector<BLS12381Element>& EncTable_c1, unsigned table_size){
@@ -145,7 +146,7 @@ namespace emp {
                 BLS12381Element pk_ = pk_global.get_pk();
                 verifier.NIZKPoK(pk_, EncTable_c0, y3, commitment, response);
 
-                for (size_t i = 0; i < 1<< table_size; i++){
+                for (size_t i = 0; i < table_size; i++){
                     EncTable_c1[i].unpack(encMap);
                 }
             }

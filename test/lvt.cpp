@@ -63,9 +63,9 @@ int main(int argc, char** argv) {
 
     // table has been loaded from a file
     Plaintext alpha;
-    alpha.assign("0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000000");
+    alpha.assign("46605497109352149548364111935960392432509601054990529243781317021485154656122");
     Fr alpha_fr = alpha.get_message();
-    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "/Users/lvbao/Desktop/ScalableMixedModeMPC/table.txt",alpha_fr, 1);
+    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "/Users/lvbao/Desktop/ScalableMixedModeMPC/table.txt",alpha_fr, 16);
     std::cout << "dist key gen" << std::endl;
     // dist key gen
     lvt->DistKeyGen();

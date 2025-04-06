@@ -8,7 +8,7 @@ using namespace std;
 int main() {
     BLS12381Element::init();
     vector<int64_t> table;
-    table.resize(1<<1);
+    table.resize(1<<16);
     Plaintext p;
     for (size_t i = 0; i < table.size(); i++)
     {

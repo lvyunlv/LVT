@@ -72,6 +72,7 @@ LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, EL
     this->io = io;
     this->party = party;
     this->num_party = num_party;
+    this->alpha = alpha;
     this->pool = pool;
     this->elgl = elgl;
     this->user_pk.resize(num_party);
@@ -96,6 +97,7 @@ LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, EL
 
 template <typename IO>
 void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation, vector<int64_t> table) {
+    std::cout <<"alpha:" << alpha << std::endl;
     vector<std::future<void>> res;
     vector<BLS12381Element> c0;
     vector<BLS12381Element> c1;
@@ -144,16 +146,11 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         std::stringstream comm, response, encMap;
         elgl->DecProof(comm, response, encMap, table, tb_size, c0, c1);
         // print comm response encMap
-        
-        std::stringstream comm_, response_, encMap_;
-
-        
+        std::stringstream comm_, response_, encMap_;        
         std::string comm_raw = comm.str();
         comm_ << base64_encode(comm_raw);
-
         std::string response_raw = response.str();
         response_ << base64_encode(response_raw);
-
         std::string encMap_raw = encMap.str();
         encMap_ << base64_encode(encMap_raw);
 
@@ -174,7 +171,6 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         response_ << base64_decode(response_raw);
         encMap_raw = encMap.str();
         encMap_ << base64_decode(encMap_raw);
-
         elgl->DecVerify(comm_, response_, encMap_, c0, c1, tb_size);
     }
 
@@ -186,36 +182,84 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
     bk.resize(tb_size);
     dk.resize(tb_size);
     ek.resize(tb_size);
-    FFT(c0, ak, alpha, tb_size);
-    FFT(c1, bk, alpha, tb_size);
+    mcl::Unit N(tb_size);
+    FFT(c0, ak, alpha, N);
+    FFT(c1, bk, alpha, N);
+    Plaintext alpha_inv;
+    alpha_inv.assign("39946203658912138033548902979326710369783929861401978374778960978475302091493");
+    vector<BLS12381Element> c0_fft;
+    vector<BLS12381Element> c1_fft;
+    Fr N_inv;
+    // Fr::inv(omega_inv, alpha);
+    Fr::inv(N_inv, N);
+    cout << "N * N_inv: " << N * N_inv << endl;
+
+    cout << "alpha * alpha_inv: " << alpha * alpha_inv.get_message()  << endl;
+
+    FFT(ak, c0_fft, alpha_inv.get_message(), N);
+    FFT(bk, c1_fft, alpha_inv.get_message(), N);
+
+    for (size_t i = 0; i < tb_size; i++)
+    {
+        c0_fft[i] *= N_inv; 
+        c1_fft[i] *= N_inv;
+    }
+    
+    for (size_t i = 0; i < tb_size; ++i) {
+        if (c0[i] != c0_fft[i]){
+            std::cout << i << "错误" << std::endl;
+            // return 1;
+        }
+        if (c1_fft[i] != c1[i] ){
+            std::cout << i << "错误" << std::endl;
+            // return 1;
+        }
+    }
+
+
 
     if (party == ALICE)
     {
         mcl::Vint bound;
         bound.setStr(to_string(tb_size));
         rotation.set_random(bound);
+
         Ciphertext cipher_rot =  elgl->kp.get_pk().encrypt(rotation);
         cr_i[party-1] = cipher_rot;
 
-        Plaintext beta, betak;
+        Plaintext beta;
+        vector<Plaintext> betak;
+        betak.resize(tb_size);
+
         Plaintext::pow(beta, alpha, rotation);
-        betak.assign("1");
         vector<Plaintext> sk;
-        sk.resize(num_party);
-        for (size_t i = 0; i < tb_size; i++){
-            dk[i] = ak[i] * betak.get_message();
-            ek[i] = bk[i] * betak.get_message();
-            betak *= beta;
+        sk.resize(tb_size);
+        for (size_t i = 0; i < tb_size; i++)
+        {
             sk[i].set_random();
-            dk[i] += BLS12381Element(sk[i].get_message());
-            ek[i] += global_pk.get_pk() * sk[i].get_message();
+        }
+        
+        for (size_t i = 0; i < tb_size; i++){
+            if (i==0) {betak[i].assign(1);}
+            else {betak[i] = betak[i - 1] * beta;}
+            dk[i] = BLS12381Element(1) * sk[i].get_message();
+            dk[i] += ak[i] * betak[i].get_message();
+            // e_k = bk ^ betak * h^sk
+            ek[i] = global_pk.get_pk() * sk[i].get_message();
+            ek[i] += bk[i] * betak[i].get_message();
         }
         
         std::stringstream commit_ro, response_ro;
         Rot_prover.NIZKPoK(rot_proof, commit_ro, response_ro, global_pk, global_pk, dk, ek, ak, bk, beta, sk);
+        std::stringstream comm_ro_, response_ro_;        
+        std::string comm_raw = commit_ro.str();
+        comm_ro_ << base64_encode(comm_raw);
+        std::string response_raw = response_ro.str();
+        response_ro_ << base64_encode(response_raw);
+        // print comm_ response_ cipher_rot
 
-        elgl->serialize_sendall_(commit_ro);
-        elgl->serialize_sendall_(response_ro);
+        elgl->serialize_sendall_(comm_ro_);
+        elgl->serialize_sendall_(response_ro_);
         elgl->serialize_sendall(cipher_rot);
     }
     
@@ -236,11 +280,21 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
                 Ciphertext cipher_rot;
                 // TODO: read ciphertexts and proof
                 std::stringstream comm_ro, response_ro;
+                std::string comm_raw, response_raw;
+                std::stringstream comm_, response_;
+
                 elgl->deserialize_recv_(comm_ro, i);
                 elgl->deserialize_recv_(response_ro, i);
                 elgl->deserialize_recv(cipher_rot, i);
+
+                comm_raw = comm_ro.str();
+                response_raw = response_ro.str();
+
+                comm_ << base64_decode(comm_raw);
+                response_ << base64_decode(response_raw);
+                
                 this->cr_i[index] = cipher_rot;
-                Rot_verifier.NIZKPoK(qk, wk, mk, nk, comm_ro, response_ro, this->global_pk, this->global_pk);
+                Rot_verifier.NIZKPoK(qk, wk, mk, nk, comm_, response_, this->global_pk, this->global_pk);
                 if (i == this->party - 1)
                 {
                     vector<BLS12381Element> dk_;
