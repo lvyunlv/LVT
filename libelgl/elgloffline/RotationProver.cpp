@@ -32,6 +32,14 @@ size_t RotationProver::NIZKPoK(RotationProof& P, std::stringstream& ciphertexts,
 
     // ciphertexts.resize_precise(allocate);
     // ciphertexts.reset_write_head();
+    assert(ax.size() >= P.n_tilde);
+    assert(bx.size() >= P.n_tilde);
+    assert(dx.size() >= P.n_tilde);
+    assert(ex.size() >= P.n_tilde);
+    std::cout << "ax.size():" << ax.size() << std::endl;
+    std::cout << "bx.size():" << bx.size() << std::endl;
+    std::cout << "dx.size():" << dx.size() << std::endl;
+    std::cout << "ex.size():" << ex.size() << std::endl;
     for (size_t i = 0; i < P.n_tilde; i++)
     {
         ax[i].pack(ciphertexts);
@@ -40,9 +48,9 @@ size_t RotationProver::NIZKPoK(RotationProof& P, std::stringstream& ciphertexts,
         ex[i].pack(ciphertexts);
     }
 
+    std::cout << "finish packing " << std::endl;
     // PRNG G;
     // G.ReSeed();
-
     // gen m_tilde b
 
     m_tilde.set_random();
@@ -87,52 +95,6 @@ size_t RotationProver::NIZKPoK(RotationProof& P, std::stringstream& ciphertexts,
         ck[i+1] += pk.get_pk() * tk[i].get_message();
     }
     
-
-
-    // for (size_t i = 0; i< P.n_tilde; i ++){
-    //     tmp_pack.str("");
-    //     tmp_pack.clear();
-    //     if (i % 1000 == 0){
-    //         std::cout << "循环iiiiii: " << i << std::endl;
-    //     }
-
-    //     mk[i].set_random();
-    //     tk[i].set_random();
-    //     uk[i].set_random();
-    //     vk[i].set_random();
-    //     m_tilde_k[i].set_random();
-
-    //     ax[i].pack(tmp_pack);
-    //     bx[i].pack(tmp_pack);
-    //     dx[i].pack(tmp_pack);
-    //     ex[i].pack(tmp_pack);
-    //     tmp_pack << i;
-    //     yk[i].setHashof(tmp_pack.str().c_str(), tmp_pack.str().size());
-
-    //     ck[i+1] = ck[i] * beta.get_message();
-    //     ck[i+1] += pk.get_pk() * tk[i].get_message();
-    //     ck[i+1].pack(ciphertexts);
-
-    //     CK_tmp = ck[i] * b.get_message();
-    //     CK_tmp += pk.get_pk() * mk[i].get_message();
-    //     C += CK_tmp * yk[i].get_message();
-
-    //     // 3.29 version
-    //     exp_tmp = z[0] * uk[i] + z[1] * vk[i];
-    //     M_k = g * exp_tmp.get_message();
-
-    //     exp_tmp = z[0] * m_tilde_k[i] + z[2] * vk[i];
-    //     M_k += pk_tilde.get_pk() * exp_tmp.get_message();
-
-    //     exp_tmp = z[1] * uk[i];
-    //     M_k += ax[i] * exp_tmp.get_message();
-
-    //     exp_tmp = z[2] * uk[i];
-    //     M_k += bx[i] * exp_tmp.get_message();
-
-    //     M_k.pack(ciphertexts);
-    // }
-
     for (size_t i = 0; i < P.n_tilde; ++i) {
         futures.push_back(std::async(std::launch::async, [&, i]() -> PackResult {
             std::stringstream tmp_pack;

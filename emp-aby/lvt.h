@@ -80,6 +80,7 @@ LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, EL
     this->tb_size = 1 << table_size;
     this->cip_lut.resize(num_party);
     this->cr_i.resize(num_party);
+    this->lut_share.resize(tb_size);
     BLS12381Element::init();
 }
 
@@ -110,7 +111,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
 
     mcl::Vint bound;
     bound.setStr(to_string(tb_size));
-    RangeProof Range_proof(global_pk, bound);
+    RangeProof Range_proof(global_pk, bound, tb_size);
     RangeVerifier Range_verifier(Range_proof);
     RangeProver Range_prover(Range_proof);
 
@@ -164,7 +165,6 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         elgl->deserialize_recv_(response, ALICE);
         elgl->deserialize_recv_(comm, ALICE);
         elgl->deserialize_recv_(encMap, ALICE);
-        
         comm_raw = comm.str();
         comm_ << base64_decode(comm_raw);
         response_raw = response.str();
@@ -185,36 +185,36 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
     mcl::Unit N(tb_size);
     FFT(c0, ak, alpha, N);
     FFT(c1, bk, alpha, N);
-    Plaintext alpha_inv;
-    alpha_inv.assign("39946203658912138033548902979326710369783929861401978374778960978475302091493");
-    vector<BLS12381Element> c0_fft;
-    vector<BLS12381Element> c1_fft;
-    Fr N_inv;
-    // Fr::inv(omega_inv, alpha);
-    Fr::inv(N_inv, N);
-    cout << "N * N_inv: " << N * N_inv << endl;
+    // Plaintext alpha_inv;
+    // alpha_inv.assign("39946203658912138033548902979326710369783929861401978374778960978475302091493");
+    // vector<BLS12381Element> c0_fft;
+    // vector<BLS12381Element> c1_fft;
+    // Fr N_inv;
+    // // Fr::inv(omega_inv, alpha);
+    // Fr::inv(N_inv, N);
+    // cout << "N * N_inv: " << N * N_inv << endl;
 
-    cout << "alpha * alpha_inv: " << alpha * alpha_inv.get_message()  << endl;
+    // cout << "alpha * alpha_inv: " << alpha * alpha_inv.get_message()  << endl;
 
-    FFT(ak, c0_fft, alpha_inv.get_message(), N);
-    FFT(bk, c1_fft, alpha_inv.get_message(), N);
+    // FFT(ak, c0_fft, alpha_inv.get_message(), N);
+    // FFT(bk, c1_fft, alpha_inv.get_message(), N);
 
-    for (size_t i = 0; i < tb_size; i++)
-    {
-        c0_fft[i] *= N_inv; 
-        c1_fft[i] *= N_inv;
-    }
+    // for (size_t i = 0; i < tb_size; i++)
+    // {
+    //     c0_fft[i] *= N_inv; 
+    //     c1_fft[i] *= N_inv;
+    // }
     
-    for (size_t i = 0; i < tb_size; ++i) {
-        if (c0[i] != c0_fft[i]){
-            std::cout << i << "错误" << std::endl;
-            // return 1;
-        }
-        if (c1_fft[i] != c1[i] ){
-            std::cout << i << "错误" << std::endl;
-            // return 1;
-        }
-    }
+    // for (size_t i = 0; i < tb_size; ++i) {
+    //     if (c0[i] != c0_fft[i]){
+    //         std::cout << i << "错误" << std::endl;
+    //         // return 1;
+    //     }
+    //     if (c1_fft[i] != c1[i] ){
+    //         std::cout << i << "错误" << std::endl;
+    //         // return 1;
+    //     }
+    // }
 
 
 
@@ -268,7 +268,8 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         if (i == party) {
             continue;
         }else{
-            res.push_back(pool->enqueue([this, i, index, &c0, &c1, &dk, &ek, &Rot_prover,&rot_proof, &Rot_verifier, &rotation]() {
+            res.push_back(pool->enqueue([this, i, index, &c0, &c1, &dk, &ek, &Rot_prover,&rot_proof, &Rot_verifier, &rotation]()
+            {
                 vector<BLS12381Element> mk;
                 vector<BLS12381Element> nk;
                 vector<BLS12381Element> qk;
@@ -297,6 +298,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
                 Rot_verifier.NIZKPoK(qk, wk, mk, nk, comm_, response_, this->global_pk, this->global_pk);
                 if (i == this->party - 1)
                 {
+                    std::cout << "last party begin prove." << std::endl;
                     vector<BLS12381Element> dk_;
                     vector<BLS12381Element> ek_;
                     dk_.resize(tb_size);
@@ -305,12 +307,12 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
                     bound.setStr(to_string(tb_size));
                     rotation.set_random(bound);
                     Ciphertext cipher_rot =  elgl->kp.get_pk().encrypt(rotation);
-                    this->cr_i[this->party] = cipher_rot;
+                    this->cr_i[this->party-1] = cipher_rot;
                     Plaintext beta, betak;
                     Plaintext::pow(beta, alpha, rotation);
                     betak.assign("1");
                     vector<Plaintext> sk;
-                    sk.resize(this->num_party);
+                    sk.resize(tb_size);
                     for (size_t i = 0; i < tb_size; i++){
                         dk_[i] = qk[i] * betak.get_message();
                         ek_[i] = wk[i] * betak.get_message();
@@ -320,18 +322,24 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
                         dk_[i] += BLS12381Element(sk[i].get_message());
                         ek_[i] += global_pk.get_pk() * sk[i].get_message();
                     }
+                    std::cout << "last party begin prove." << std::endl;
                     std::stringstream commit_ro, response_ro;
                     Rot_prover.NIZKPoK(rot_proof, commit_ro, response_ro, global_pk, global_pk, dk_, ek_, qk, wk, beta, sk);
-            
-                    elgl->serialize_sendall_(commit_ro);
-                    elgl->serialize_sendall_(response_ro);
+                    std::stringstream comm_ro_final, response_ro_final; 
+                    std::string comm_raw_final, response_raw_final;
+                    comm_raw_final = commit_ro.str();
+                    response_raw_final = response_ro.str();
+                    comm_ro_final << base64_encode(comm_raw_final);
+                    response_ro_final << base64_encode(response_raw_final);
+
+                    elgl->serialize_sendall_(comm_ro_final);
+                    elgl->serialize_sendall_(response_ro_final);
                     elgl->serialize_sendall(cipher_rot);
                     if (this->num_party == this->party){
                         dk = dk_;
                         ek = ek_;
                     }
                 }
-                
             }));
         }
     }
@@ -340,22 +348,61 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         v.get();
     res.clear();
 
-    // all party wait for the last party
-    Ciphertext cipher_rot;
-    // TODO: read ciphertexts and proof
-    std::stringstream comm_ro, response_ro;
-    elgl->deserialize_recv_(comm_ro, num_party);
-    elgl->deserialize_recv_(response_ro, num_party);
-    elgl->deserialize_recv(cipher_rot, num_party);
-    cr_i[num_party-1] = cipher_rot;
-    dk.clear();
-    ek.clear();
-    ak.clear();
-    bk.clear();
-    Rot_verifier.NIZKPoK(dk, ek, ak, bk, comm_ro, response_ro, global_pk, global_pk);
+    if (party != num_party){
+            // all party wait for the last party
+        Ciphertext cipher_rot;
+        // TODO: read ciphertexts and proof
+        std::stringstream comm_ro, response_ro;
+        std::string comm_raw, response_raw;
+        std::stringstream comm_, response_;
+
+        elgl->deserialize_recv_(comm_ro, num_party);
+        elgl->deserialize_recv_(response_ro, num_party);
+        elgl->deserialize_recv(cipher_rot, num_party);
+        cr_i[num_party-1] = cipher_rot;
+        comm_raw = comm_ro.str();
+        response_raw = response_ro.str();
+        comm_ << base64_decode(comm_raw);
+        response_ << base64_decode(response_raw);
+        Rot_verifier.NIZKPoK(dk, ek, ak, bk, comm_, response_, global_pk, global_pk);
+    }
     
-    IFFT(dk, c0_, alpha, tb_size);
-    IFFT(ek, c1_, alpha, tb_size);
+    // IFFT(dk, c0_, alpha, tb_size);
+    // IFFT(ek, c1_, alpha, tb_size);
+
+    Plaintext alpha_inv;
+    alpha_inv.assign("39946203658912138033548902979326710369783929861401978374778960978475302091493");
+    // vector<BLS12381Element> c0_fft;
+    // vector<BLS12381Element> c1_fft;
+    Fr N_inv;
+    // Fr::inv(omega_inv, alpha);
+    Fr::inv(N_inv, N);
+    cout << "N * N_inv: " << N * N_inv << endl;
+
+    cout << "alpha * alpha_inv: " << alpha * alpha_inv.get_message()  << endl;
+
+    FFT(dk, c0_, alpha_inv.get_message(), N);
+    FFT(ek, c1_, alpha_inv.get_message(), N);
+
+    for (size_t i = 0; i < tb_size; i++)
+    {
+        c0_[i] *= N_inv; 
+        c1_[i] *= N_inv;
+    }
+
+    std::cout << "finish IFFT" << std::endl; 
+    
+    // for (size_t i = 0; i < tb_size; ++i) {
+    //     if (c0[i] != c0_fft[i]){
+    //         std::cout << i << "错误" << std::endl;
+    //         // return 1;
+    //     }
+    //     if (c1_fft[i] != c1[i] ){
+    //         std::cout << i << "错误" << std::endl;
+    //         // return 1;
+    //     }
+    // }
+
 
     if (party == ALICE) {
         vector<Plaintext> y_alice;
@@ -364,6 +411,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         Plaintext exp;
         ;
         exp = Plaintext(Fr(to_string(tb_size))) * Plaintext(Fr(to_string(num_party))) - Plaintext(Fr(to_string(tb_size)));
+
         vector<BLS12381Element> l_alice(tb_size,BLS12381Element(exp.get_message()));
         
         vector<BLS12381Element> l_(num_party);
@@ -373,12 +421,20 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         {
             vector<BLS12381Element> y3;
             vector<BLS12381Element> y2;
+            y2.resize(tb_size);
+            y3.resize(tb_size);
             std::stringstream commit_ro, response_ro;
+            std::string comm_raw, response_raw;
+            std::stringstream comm_, response_;
             elgl->deserialize_recv_(commit_ro, i);
             elgl->deserialize_recv_(response_ro, i);
+            comm_raw = commit_ro.str();
+            response_raw = response_ro.str();
+            comm_ << base64_decode(comm_raw);
+            response_ << base64_decode(response_raw);
             
             BLS12381Element pk__ = user_pk[i-1].get_pk();
-            Range_verifier.NIZKPoK(pk__, y3, y2, commit_ro, response_ro, c0_, global_pk);
+            Range_verifier.NIZKPoK(pk__, y3, y2, comm_, response_, c0_, global_pk);
             for (size_t j = 0; j < tb_size; j++)
             {
                 l_alice[j] += y2[j];
@@ -413,16 +469,22 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         }
 
         std::stringstream commit_ss, response_ss;
-        
+        std::string commit_raw, response_raw;
+        std::stringstream commit_b64_, response_b64_;
         
         Range_prover.NIZKPoK(Range_proof, commit_ss, response_ss, global_pk, c0_, cip_lut[0], L, lut_share, elgl->kp.get_sk().get_sk());
-
-        elgl->serialize_sendall_(commit_ss);
-        elgl->serialize_sendall_(response_ss);
+        // convert commit_ss and response_ss to base64
+        commit_raw = commit_ss.str();
+        commit_b64_ << base64_encode(commit_raw);
+        response_raw = response_ss.str();
+        response_b64_ << base64_encode(response_raw);
+        elgl->serialize_sendall_(commit_b64_);
+        elgl->serialize_sendall_(response_b64_);
         // serialize d
 
     }else{
         // sample x_i
+        std::cout << "party " << party << " begin 1111" << std::endl;
         mcl::Vint bound(to_string(tb_size));
         // std::stringstream l_stream;
         // std::stringstream cip_i_stream;
@@ -456,9 +518,16 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
 
         Range_prover.NIZKPoK(Range_proof, commit_ss, response_ss, global_pk, c0_, cip_v, l_1_v, lut_share, elgl->kp.get_sk().get_sk());
 
+        // convert comit_ss and response_ss to base64
+        std::stringstream commit_ra_, response_ra_;
+        std::string commit_raw = commit_ss.str();
+        commit_ra_ << base64_encode(commit_raw);
+        std::string response_raw = response_ss.str();
+        response_ra_ << base64_encode(response_raw);
+
         // sendall
-        elgl->serialize_sendall_(commit_ss);
-        elgl->serialize_sendall_(response_ss);
+        elgl->serialize_sendall_(commit_ra_);
+        elgl->serialize_sendall_(response_ra_);
 
         // receive all others commit and response
         for (size_t i = 2; i <= num_party; i++){
@@ -466,23 +535,39 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
             {
                 vector<BLS12381Element> y3;
                 vector<BLS12381Element> y2;
+                y3.resize(tb_size);
+                y2.resize(tb_size);
                 std::stringstream commit_ro, response_ro;
+                std::string comm_raw, response_raw;
+                std::stringstream comm_, response_;
                 elgl->deserialize_recv_(commit_ro, i);
                 elgl->deserialize_recv_(response_ro, i);
+                comm_raw = commit_ro.str();
+                response_raw = response_ro.str();
+                comm_ << base64_decode(comm_raw);
+                response_ << base64_decode(response_raw);
                 BLS12381Element pk__ = user_pk[i-1].get_pk();
-                Range_verifier.NIZKPoK(pk__, y3, y2, commit_ro, response_ro, c0_, global_pk);
+                Range_verifier.NIZKPoK(pk__, y3, y2, comm_, response_, c0_, global_pk);
                 cip_lut[i-1] = y3;
             }
         }
 
         // accept broadcast from alice
         std::stringstream commit_ro, response_ro;
+        std::string comm_raw_, response_raw_;
+        std::stringstream comm_, response_;
         elgl->deserialize_recv_(commit_ro, ALICE);
         elgl->deserialize_recv_(response_ro, ALICE);
+        comm_raw_ = commit_ro.str();
+        response_raw_ = response_ro.str();
+        comm_ << base64_decode(comm_raw_);
+        response_ << base64_decode(response_raw_);
         vector<BLS12381Element> y2;
         vector<BLS12381Element> y3;
+        y2.resize(tb_size);
+        y3.resize(tb_size);
         BLS12381Element pk__ = user_pk[0].get_pk();
-        Range_verifier.NIZKPoK(pk__, y3, y2, commit_ro, response_ro, c0_, global_pk);
+        Range_verifier.NIZKPoK(pk__, y3, y2, comm_, response_, c0_, global_pk);
         cip_lut[0] = y3;
     }
 }

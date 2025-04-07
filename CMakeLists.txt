@@ -3,8 +3,17 @@ project (emp-aby)
 set(NAME "emp-aby")
 
 set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_OSX_SYSROOT /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk)
+
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    message(STATUS "Enabling AddressSanitizer")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -g")
+    set(CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS} -fsanitize=address")
+endif()
+
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}-O3 -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -Wno-sign-compare")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenFHE_CXX_FLAGS} -O3 -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -DMATHBACKEND=4")
+# -03
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenFHE_CXX_FLAGS} -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -DMATHBACKEND=4")
 
 if(NOT ${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
@@ -23,7 +32,6 @@ add_subdirectory(libelgl)
 
 include_directories(external/mcl/include)
 include_directories(libelgl)
-
 include_directories(${OPENMP_INCLUDES})
 include_directories(${OpenFHE_INCLUDE})
 include_directories(${OpenFHE_INCLUDE}/third-party/include)
