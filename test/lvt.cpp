@@ -19,6 +19,12 @@ void test_generate_shares(ELGL<IO>* he, LVT<IO>* lut, MPIOChannel<IO>* io){
     lut->generate_shares(lut->lut_share, rotation, lut->table);
 }
 
+template <typename IO>
+void test_lookup_online(ELGL<IO>* he, LVT<IO>* lut, MPIOChannel<IO>* io, vector<Plaintext>& x_share, vector<Ciphertext>& x_cipher){
+    Plaintext rotation, out;
+    lut->lookup_online(out, lut->lut_share, rotation, x_share, x_cipher);
+}
+
 int main(int argc, char** argv) {
     BLS12381Element::init();
     if (argc < 4) {
@@ -65,10 +71,22 @@ int main(int argc, char** argv) {
     alpha.assign("3465144826073652318776269530687742778270252468765361963008");
     Fr alpha_fr = alpha.get_message();
     LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "/Users/lvbao/Desktop/ScalableMixedModeMPC/table.txt",alpha_fr, 2);
-    std::cout << "dist key gen" << std::endl;
+    // std::cout << "dist key gen" << std::endl;
     // dist key gen
     lvt->DistKeyGen();
 
     test_generate_shares(elgl, lvt, io);
+
+    vector<Plaintext> x_share;
+    vector<Ciphertext> x_cipher;
+    x_share.resize(lvt->table.size());
+    x_cipher.resize(lvt->table.size());
+    for(size_t i = 0; i < lvt->num_party; i++){
+        x_share[i].set_random();
+        x_cipher[i] = lvt->global_pk.encrypt(x_share[i]);
+    }
+    test_lookup_online(elgl, lvt, io, x_share, x_cipher);
+
+    
     return 0;
 }

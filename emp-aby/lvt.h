@@ -56,6 +56,8 @@ class LVT{
     ELGL_PK global_pk;
     std::vector<ELGL_PK> user_pk;
     vector<Plaintext> lut_share;
+    vector<Plaintext> lut_value_share;
+    
     int num_party;
     int party;
     vector<int64_t> table;
@@ -64,7 +66,7 @@ class LVT{
     void DistKeyGen();
     ~LVT();
     void generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation, vector<int64_t> table);
-    void lookup_online(Plaintext& out, vector<Plaintext>& lut_share, Fr& rotate, Plaintext& x_share, vector<Ciphertext> x_cipher);
+    void lookup_online(Plaintext& out, vector<Plaintext>& lut_share, Plaintext& rotate, vector<Plaintext>& x_share, vector<Ciphertext> x_cipher);
 };
 
 template <typename IO>
@@ -574,7 +576,7 @@ void LVT<IO>::DistKeyGen(){
 }
 
 template <typename IO>
-void LVT<IO>::lookup_online(Plaintext& out,  vector<Plaintext>& lut_share, Fr& rotate, Plaintext& x_share, vector<Ciphertext> x_cipher){
+void LVT<IO>::lookup_online(Plaintext& out,  vector<Plaintext>& lut_share, Plaintext& rotate, vector<Plaintext>& x_share, vector<Ciphertext> x_cipher){
     vector<std::future<void>> res;
     res.push_back(pool->enqueue([this, rotate, lut_share, x_share, x_cipher, &out](){
         // cal c
@@ -582,7 +584,9 @@ void LVT<IO>::lookup_online(Plaintext& out,  vector<Plaintext>& lut_share, Fr& r
         for (int i=1; i<num_party; i++){
             c += cr_i[i] + x_cipher[i];
         }
-        Plaintext ui = rotate + x_share;
+        // rotate = this->rotation;
+        Plaintext x = x_share[this->party-1];
+        Plaintext ui = rotate + x;
         elgl->serialize_sendall(ui);
         Plaintext tmp;
         for (size_t i = 1; i <= num_party; i++)
@@ -592,8 +596,15 @@ void LVT<IO>::lookup_online(Plaintext& out,  vector<Plaintext>& lut_share, Fr& r
                 ui += tmp;
             }
         }
-        uint64_t index = ui.get_message().getUint64();
-        out = lut_share[index];
+        mpz_class index;
+        mpz_class modsize;
+        modsize.setStr("4");
+        mcl::gmp::mod(index, ui.get_message().getMpz(), modsize);
+        Fr ss;
+        ss.setMpz(index);
+        uint64_t index_ = ss.getUint64();
+        out = lut_share[index_];
+        cout << "party: " << party << ";  value_share: " << out.get_message().getStr() << endl;
     }));
     for (auto& v : res)
         v.get();
