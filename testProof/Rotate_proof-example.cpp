@@ -3,8 +3,50 @@
 #include "libelgl/elgloffline/RotationVerifier.h"
 #include "libelgl/elgl/ELGL_Key.h"
 #include "libelgl/elgl/Plaintext.h"
+#include <string>
+#include <sstream>
+#include <vector>
 
 using namespace std;
+
+static const std::string base64_chars =
+             "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+             "abcdefghijklmnopqrstuvwxyz"
+             "0123456789+/";
+
+std::string base64_encode(const std::string &in) {
+    std::string out;
+    int val=0, valb=-6;
+    for (unsigned char c : in) {
+        val = (val<<8) + c;
+        valb += 8;
+        while (valb>=0) {
+            out.push_back(base64_chars[(val>>valb)&0x3F]);
+            valb-=6;
+        }
+    }
+    if (valb>-6) out.push_back(base64_chars[((val<<8)>>(valb+8))&0x3F]);
+    while (out.size()%4) out.push_back('=');
+    return out;
+}
+
+std::string base64_decode(const std::string &in) {
+    std::vector<int> T(256,-1);
+    for (int i=0; i<64; i++) T[base64_chars[i]] = i;
+    std::string out;
+    int val=0, valb=-8;
+    for (unsigned char c : in) {
+        if (T[c] == -1) break;
+        val = (val<<6) + T[c];
+        valb += 6;
+        if (valb>=0) {
+            out.push_back(char((val>>valb)&0xFF));
+            valb-=8;
+        }
+    }
+    return out;
+}
+
 int main(){
 
     BLS12381Element::init();
@@ -64,17 +106,79 @@ int main(){
     auto start = std::chrono::high_resolution_clock::now();
     RotationProver prover(proof);
     stringstream ciphertexts, cleartexts;
+
+    // print dx, ex, ax, bx
+    std::cout << "dx: ";
+    for (size_t i = 0; i < 2; i++){
+        std::cout << i << dx[i] << " ";
+    }
+    std::cout << std::endl;
+    std::cout << "ex: ";
+    for (size_t i = 0; i < 2; i++){
+        std::cout << i << ex[i] << " ";
+    }
+    std::cout << std::endl;
+    std::cout << "ax: ";
+    for (size_t i = 0; i < 2; i++){
+        std::cout << i << ax[i] << " ";
+    }
+    std::cout << std::endl;
+    std::cout << "bx: ";
+    for (size_t i = 0; i < 2; i++){
+        std::cout << i << bx[i] << " ";
+    }
+    std::cout << std::endl;
     prover.NIZKPoK(proof, ciphertexts, cleartexts, pk, pk, dx, ex, ax, bx, beta, sk_k);
     auto end = std::chrono::high_resolution_clock::now(); 
     std::chrono::duration<double, std::milli> duration = end - start;
     std::cout << "prove end. Time: " << duration.count() << " ms" << std::endl;
     std::cout << "prove end" << std::endl;
 
+    string comm_raw, response_raw;
+    comm_raw = ciphertexts.str();
+    response_raw = cleartexts.str();
+    std::stringstream comm_, response_;
+    comm_ << base64_encode(comm_raw);
+    response_ << base64_encode(response_raw);
+
+
+    
+
+    std::stringstream comm_ro, response_ro;
+    std::string comm_raw_final, response_raw_final;
+    comm_raw_final = comm_.str();
+    response_raw_final = response_.str();
+    comm_ro << base64_decode(comm_raw_final);
+    response_ro << base64_decode(response_raw_final);
     // verifier
     std::cout << "verify start" << std::endl;
     auto start2 = std::chrono::high_resolution_clock::now();
     RotationVerifier verifier(proof);
-    verifier.NIZKPoK(dx, ex, ax, bx, ciphertexts, cleartexts, pk, pk);
+    verifier.NIZKPoK(dx, ex, ax, bx, comm_ro, response_ro, pk, pk);
+    // print dx, ex, ax, bx
+    std::cout << "dx: ";
+    for (size_t i = 0; i < 2; i++){
+        
+        std::cout << i << dx[i] << " ";
+    }
+    std::cout << std::endl;
+    std::cout << "ex: ";
+    for (size_t i = 0; i < 2; i++){
+        
+        std::cout << i << ex[i] << " ";
+    }
+    std::cout << std::endl;
+    std::cout << "ax: ";
+    for (size_t i = 0; i < 2; i++){
+
+        std::cout << i << ax[i] << " ";
+    }
+    std::cout << std::endl;
+    std::cout << "bx: ";
+    for (size_t i = 0; i < 2; i++){
+        std::cout << i << bx[i] << " ";
+    }
+    std::cout << std::endl;
     auto end2 = std::chrono::high_resolution_clock::now(); 
     std::chrono::duration<double, std::milli> duration2 = end2 - start2;
     std::cout << "verify end. Time: " << duration2.count() << " ms" << std::endl;

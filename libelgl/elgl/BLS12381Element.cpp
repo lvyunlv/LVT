@@ -72,6 +72,10 @@ BLS12381Element& BLS12381Element::operator+=(const BLS12381Element& other){
     G1::add(point, point, other.point);
     return *this;
 }
+BLS12381Element& BLS12381Element::operator-=(const BLS12381Element& other){
+    G1::sub(point, point, other.point);
+    return *this;
+}
 
 bool BLS12381Element::operator==(const BLS12381Element& other) const{
     return point == other.point;

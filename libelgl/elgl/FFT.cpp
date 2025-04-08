@@ -38,10 +38,8 @@ void FFT_recursive(const vector<BLS12381Element>& a, vector<BLS12381Element>& A,
     FFT_recursive(a_odd, A_odd, omegaSquared, m);
 
     // 合并阶段
-    Fr w(1); // w 初始化为 1（单位元）
+    Fr w(1); 
     for (size_t j = 0; j < m; j++) {
-        // 注意：这里用的是你们的 BLS12381Element 的加法和标量乘法，
-        // 并且建议每次计算后调用 check() 或 normalize()（如果需要）保证归一化
         BLS12381Element t = A_odd[j] * w;
         A[j] = A_even[j] + t;
         A[j + m] = A_even[j] - t;

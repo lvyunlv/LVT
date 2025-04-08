@@ -36,6 +36,7 @@ class BLS12381Element{
     BLS12381Element operator*(const Fr& other) const;
 
     BLS12381Element& operator+=(const BLS12381Element& other);
+    BLS12381Element& operator-=(const BLS12381Element& other);
     BLS12381Element& operator*=(const Fr& other);
     BLS12381Element& operator/=(const Fr& other);
 

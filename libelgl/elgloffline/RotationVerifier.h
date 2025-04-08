@@ -11,7 +11,7 @@ class RotationVerifier{
     public:
     RotationVerifier(RotationProof& proof);
 
-    void NIZKPoK(std::vector<BLS12381Element> dk, std::vector<BLS12381Element> ek, std::vector<BLS12381Element> ak, std::vector<BLS12381Element> bk, std::stringstream& ciphertexts, std::stringstream& cleartexts, 
+    void NIZKPoK(std::vector<BLS12381Element> &dk, std::vector<BLS12381Element> &ek, std::vector<BLS12381Element> &ak, std::vector<BLS12381Element> &bk, std::stringstream& ciphertexts, std::stringstream& cleartexts, 
                 const ELGL_PK& pk, const ELGL_PK& pk_tilde);
 
     size_t report_size(){

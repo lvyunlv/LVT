@@ -11,7 +11,7 @@ RotationVerifier::RotationVerifier(RotationProof& proof): P(proof){
 }
 
 
-void RotationVerifier::NIZKPoK(std::vector<BLS12381Element> dx, std::vector<BLS12381Element> ex, std::vector<BLS12381Element> ax, std::vector<BLS12381Element> bx, std::stringstream& ciphertexts, std::stringstream& cleartexts,
+void RotationVerifier::NIZKPoK(std::vector<BLS12381Element> &dx, std::vector<BLS12381Element> &ex, std::vector<BLS12381Element> &ax, std::vector<BLS12381Element> &bx, std::stringstream& ciphertexts, std::stringstream& cleartexts,
     const ELGL_PK& pk, const ELGL_PK& pk_tilde){
 
         BLS12381Element g = BLS12381Element(1);

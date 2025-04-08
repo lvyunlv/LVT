@@ -62,17 +62,12 @@ int main(int argc, char** argv) {
 
     // table has been loaded from a file
     Plaintext alpha;
-    alpha.assign("46605497109352149548364111935960392432509601054990529243781317021485154656122");
+    alpha.assign("3465144826073652318776269530687742778270252468765361963008");
     Fr alpha_fr = alpha.get_message();
-    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "/Users/derrick/IIE/LVT/table.txt",alpha_fr, 16);
+    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "/Users/derrick/IIE/LVT/table.txt",alpha_fr, 2);
     std::cout << "dist key gen" << std::endl;
     // dist key gen
     lvt->DistKeyGen();
-    std::cout << "dist key gen done" << std::endl;
-    // print gpk
-    std::cout << "global pk: " << lvt->global_pk.get_pk().getPoint().getStr() << std::endl;
-    std::cout << "pk0: " << lvt->user_pk[0].get_pk().getPoint().getStr() << std::endl;
-    std::cout << "pk1: " << lvt->user_pk[1].get_pk().getPoint().getStr() << std::endl;
 
     test_generate_shares(elgl, lvt, io);
     return 0;
