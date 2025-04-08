@@ -64,7 +64,7 @@ int main(int argc, char** argv) {
     Plaintext alpha;
     alpha.assign("3465144826073652318776269530687742778270252468765361963008");
     Fr alpha_fr = alpha.get_message();
-    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "/Users/derrick/IIE/LVT/table.txt",alpha_fr, 2);
+    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "/Users/lvbao/Desktop/ScalableMixedModeMPC/table.txt",alpha_fr, 2);
     std::cout << "dist key gen" << std::endl;
     // dist key gen
     lvt->DistKeyGen();

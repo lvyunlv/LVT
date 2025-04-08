@@ -377,6 +377,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
     if (party == ALICE) {
         vector<Plaintext> y_alice;
         vector<BLS12381Element> L;
+        L.resize(tb_size);
         Plaintext exp;
         exp = Plaintext(Fr(to_string(tb_size))) * Plaintext(Fr(to_string(num_party))) - Plaintext(Fr(to_string(tb_size)));
 
@@ -427,10 +428,10 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
             mcl::gmp::mod(r_, y_, num_party);
             Fr r;
             r.setMpz(r_);
-            lut_share.push_back(r);
+            lut_share[i].set_message(r);
             BLS12381Element l(r);
             l += c0_[i] * elgl->kp.get_sk().get_sk();
-            L.push_back(l);
+            L[i] = BLS12381Element(l);
             BLS12381Element pk_tmp = global_pk.get_pk();
             cip_lut[0][i] = BLS12381Element(r) + pk_tmp * elgl->kp.get_sk().get_sk();
         }
@@ -439,7 +440,12 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         std::string commit_raw, response_raw;
         std::stringstream commit_b64_, response_b64_;
         
+        cout<<"alice证明"<<endl;
         Range_prover.NIZKPoK(Range_proof, commit_ss, response_ss, global_pk, c0_, cip_lut[0], L, lut_share, elgl->kp.get_sk().get_sk());
+        cout<<"alice自己验证"<<endl;
+        Range_verifier.NIZKPoK(elgl->kp.get_pk().get_pk(), cip_lut[0], L, commit_ss, response_ss, c0_, global_pk);
+        
+
         // convert commit_ss and response_ss to base64
         commit_raw = commit_ss.str();
         commit_b64_ << base64_encode(commit_raw);
