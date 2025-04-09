@@ -1,6 +1,6 @@
 #include "Schnorr_Verifier.h"
 
-
+#include <future>
 Schnorr_Verifier::Schnorr_Verifier(Schnorr_Proof& proof) :
     P(proof)
 {
@@ -22,25 +22,34 @@ void Schnorr_Verifier::NIZKPoK(std::vector<BLS12381Element>& c, std::stringstrea
     // cleartexts.get(V);
     // if (V != P.n_tilde)
     //     throw length_error("number of received commitments incorrect");
-
+    std::vector<Plaintext> z;
+    z.resize(P.n_tilde);
     for (size_t i = 0; i < P.n_tilde; i++){
         R[i].unpack(ciphertexts);
+        z[i].unpack(cleartexts);
     }
 
-    Plaintext z;
-    BLS12381Element Left, Right;
+
+    
+
+    std::vector<std::future<void>> futures;
     // check g^z = R * c^challenge
     for (size_t i = 0; i < P.n_tilde; i++){
-        z.unpack(cleartexts);
-
-        Right = c[i] * P.challenge.get_message();
-        Right += R[i];
-
-        Left = BLS12381Element(z.get_message());
-
-        if (Left != Right){
-            throw std::runtime_error("invalid proof");
-        }
+        futures.emplace_back(std::async(std::launch::async, [this, i, &c, &R, &z]() -> void {
+            BLS12381Element Left, Right;
+            Right = c[i] * P.challenge.get_message();
+            Right += R[i];
+    
+            Left = BLS12381Element(z[i].get_message());
+    
+            if (Left != Right){
+                throw std::runtime_error("invalid proof");
+            }
+    
+        }));
+    }
+    for (auto& f : futures) {
+        f.get();
     }
     std::cout << "valid proof" << std::endl;
 }

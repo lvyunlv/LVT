@@ -28,11 +28,21 @@ int main(){
 
     Schnorr_Prover prover(proof);
     stringstream ciphertexts, cleartexts;
+    // time
+    auto start = std::chrono::high_resolution_clock::now();
     prover.NIZKPoK(proof, ciphertexts, cleartexts, c, x);
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = end - start;
+    std::cout << "Time taken for prover.NIZKPoK: " << elapsed.count() << " seconds" << std::endl;
     std::cout << "prove finish" << std::endl;
 
     std::cout << "verify start" << std::endl;
     Schnorr_Verifier verifier(proof);
+    // time
+    start = std::chrono::high_resolution_clock::now();
     verifier.NIZKPoK(c, ciphertexts, cleartexts);
+    end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed2 = end - start;
+    std::cout << "Time taken for verifier.NIZKPoK: " << elapsed2.count() << " seconds" << std::endl;
 
 }

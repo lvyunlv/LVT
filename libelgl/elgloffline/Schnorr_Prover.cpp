@@ -16,6 +16,11 @@ size_t Schnorr_Prover::NIZKPoK(Schnorr_Proof& P, std::stringstream& ciphertexts,
 
     int V = P.n_tilde;
 
+    // PRNG G;
+    // G.ReSeed();
+    
+    // ciphertexts.store(V);
+
     BLS12381Element R;
     // rd: vector of rd
     for (int i = 0; i < V; i++) {
@@ -28,6 +33,7 @@ size_t Schnorr_Prover::NIZKPoK(Schnorr_Proof& P, std::stringstream& ciphertexts,
 
     // Challenge
     P.set_challenge(ciphertexts);
+
 
 
     Plaintext z;
@@ -48,10 +54,4 @@ size_t Schnorr_Prover::report_size()
   res += sizeof(rd[0]) * rd.size();
   return res;
 }
-
-
-// void Schnorr_Prover::report_size(MemoryUsage& res)
-// {
-//   res.update("prover r", rd.size());
-// }
 
