@@ -114,9 +114,4 @@ size_t RangeProver::report_size(){
     return res;
 }
 
-// void RangeProver::report_size(MemoryUsage& res)
-// {
-//   res.update("prover r1", r1.size() * sizeof(r1[0]));
-//   res.update("prover r2", r2.size() * sizeof(r2[0]));
-// }
 
