@@ -63,19 +63,23 @@ int main(int argc, char** argv) {
 
     std::cout << "io setup" << std::endl;
 
-    auto start = clock_start();
     ELGL<MultiIOBase>* elgl = new ELGL<MultiIOBase>(num_party, io, &pool, party);
 
     // table has been loaded from a file
     Plaintext alpha;
-    alpha.assign("3465144826073652318776269530687742778270252468765361963008");
+    alpha.assign("46605497109352149548364111935960392432509601054990529243781317021485154656122");
     Fr alpha_fr = alpha.get_message();
-    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "/Users/lvbao/Desktop/ScalableMixedModeMPC/table.txt",alpha_fr, 2);
+    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "/Users/lvbao/Desktop/ScalableMixedModeMPC/table.txt",alpha_fr, 16);
     // std::cout << "dist key gen" << std::endl;
     // dist key gen
     lvt->DistKeyGen();
 
+    auto start = clock_start();
     test_generate_shares(elgl, lvt, io);
+    std::cout << "test_generate_shares time: " 
+          << std::fixed << std::setprecision(3) 
+          << time_from(start)/1e6 << " seconds" << std::endl;
+
 
     vector<Plaintext> x_share;
     vector<Ciphertext> x_cipher;
@@ -85,8 +89,11 @@ int main(int argc, char** argv) {
         x_share[i].set_random();
         x_cipher[i] = lvt->global_pk.encrypt(x_share[i]);
     }
+    auto start2 = clock_start();
     test_lookup_online(elgl, lvt, io, x_share, x_cipher);
+    std::cout << "test_lookup_online time: " 
+          << std::fixed << std::setprecision(3) 
+          << time_from(start2)/1e6 << " seconds" << std::endl;
 
-    
     return 0;
 }

@@ -343,7 +343,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
     // IFFT(ek, c1_, alpha, tb_size);
 
     Plaintext alpha_inv;
-    alpha_inv.assign("52435875175126190475982595682112313518914282969839895044333406231173219221505");
+    alpha_inv.assign("39946203658912138033548902979326710369783929861401978374778960978475302091493");
     // vector<BLS12381Element> c0_fft;
     // vector<BLS12381Element> c1_fft;
     Fr N_inv;
@@ -442,10 +442,10 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         std::string commit_raw, response_raw;
         std::stringstream commit_b64_, response_b64_;
         
-        cout<<"alice证明"<<endl;
+        // cout<<"alice证明"<<endl;
         Range_prover.NIZKPoK(Range_proof, commit_ss, response_ss, global_pk, c0_, cip_lut[0], L, lut_share, elgl->kp.get_sk().get_sk());
-        cout<<"alice自己验证"<<endl;
-        Range_verifier.NIZKPoK(elgl->kp.get_pk().get_pk(), cip_lut[0], L, commit_ss, response_ss, c0_, global_pk);
+        // cout<<"alice自己验证"<<endl;
+        // Range_verifier.NIZKPoK(elgl->kp.get_pk().get_pk(), cip_lut[0], L, commit_ss, response_ss, c0_, global_pk);
         
 
         // convert commit_ss and response_ss to base64
@@ -598,7 +598,7 @@ void LVT<IO>::lookup_online(Plaintext& out,  vector<Plaintext>& lut_share, Plain
         }
         mpz_class index;
         mpz_class modsize;
-        modsize.setStr("4");
+        modsize.setStr("65536");
         mcl::gmp::mod(index, ui.get_message().getMpz(), modsize);
         Fr ss;
         ss.setMpz(index);

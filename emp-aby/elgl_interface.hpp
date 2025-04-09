@@ -110,6 +110,7 @@ namespace emp {
             void DecProof(std::stringstream& commitment, std::stringstream& response, std::stringstream& encMap, vector<int64_t> table, unsigned table_size,vector<BLS12381Element>& EncTable_c0, vector<BLS12381Element>& EncTable_c1){
                 ExpProof proof(pk_global, table_size);
                 vector<BLS12381Element> y3;
+                table.resize(table_size);
                 vector<Plaintext> x(table_size);
                 // convert int 64 to Plaintext
                 for(size_t i = 0; i < table_size; i++){
