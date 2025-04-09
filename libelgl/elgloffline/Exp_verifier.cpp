@@ -1,5 +1,5 @@
 #include "Exp_verifier.h"
-
+#include <future>
 ExpVerifier::ExpVerifier(ExpProof& proof) :
     P(proof)
 {
@@ -78,24 +78,30 @@ void ExpVerifier::NIZKPoK(BLS12381Element& g1, vector<BLS12381Element>& y1,vecto
     BLS12381Element t1, t2, t3;
     
     // v = (g^z * g1)^s * (y1^z * y2)^challenge
-    Plaintext s;
-
-    BLS12381Element v, Right1, Right2;
+    std::vector<Plaintext> s(P.n_proofs);
+    std::vector<BLS12381Element> v(P.n_proofs);
     for (int i = 0; i < P.n_proofs; i++){
-        s.unpack(cleartexts);
-        v.unpack(ciphertexts);
-
-        Right1 = BLS12381Element(z.get_message()) + g1;
-        Right1 = Right1 * s.get_message();
-        
-        Right2 = y1[i] * z.get_message() + y2[i];
-        Right2 = Right2 * P.challenge.get_message();
-
-        Right1 += Right2;
-
-        if (v != Right1 ){
-            throw runtime_error("invalid exp proof");
-        }
+        s[i].unpack(cleartexts);
+        v[i].unpack(ciphertexts);
     }
+    vector<std::future<void>> futures;
+    for (int i = 0; i < P.n_proofs; i++){
+        futures.emplace_back(std::async(std::launch::async, [this, &g1, &z, i, &s, &v, &y1, &y2]() {
+            BLS12381Element Right1, Right2;
+            Right1 = BLS12381Element(z.get_message()) + g1;
+            Right1 = Right1 * s[i].get_message();
+            Right2 = y1[i] * z.get_message() + y2[i];
+            Right2 = Right2 * P.challenge.get_message();
+
+            Right1 += Right2;
+            if (v[i] != Right1 ){
+                throw runtime_error("invalid exp proof");
+            }
+        }));
+    }
+    for (auto& f : futures) {
+        f.get();
+    }
+
     cout << "valid proof" << endl;
 }

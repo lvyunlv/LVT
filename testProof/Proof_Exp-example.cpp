@@ -3,6 +3,8 @@
 #include "libelgl/elgloffline/Exp_verifier.h"
 #include "libelgl/elgl/ELGL_Key.h"
 #include "libelgl/elgl/Plaintext.h"
+#include <chrono> 
+#include <typeinfo>
 using namespace std;
 int main(){
     BLS12381Element::init();
@@ -35,16 +37,29 @@ int main(){
     std::cout << "finish g1,y1,y2 gen" << std::endl;
 
     std::cout << "prove start" << std::endl;
-
     ExpProver prover(proof);
     stringstream ciphertexts, cleartexts;
     // stds::cout << ciphertexts.str()<< std::endl;    
+    
+    auto start = std::chrono::high_resolution_clock::now();
     prover.NIZKPoK(proof, ciphertexts, cleartexts, g1, y1, y2, x);
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = end - start;
+
+    std::cout << "prove finish" << std::endl;
+    std::cout << "Time taken for prover.NIZKPoK: " << elapsed.count() << " seconds" << std::endl;
+
     std::cout << "prove finish" << std::endl;
     // std::cout << ciphertexts.str()<< std::endl;
     BLS12381Element g1_;
     // std::cout << "verify start" << std::endl;
     ExpVerifier verifier(proof);
-    verifier.NIZKPoK(g1_, y1_, y2_, ciphertexts, cleartexts);
 
+    start = std::chrono::high_resolution_clock::now();
+    verifier.NIZKPoK(g1_, y1_, y2_, ciphertexts, cleartexts);
+    end = std::chrono::high_resolution_clock::now();
+    elapsed = end - start;
+
+    std::cout << "prove finish" << std::endl;
+    std::cout << "Time taken for verif.NIZKPoK: " << elapsed.count() << " seconds" << std::endl;
 }
