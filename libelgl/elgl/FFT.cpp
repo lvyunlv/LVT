@@ -6,6 +6,8 @@
 #include "Plaintext.h"
 #include <mcl/bn.hpp>
 
+#include <future>
+
 using namespace std;
 using namespace mcl::bn;
 
@@ -77,71 +79,53 @@ void IFFT(const vector<BLS12381Element>& input, vector<BLS12381Element>& output,
     }
 }
 
-// //------------------------------------------------------
-// // 主函数：设置 FFT 参数，执行 FFT 和 IFFT 验证
-// //------------------------------------------------------
-// int main() {
-//     // 初始化 BLS12-381 参数（MCL库调用）
-//     BLS12381Element::init();
-//     srand((unsigned)time(NULL));
 
-//     // 设定 FFT 长度 N，必须为 2 的幂。真实应用可取 N = 2^16，此处为了调试取较小值。
-//     size_t N = 64;
-//     cout << "FFT length N = " << N << endl;
+void FFT_recursive_para(const std::vector<BLS12381Element>& a, std::vector<BLS12381Element>& A, const Fr &omega, size_t n) {
+    if (n == 1) {
+        A[0] = a[0];
+        return;
+    }
 
-//     // 构造 G1 群的生成元 G
-//     BLS12381Element G = BLS12381Element(Fr(1)); // 此处构造方式表示 G = g*1
+    size_t m = n / 2;
+    std::vector<BLS12381Element> a_even(m), a_odd(m);
+    
+    // Split the input into even and odd parts
+    for (size_t i = 0; i < m; i++) {
+        a_even[i] = a[2 * i];
+        a_odd[i] = a[2 * i + 1];
+    }
+    
+    // Prepare storage for the results of the recursive calls
+    std::vector<BLS12381Element> A_even(m), A_odd(m);
+    
+    // omega^2 for the smaller FFT
+    Fr omegaSquared = omega * omega;
+    
+    // Execute the recursive FFT calls asynchronously using std::async
+    auto future_even = std::async(std::launch::async, [&]() {
+        FFT_recursive(a_even, A_even, omegaSquared, m);
+    });
+    auto future_odd = std::async(std::launch::async, [&]() {
+        FFT_recursive(a_odd, A_odd, omegaSquared, m);
+    });
 
-//     // 获取 Fr 的阶 p（Fr::getOp().mp 为 Fr 的模，注意 p 较大）
-//     mpz_class p = Fr::getOp().mp;
+    // Wait for both asynchronous FFT calls to finish
+    future_even.get();
+    future_odd.get();
+    
+    // Combine the results
+    Fr w(1); // w will be the powers of omega
+    for (size_t j = 0; j < m; j++) {
+        BLS12381Element t = A_odd[j] * w;
+        A[j] = A_even[j] + t;
+        A[j + m] = A_even[j] - t;
+        w *= omega;
+    }
+}
 
-//     // 为 FFT 需要找到一个 N-th 原始单位根 ω ∈ Fr。
-//     // 方法：令 exp = (p - 1) / N，然后令 ω = g^exp，其中 g 取为一个生成元。
-//     // 这里我们用 Plaintext 类计算（你们的 Plaintext 支持大整数运算）。
-//     Plaintext g_plain;
-//     g_plain.assign(5); // 选定一个数 5（假设它是 Fr 的生成元之一）
-//     Plaintext exp;
-//     exp.assign((p - 1) / N);
-//     Plaintext omega_pt;
-//     Plaintext::pow(omega_pt, g_plain, exp);
-//     cout << "Computed omega (as plaintext integer): " << omega_pt.get_message() << endl;
-
-//     // 将 omega_pt 转换为 Fr。注意：这里假设 omega_pt.get_message() 返回一个可转换为字符串的整数表示，
-//     // 并用 Fr 的构造函数进行初始化。
-//     Fr omega;
-//     omega = Fr(omega_pt.get_message());
-//     // 输出 omega 以检查（可以通过 omega.getStr() 查看）
-//     cout << "omega in Fr: " << omega << endl;
-
-//     // 构造 FFT 输入向量：长度为 N 的 BLS12381Element 数组。这里我们简单设定 input[i] = G * i,
-//     // 即将 Fr(i) 与 G 做标量乘法。
-//     vector<BLS12381Element> input(N);
-//     for (size_t i = 0; i < N; i++) {
-//         Fr scalar(i);
-//         input[i] = G * scalar;
-//     }
-
-//     // 执行 FFT
-//     vector<BLS12381Element> output;
-//     FFT(input, output, omega, N);
-
-//     // 执行 IFFT
-//     vector<BLS12381Element> inv_output;
-//     IFFT(output, inv_output, omega, N);
-
-//     // 验证 IFFT 结果是否与输入完全相同
-//     bool ok = true;
-//     for (size_t i = 0; i < N; i++) {
-//         // 如果需要比较前归一化，可调用 BLS12381Element::check() 或对点归一化后比较
-//         if (inv_output[i] != input[i]) {
-//             cout << "Mismatch at index " << i << endl;
-//             ok = false;
-//         }
-//     }
-//     if (ok)
-//         cout << "FFT and IFFT verified successfully." << endl;
-//     else
-//         cout << "FFT/IFFT verification failed." << endl;
-
-//     return 0;
-// }
+// Main FFT function
+void FFT_Para(const std::vector<BLS12381Element>& input, std::vector<BLS12381Element>& output, const Fr &omega, size_t n) {
+    assert(n == input.size());
+    output.resize(n);
+    FFT_recursive_para(input, output, omega, n);
+}

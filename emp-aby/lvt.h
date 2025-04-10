@@ -164,8 +164,8 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
     dk.resize(tb_size);
     ek.resize(tb_size);
     mcl::Unit N(tb_size);
-    FFT(c0, ak, alpha, N);
-    FFT(c1, bk, alpha, N);
+    FFT_Para(c0, ak, alpha, N);
+    FFT_Para(c1, bk, alpha, N);
     // Plaintext alpha_inv;
     // alpha_inv.assign("39946203658912138033548902979326710369783929861401978374778960978475302091493");
     // vector<BLS12381Element> c0_fft;
@@ -353,8 +353,8 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
 
     cout << "alpha * alpha_inv: " << alpha * alpha_inv.get_message()  << endl;
 
-    FFT(dk, c0_, alpha_inv.get_message(), N);
-    FFT(ek, c1_, alpha_inv.get_message(), N);
+    FFT_Para(dk, c0_, alpha_inv.get_message(), N);
+    FFT_Para(ek, c1_, alpha_inv.get_message(), N);
 
     for (size_t i = 0; i < tb_size; i++)
     {
