@@ -7,7 +7,7 @@ using namespace emp;
 
 int party, port;
 
-const static int threads = 4;
+const static int threads = 64;
 
 int num_party;
 
@@ -69,7 +69,7 @@ int main(int argc, char** argv) {
     Plaintext alpha;
     alpha.assign("46605497109352149548364111935960392432509601054990529243781317021485154656122");
     Fr alpha_fr = alpha.get_message();
-    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "/Users/lvbao/Desktop/ScalableMixedModeMPC/table.txt",alpha_fr, 16);
+    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../table.txt",alpha_fr, 16);
     // std::cout << "dist key gen" << std::endl;
     // dist key gen
     lvt->DistKeyGen();

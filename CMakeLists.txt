@@ -2,7 +2,8 @@ cmake_minimum_required (VERSION 3.0)
 project (emp-aby)
 set(NAME "emp-aby")
 
-set(CMAKE_BUILD_TYPE Debug)
+# Debug
+set(CMAKE_BUILD_TYPE Release)
 set(CMAKE_OSX_SYSROOT /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -12,8 +13,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif()
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}-O3 -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -Wno-sign-compare")
-# -03
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenFHE_CXX_FLAGS} -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -DMATHBACKEND=4")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenFHE_CXX_FLAGS} -O3 -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -DMATHBACKEND=4")
 
 if(NOT ${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")

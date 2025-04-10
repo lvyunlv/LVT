@@ -4,7 +4,6 @@
 
 using namespace mcl::bn;
 
-
 class BLS12381Element{
     public:
         // typedef gfp_<2, 4> Scalar;
@@ -44,7 +43,9 @@ class BLS12381Element{
     bool operator!=(const BLS12381Element& other) const;
 
     void pack(std::stringstream& os, int = -1) const;
+    void pack(cybozu::MemoryOutputStream& os) const;
     void unpack(std::stringstream& os, int = -1);
+    void unpack(cybozu::MemoryInputStream& is) ;
     
     void output(std::ostream& s, bool human) const;
 

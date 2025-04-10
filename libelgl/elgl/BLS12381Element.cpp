@@ -89,8 +89,16 @@ void BLS12381Element::pack(std::stringstream& os, int) const{
     point.save(os);
 }
 
+void BLS12381Element::pack(cybozu::MemoryOutputStream& os) const{
+    point.save(os);
+}
+
 void BLS12381Element::unpack(std::stringstream& os, int){
     point.load(os);
+}
+
+void BLS12381Element::unpack(cybozu::MemoryInputStream& is) {
+    point.load(is);
 }
 
 std::ostream& operator<<(std::ostream& s, const BLS12381Element& x){
