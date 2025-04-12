@@ -188,8 +188,22 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
     mcl::Unit N(tb_size);
     // time fft
     auto start = std::chrono::high_resolution_clock::now();
-    FFT_Para(c0, ak, alpha, N);
-    FFT_Para(c1, bk, alpha, N);
+    res.push_back(pool->enqueue(
+        [this, &c0, &ak, N]()
+        {
+            FFT_Para(c0, ak, this->alpha, N);     
+        }
+    ));
+    res.push_back(pool->enqueue(
+        [this, &c1, &bk, N]()
+        {
+            FFT_Para(c1, bk, this->alpha, N);
+        }
+    ));
+    for (auto& f : res) {
+        f.get();
+    }
+    res.clear();
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = end - start;
     std::cout << "FFT time: " << elapsed.count() << " seconds" << std::endl;
@@ -217,15 +231,30 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         }
         // time this part
         auto start = std::chrono::high_resolution_clock::now();
+        // for (size_t i = 0; i < tb_size; i++){
+        //     if (i==0) {betak[i].assign(1);}
+        //     else {betak[i] = betak[i - 1] * beta;}}
+
         for (size_t i = 0; i < tb_size; i++){
-            if (i==0) {betak[i].assign(1);}
-            else {betak[i] = betak[i - 1] * beta;}
-            dk[i] = BLS12381Element(1) * sk[i].get_message();
-            dk[i] += ak[i] * betak[i].get_message();
-            // e_k = bk ^ betak * h^sk
-            ek[i] = global_pk.get_pk() * sk[i].get_message();
-            ek[i] += bk[i] * betak[i].get_message();
+            res.push_back(pool->enqueue(
+                [this, i, &dk, &ek, &sk, &ak, &bk, &beta]()
+                {
+                    Plaintext betak_;
+                    Plaintext i_;
+                    i_.assign(to_string(i));
+                    Plaintext::pow(betak_, beta, i_);
+                    dk[i] = BLS12381Element(1) * sk[i].get_message();
+                    dk[i] += ak[i] * betak_.get_message();
+                    // e_k = bk ^ betak * h^sk
+                    ek[i] = global_pk.get_pk() * sk[i].get_message();
+                    ek[i] += bk[i] * betak_.get_message();
+                }
+            ));
         }
+        for (auto& f : res) {
+            f.get();
+        }
+        res.clear();
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
         std::cout << "dk ek time: " << elapsed.count() << " seconds" << std::endl;
@@ -310,22 +339,36 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
                     rotation.set_random(bound);
                     Ciphertext cipher_rot =  elgl->kp.get_pk().encrypt(rotation);
                     this->cr_i[this->party-1] = cipher_rot;
-                    Plaintext beta, betak;
+                    Plaintext beta;
                     Plaintext::pow(beta, alpha, rotation);
-                    betak.assign("1");
+                    // betak.assign("1");
                     vector<Plaintext> sk;
                     sk.resize(tb_size);
                     // time this part
                     auto start = std::chrono::high_resolution_clock::now();
+                    vector<std::future<void>> res_;
                     for (size_t i = 0; i < tb_size; i++){
-                        dk_[i] = dk_thread[i] * betak.get_message();
-                        ek_[i] = ek_thread[i] * betak.get_message();
-                        betak *= beta;
-                        // TODO: here use power function can parallel
-                        sk[i].set_random();
-                        dk_[i] += BLS12381Element(sk[i].get_message());
-                        ek_[i] += global_pk.get_pk() * sk[i].get_message();
+                        res_.push_back(pool->enqueue(
+                            [this, i, &dk_, &ek_, &sk, &ak_thread, &bk_thread, &dk_thread, &ek_thread, &beta]()
+                            {
+                                Plaintext betak;
+                                Plaintext i_;
+                                i_.assign(to_string(i));
+                                Plaintext::pow(betak, beta, i_);
+                                dk_[i] = dk_thread[i] * betak.get_message();
+                                ek_[i] = ek_thread[i] * betak.get_message();
+                                // betak *= beta;
+                                // TODO: here use power function can parallel
+                                sk[i].set_random();
+                                dk_[i] += BLS12381Element(sk[i].get_message());
+                                ek_[i] += global_pk.get_pk() * sk[i].get_message();
+                            }
+                        ));
                     }
+                    for (auto & f : res_) {
+                        f.get();
+                    }
+                    res_.clear();
                     auto end = std::chrono::high_resolution_clock::now();
                     std::chrono::duration<double> elapsed = end - start;
                     std::cout << "dk ek time: " << elapsed.count() << " seconds" << std::endl;
@@ -410,8 +453,24 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
 
     // time ifft
     start = std::chrono::high_resolution_clock::now();
-    FFT_Para(dk, c0_, alpha_inv.get_message(), N);
-    FFT_Para(ek, c1_, alpha_inv.get_message(), N);
+    res.push_back(pool->enqueue(
+        [this, &dk, &c0_, &N, &alpha_inv]()
+        {
+            FFT_Para(dk, c0_, alpha_inv.get_message(), N);
+        }
+    ));
+    res.push_back(pool->enqueue(
+        [this, &ek, &c1_, &N, &alpha_inv]()
+        {
+            FFT_Para(ek, c1_, alpha_inv.get_message(), N);
+        }
+    ));
+    for (auto& f : res) {
+        f.get();
+    }
+    res.clear();
+    // FFT_Para(dk, c0_, alpha_inv.get_message(), N);
+    // FFT_Para(ek, c1_, alpha_inv.get_message(), N);
     end = std::chrono::high_resolution_clock::now();
     elapsed = end - start;
     std::cout << "IFFT time: " << elapsed.count() << " seconds" << std::endl;
@@ -498,21 +557,30 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         // time
         start = std::chrono::high_resolution_clock::now();
         for (size_t i = 0; i < tb_size; i++){
-            BLS12381Element Y = l_alice[i] - c0_[i] * elgl->kp.get_sk().get_sk(); 
-            Fr y = P_to_m[Y.getPoint().getStr()];
-            mcl::Vint r_;
-            mcl::Vint y_;
-            y_ = y.getMpz();
-            mcl::gmp::mod(r_, y_, num_party);
-            Fr r;
-            r.setMpz(r_);
-            lut_share[i].set_message(r);
-            BLS12381Element l(r);
-            l += c0_[i] * elgl->kp.get_sk().get_sk();
-            L[i] = BLS12381Element(l);
-            BLS12381Element pk_tmp = global_pk.get_pk();
-            cip_lut[0][i] = BLS12381Element(r) + pk_tmp * elgl->kp.get_sk().get_sk();
+            res.push_back(pool->enqueue([this, &l_alice, &c0_, &L, i, &lut_share](){
+                BLS12381Element Y = l_alice[i] - c0_[i] * elgl->kp.get_sk().get_sk(); 
+                Fr y = P_to_m[Y.getPoint().getStr()];
+                mcl::Vint r_;
+                mcl::Vint y_;
+                y_ = y.getMpz();
+                mcl::gmp::mod(r_, y_, num_party);
+                Fr r;
+                r.setMpz(r_);
+                lut_share[i].set_message(r);
+                BLS12381Element l(r);
+                l += c0_[i] * this->elgl->kp.get_sk().get_sk();
+                L[i] = BLS12381Element(l);
+                BLS12381Element pk_tmp = this->global_pk.get_pk();
+                this->cip_lut[0][i] = BLS12381Element(r) + pk_tmp * this->elgl->kp.get_sk().get_sk();
+            }));
+            
         }
+
+        for (auto & f : res) {
+            f.get();
+        }
+        res.clear();
+        
         // time
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;
@@ -549,7 +617,6 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
 
     }else{
         // sample x_i
-        std::cout << "party " << party << " begin 1111" << std::endl;
         mcl::Vint bound(to_string(tb_size));
         // std::stringstream l_stream;
         // std::stringstream cip_i_stream;

@@ -75,7 +75,6 @@ void Plaintext::pow(Plaintext &ret, const Plaintext &x, const Plaintext &exp){
     // 计算a^b mod p
     mcl::gmp::powMod(result, a_mpz, b_mpz, p_mpz);
     ret.assign(result);
-    ret.assign(result);
 }
 
 
