@@ -12,7 +12,7 @@ RotationVerifier::RotationVerifier(RotationProof& proof): P(proof){
 
 
 void RotationVerifier::NIZKPoK(std::vector<BLS12381Element> &dx, std::vector<BLS12381Element> &ex, std::vector<BLS12381Element> &ax, std::vector<BLS12381Element> &bx, std::stringstream& ciphertexts, std::stringstream& cleartexts,
-    const ELGL_PK& pk, const ELGL_PK& pk_tilde){
+    const ELGL_PK& pk, const ELGL_PK& pk_tilde, ThreadPool * pool) {
 
         BLS12381Element g = BLS12381Element(1);
         ciphertexts.seekg(0);
@@ -95,7 +95,7 @@ void RotationVerifier::NIZKPoK(std::vector<BLS12381Element> &dx, std::vector<BLS
         std::vector<std::future<void> >futures;
         futures.reserve(P.n_tilde);
         for (size_t i = 0; i < P.n_tilde; i++){
-            futures.push_back(std::async(std::launch::async, [&, i](){
+            futures.push_back(pool->enqueue([&, i](){
                 std::stringstream tmp_pack;
                 tmp_pack.str("");
                 tmp_pack.clear();
@@ -130,7 +130,7 @@ void RotationVerifier::NIZKPoK(std::vector<BLS12381Element> &dx, std::vector<BLS
 
         // check equality 2
         for (size_t i = 0; i < P.n_tilde; i++) {
-            futures.push_back(std::async(std::launch::async, [&, i]() {
+            futures.push_back(pool->enqueue([&, i]() {
                 Plaintext tmp;
                 BLS12381Element local_L, local_R;
         

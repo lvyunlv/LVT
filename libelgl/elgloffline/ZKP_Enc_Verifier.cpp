@@ -11,7 +11,7 @@ EncVerifier::EncVerifier(Proof& proof) :
 
 
 void EncVerifier::NIZKPoK(std::vector<Ciphertext>& c, std::stringstream& ciphertexts, std::stringstream& cleartexts,
-                const ELGL_PK& pk){
+                const ELGL_PK& pk, ThreadPool * pool) {
     // int V;
     ciphertexts.seekg(0);
     cleartexts.seekg(0);
@@ -53,7 +53,7 @@ void EncVerifier::NIZKPoK(std::vector<Ciphertext>& c, std::stringstream& ciphert
     std::vector<std::future<void>> futures;
     
     for(int i = 0; i < P.n_proofs; i++){
-        futures.emplace_back(std::async(std::launch::async, [this, &pk, i, &c, &sx_tmp, &sr_tmp, &t1, &t2]() -> void {
+        futures.emplace_back(pool->enqueue([this, &pk, i, &c, &sx_tmp, &sr_tmp, &t1, &t2]() -> void {
             BLS12381Element gsr, tmp, gsxhsr;
 
             BLS12381Element y_1_tmp, y_2_tmp;

@@ -52,7 +52,7 @@ void ExpVerifier::NIZKPoK(vector<BLS12381Element>& g1, vector<BLS12381Element>& 
     cout << "valid proof" << endl;
 }
 
-void ExpVerifier::NIZKPoK(BLS12381Element& g1, vector<BLS12381Element>& y1,vector<BLS12381Element>& y2, std::stringstream&  ciphertexts, std::stringstream&  cleartexts){
+void ExpVerifier::NIZKPoK(BLS12381Element& g1, vector<BLS12381Element>& y1,vector<BLS12381Element>& y2, std::stringstream&  ciphertexts, std::stringstream&  cleartexts, ThreadPool* pool){
     ciphertexts.seekg(0);
     cleartexts.seekg(0);
     P.set_challenge(ciphertexts);
@@ -86,7 +86,7 @@ void ExpVerifier::NIZKPoK(BLS12381Element& g1, vector<BLS12381Element>& y1,vecto
     }
     vector<std::future<void>> futures;
     for (int i = 0; i < P.n_proofs; i++){
-        futures.emplace_back(std::async(std::launch::async, [this, &g1, &z, i, &s, &v, &y1, &y2]() {
+        futures.emplace_back(pool->enqueue([this, &g1, &z, i, &s, &v, &y1, &y2]() {
             BLS12381Element Right1, Right2;
             Right1 = BLS12381Element(z.get_message()) + g1;
             Right1 = Right1 * s[i].get_message();

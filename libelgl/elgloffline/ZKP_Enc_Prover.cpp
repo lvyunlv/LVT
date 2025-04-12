@@ -17,7 +17,7 @@ struct thread2Ret {
     Plaintext sr;
 };
 
-void EncProver::NIZKPoK(Proof& P, std::stringstream& ciphertexts, std::stringstream& cleartexts, const ELGL_PK& pk, const std::vector<Ciphertext>& c, const std::vector<Plaintext>& x, const Proof::Random_C& r) {
+void EncProver::NIZKPoK(Proof& P, std::stringstream& ciphertexts, std::stringstream& cleartexts, const ELGL_PK& pk, const std::vector<Ciphertext>& c, const std::vector<Plaintext>& x, const Proof::Random_C& r, ThreadPool * pool) {
 
     for (unsigned int i = 0; i < c.size(); i++){
       c[i].pack(ciphertexts);
@@ -32,7 +32,7 @@ void EncProver::NIZKPoK(Proof& P, std::stringstream& ciphertexts, std::stringstr
     std::vector<std::future<thread1Ret>> futures1;
     // r1: vector of r_1, r2: vector of r_2
     for (int i = 0; i < V; i++) {
-        futures1.emplace_back(std::async(std::launch::async, [this, &pk, i, &r]() -> thread1Ret {
+        futures1.emplace_back(pool->enqueue([this, &pk, i, &r]() -> thread1Ret {
             BLS12381Element c_0, c_1, c_2;
             r1[i].set_random();
             r2[i].set_random();
@@ -63,7 +63,7 @@ void EncProver::NIZKPoK(Proof& P, std::stringstream& ciphertexts, std::stringstr
     std::vector<std::future<thread2Ret>> futures2;
 
     for (int i = 0; i < P.n_proofs; i++) {
-      futures2.emplace_back(std::async(std::launch::async, [this, &pk, i, &P, &x, &r]() -> thread2Ret {
+      futures2.emplace_back(pool->enqueue([this, &pk, i, &P, &x, &r]() -> thread2Ret {
             Plaintext sx, sr;
             sx = P.challenge * x[i];
             sx += r2[i];

@@ -3,6 +3,7 @@
 #include "libelgl/elgloffline/RotationVerifier.h"
 #include "libelgl/elgl/ELGL_Key.h"
 #include "libelgl/elgl/Plaintext.h"
+#include <chrono>
 #include <string>
 #include <sstream>
 #include <vector>

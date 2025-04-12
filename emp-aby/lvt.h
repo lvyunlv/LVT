@@ -128,7 +128,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         std::stringstream comm, response, encMap;
         //time
         auto start = std::chrono::high_resolution_clock::now();
-        elgl->DecProof(comm, response, encMap, table, tb_size, c0, c1);
+        elgl->DecProof(comm, response, encMap, table, tb_size, c0, c1, pool);
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
         std::cout << "DecProof time: " << elapsed.count() << " seconds" << std::endl;
@@ -171,7 +171,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
 
         // time verify
         start = std::chrono::high_resolution_clock::now();
-        elgl->DecVerify(comm_, response_, encMap_, c0, c1, tb_size);
+        elgl->DecVerify(comm_, response_, encMap_, c0, c1, tb_size, pool);
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;
         std::cout << "DecVerify time: " << elapsed.count() << " seconds" << std::endl;
@@ -232,7 +232,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         // time prove
         start = std::chrono::high_resolution_clock::now();
         std::stringstream commit_ro, response_ro;
-        Rot_prover.NIZKPoK(rot_proof, commit_ro, response_ro, global_pk, global_pk, dk, ek, ak, bk, beta, sk);
+        Rot_prover.NIZKPoK(rot_proof, commit_ro, response_ro, global_pk, global_pk, dk, ek, ak, bk, beta, sk, pool);
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;
         std::cout << "NIZKPoK time: " << elapsed.count() << " seconds" << std::endl;
@@ -292,7 +292,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
                 this->cr_i[index] = cipher_rot;
                 // time verify
                 start = std::chrono::high_resolution_clock::now();
-                Rot_verifier.NIZKPoK(dk_thread, ek_thread, ak_thread, bk_thread, comm_, response_, this->global_pk, this->global_pk);
+                Rot_verifier.NIZKPoK(dk_thread, ek_thread, ak_thread, bk_thread, comm_, response_, this->global_pk, this->global_pk, pool);
                 end = std::chrono::high_resolution_clock::now();
                 elapsed = end - start;
                 std::cout << "NIZKPoK verify time: " << elapsed.count() << " seconds" << std::endl;
@@ -333,7 +333,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
                     std::stringstream commit_ro, response_ro;
                     // time prove
                     start = std::chrono::high_resolution_clock::now();
-                    Rot_prover.NIZKPoK(rot_proof, commit_ro, response_ro, global_pk, global_pk, dk_, ek_, dk_thread, ek_thread, beta, sk);
+                    Rot_prover.NIZKPoK(rot_proof, commit_ro, response_ro, global_pk, global_pk, dk_, ek_, dk_thread, ek_thread, beta, sk, pool);
                     end = std::chrono::high_resolution_clock::now();
                     elapsed = end - start;
                     std::cout << "NIZKPoK time: " << elapsed.count() << " seconds" << std::endl;
@@ -388,7 +388,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         std::cout << "receive and decode time: " << elapsed.count() << " seconds" << std::endl;
         // time verify
         start = std::chrono::high_resolution_clock::now();
-        Rot_verifier.NIZKPoK(dk, ek, ak, bk, comm_, response_, global_pk, global_pk);
+        Rot_verifier.NIZKPoK(dk, ek, ak, bk, comm_, response_, global_pk, global_pk, pool);
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;
         std::cout << "NIZKPoK verify time: " << elapsed.count() << " seconds" << std::endl;
@@ -471,7 +471,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
             BLS12381Element pk__ = user_pk[i-1].get_pk();
             // time 
             start = std::chrono::high_resolution_clock::now();
-            Range_verifier.NIZKPoK(pk__, y3, y2, comm_, response_, c0_, global_pk);
+            Range_verifier.NIZKPoK(pk__, y3, y2, comm_, response_, c0_, global_pk, pool);
             end = std::chrono::high_resolution_clock::now();
             elapsed = end - start;
             std::cout << "NIZKPoK verify time: " << elapsed.count() << " seconds" << std::endl;
@@ -524,7 +524,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         
         // time prove
         start = std::chrono::high_resolution_clock::now();
-        Range_prover.NIZKPoK(Range_proof, commit_ss, response_ss, global_pk, c0_, cip_lut[0], L, lut_share, elgl->kp.get_sk().get_sk());
+        Range_prover.NIZKPoK(Range_proof, commit_ss, response_ss, global_pk, c0_, cip_lut[0], L, lut_share, elgl->kp.get_sk().get_sk(), pool);
         end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
         std::cout << "NIZKPoK prove time: " << elapsed.count() << " seconds" << std::endl;
@@ -585,7 +585,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
 
         // time prove
         start = std::chrono::high_resolution_clock::now();
-        Range_prover.NIZKPoK(Range_proof, commit_ss, response_ss, global_pk, c0_, cip_v, l_1_v, lut_share, elgl->kp.get_sk().get_sk());
+        Range_prover.NIZKPoK(Range_proof, commit_ss, response_ss, global_pk, c0_, cip_v, l_1_v, lut_share, elgl->kp.get_sk().get_sk(), pool);
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;
         std::cout << "NIZKPoK prove time: " << elapsed.count() << " seconds" << std::endl;
@@ -624,7 +624,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
                 comm_ << base64_decode(comm_raw);
                 response_ << base64_decode(response_raw);
                 BLS12381Element pk__ = user_pk[i-1].get_pk();
-                Range_verifier.NIZKPoK(pk__, y3, y2, comm_, response_, c0_, global_pk);
+                Range_verifier.NIZKPoK(pk__, y3, y2, comm_, response_, c0_, global_pk, pool);
                 cip_lut[i-1] = y3;
             }
         }
@@ -645,7 +645,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         y2.resize(tb_size);
         y3.resize(tb_size);
         BLS12381Element pk__ = user_pk[0].get_pk();
-        Range_verifier.NIZKPoK(pk__, y3, y2, comm_, response_, c0_, global_pk);
+        Range_verifier.NIZKPoK(pk__, y3, y2, comm_, response_, c0_, global_pk, pool);
         cip_lut[0] = y3;
         // time
         end = std::chrono::high_resolution_clock::now();

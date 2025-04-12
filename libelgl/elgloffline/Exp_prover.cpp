@@ -64,7 +64,7 @@ size_t ExpProver::NIZKPoK(ExpProof& P, std::stringstream&  ciphertexts, std::str
     const BLS12381Element& g1,
     const vector<BLS12381Element>& y1,
     const vector<BLS12381Element>& y2,
-    const vector<Plaintext>& x){
+    const vector<Plaintext>& x, ThreadPool* pool){
      // TODO: check if allocate is enough
 
 
@@ -85,7 +85,7 @@ size_t ExpProver::NIZKPoK(ExpProof& P, std::stringstream&  ciphertexts, std::str
     std::vector<std::future<thread1Ret>> futures1;
     // v = (g^z * g1)^k, z = H(y1,y2)
     for (int i = 0; i < P.n_proofs; i++) {
-        futures1.emplace_back(std::async(std::launch::async, [this, &g1, &z, i]() -> thread1Ret {
+        futures1.emplace_back(pool->enqueue([this, &g1, &z, i]() -> thread1Ret {
             BLS12381Element v;
             this->k[i].set_random();
             v = BLS12381Element(z.get_message()) + g1;
@@ -105,7 +105,7 @@ size_t ExpProver::NIZKPoK(ExpProof& P, std::stringstream&  ciphertexts, std::str
     std::vector<std::future<thread2Ret>> futures2;
     // s = k - x * challenge
     for (int i = 0; i < P.n_proofs; i++){
-        futures2.emplace_back(std::async(std::launch::async, [this, &x, &P, i]() -> thread2Ret {
+        futures2.emplace_back(pool->enqueue([this, &x, &P, i]() -> thread2Ret {
             Plaintext s;
             s = this->k[i];
             s -= x[i] * P.challenge;

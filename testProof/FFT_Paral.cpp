@@ -4,7 +4,7 @@
 #include "libelgl/elgl/BLS12381Element.h"
 #include <mcl/bls12_381.hpp>
 #include "libelgl/elgl/Plaintext.h"
-#include <omp.h> // Include OpenMP header for parallelism
+#include <chrono>
 using namespace std;
 // Function to perform the FFT (entry point)
 

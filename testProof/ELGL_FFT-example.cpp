@@ -2,6 +2,7 @@
 #include "libelgl/elgl/Plaintext.h"
 #include "libelgl/elgl/BLS12381Element.h"
 #include <iostream>
+#include <chrono>
 using namespace std;
 int main() {
     BLS12381Element::init();

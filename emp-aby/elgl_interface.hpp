@@ -8,6 +8,7 @@
 #include "libelgl/elgl/Plaintext.h"
 #include "libelgl/elgloffline/Exp_proof.h"
 #include "libelgl/elgloffline/Exp_prover.h"
+#include "emp-aby/utils.h"
 #include "libelgl/elgloffline/Exp_verifier.h"
 
 #include <string>
@@ -107,7 +108,7 @@ namespace emp {
             }
 
             // 证明： (g, h, g^x, h^x)
-            void DecProof(std::stringstream& commitment, std::stringstream& response, std::stringstream& encMap, vector<int64_t> table, unsigned table_size,vector<BLS12381Element>& EncTable_c0, vector<BLS12381Element>& EncTable_c1){
+            void DecProof(std::stringstream& commitment, std::stringstream& response, std::stringstream& encMap, vector<int64_t> table, unsigned table_size,vector<BLS12381Element>& EncTable_c0, vector<BLS12381Element>& EncTable_c1, ThreadPool * pool){
                 ExpProof proof(pk_global, table_size);
                 vector<BLS12381Element> y3;
                 table.resize(table_size);
@@ -135,17 +136,17 @@ namespace emp {
 
                 ExpProver prover(proof);
                 BLS12381Element pk_ = pk_global.get_pk();
-                prover.NIZKPoK(proof, commitment, response, pk_, EncTable_c0, y3, r1);
+                prover.NIZKPoK(proof, commitment, response, pk_, EncTable_c0, y3, r1, pool);
             }
 
-            void DecVerify(std::stringstream& commitment, std::stringstream& response, std::stringstream& encMap, vector<BLS12381Element>& EncTable_c0, vector<BLS12381Element>& EncTable_c1, unsigned table_size){
+            void DecVerify(std::stringstream& commitment, std::stringstream& response, std::stringstream& encMap, vector<BLS12381Element>& EncTable_c0, vector<BLS12381Element>& EncTable_c1, unsigned table_size, ThreadPool * pool){
                 // verify
                 ExpProof proof(pk_global, table_size);
                 ExpVerifier verifier(proof);
                 vector<BLS12381Element> y3;
                 y3.resize(table_size);
                 BLS12381Element pk_ = pk_global.get_pk();
-                verifier.NIZKPoK(pk_, EncTable_c0, y3, commitment, response);
+                verifier.NIZKPoK(pk_, EncTable_c0, y3, commitment, response, pool);
 
                 for (size_t i = 0; i < table_size; i++){
                     EncTable_c1[i].unpack(encMap);

@@ -3,6 +3,7 @@
 
 #include "Exp_proof.h"
 #include "libelgl/elgl/Ciphertext.h"
+#include "emp-aby/utils.h"
 
 class ExpProver{
     vector <Plaintext> k;
@@ -16,7 +17,7 @@ class ExpProver{
         const BLS12381Element& g1,
         const vector<BLS12381Element>& y1,
         const vector<BLS12381Element>& y2,
-        const vector<Plaintext>& x);
+        const vector<Plaintext>& x, ThreadPool* pool);
 
     size_t report_size();
 

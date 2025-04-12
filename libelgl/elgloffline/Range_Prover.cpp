@@ -28,7 +28,7 @@ size_t RangeProver::NIZKPoK(RangeProof& P,
     const std::vector<BLS12381Element>& y3,
     const std::vector<BLS12381Element>& y2,
     const std::vector<Plaintext>& x,
-    const Plaintext& ski){
+    const Plaintext& ski, ThreadPool* pool) {
     // TODO: check if allocate is enough
 
     for (unsigned int i = 0; i < y3.size(); ++i) {
@@ -44,7 +44,7 @@ size_t RangeProver::NIZKPoK(RangeProof& P,
     for (int i = 0; i < P.n_proofs; i++) {
         // r1[i].set_random();
         // r2[i].set_random();
-        futures1.emplace_back(std::async(std::launch::async, [this, &pk, &g1, i]() -> thread_return1 {
+        futures1.emplace_back(pool->enqueue([this, &pk, &g1, i]() -> thread_return1 {
             Plaintext rr1, rr2;
             rr1.set_random();
             rr2.set_random();
@@ -88,7 +88,7 @@ size_t RangeProver::NIZKPoK(RangeProof& P,
     std::vector<std::future<thread_return2>> futures2;
     futures2.reserve(P.n_proofs);
     for (int i = 0; i < P.n_proofs; i++){
-        futures2.emplace_back(std::async(std::launch::async, [&, i]() -> thread_return2 {
+        futures2.emplace_back(pool->enqueue([&, i]() -> thread_return2 {
             Plaintext sx, sr;
             sx = P.challenge * x[i];
         sx += r2[i];

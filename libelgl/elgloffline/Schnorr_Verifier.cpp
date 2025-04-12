@@ -9,7 +9,7 @@ Schnorr_Verifier::Schnorr_Verifier(Schnorr_Proof& proof) :
 
 
 
-void Schnorr_Verifier::NIZKPoK(std::vector<BLS12381Element>& c, std::stringstream& ciphertexts, std::stringstream& cleartexts){
+void Schnorr_Verifier::NIZKPoK(std::vector<BLS12381Element>& c, std::stringstream& ciphertexts, std::stringstream& cleartexts, ThreadPool * pool) {
     // int V;
     std::vector<BLS12381Element> R;
     R.resize(P.n_tilde);
@@ -35,7 +35,7 @@ void Schnorr_Verifier::NIZKPoK(std::vector<BLS12381Element>& c, std::stringstrea
     std::vector<std::future<void>> futures;
     // check g^z = R * c^challenge
     for (size_t i = 0; i < P.n_tilde; i++){
-        futures.emplace_back(std::async(std::launch::async, [this, i, &c, &R, &z]() -> void {
+        futures.emplace_back(pool->enqueue([this, i, &c, &R, &z]() -> void {
             BLS12381Element Left, Right;
             Right = c[i] * P.challenge.get_message();
             Right += R[i];

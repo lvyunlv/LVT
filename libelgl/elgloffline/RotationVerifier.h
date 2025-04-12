@@ -2,6 +2,7 @@
 #define ROTATION_VERIFIER_H
 
 #include "RotationProof.h"
+#include "emp-aby/utils.h"
 
 class RotationVerifier{
     RotationProof &P;
@@ -12,7 +13,7 @@ class RotationVerifier{
     RotationVerifier(RotationProof& proof);
 
     void NIZKPoK(std::vector<BLS12381Element> &dk, std::vector<BLS12381Element> &ek, std::vector<BLS12381Element> &ak, std::vector<BLS12381Element> &bk, std::stringstream& ciphertexts, std::stringstream& cleartexts, 
-                const ELGL_PK& pk, const ELGL_PK& pk_tilde);
+                const ELGL_PK& pk, const ELGL_PK& pk_tilde, ThreadPool * pool);
 
     size_t report_size(){
         size_t res = 0;

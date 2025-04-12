@@ -21,7 +21,7 @@ RotationProver::RotationProver(RotationProof& proof) {
 
 // TODO: pk pk_tilde need to seperate
 size_t RotationProver::NIZKPoK(RotationProof& P, std::stringstream& ciphertexts, std::stringstream& cleartexts, const ELGL_PK& pk, const ELGL_PK& pk_tilde, 
-    const std::vector<BLS12381Element> dx, const std::vector<BLS12381Element> ex, const std::vector<BLS12381Element> ax,const std::vector<BLS12381Element> bx, Plaintext& beta, const std::vector<Plaintext>& sk_k){
+    const std::vector<BLS12381Element> dx, const std::vector<BLS12381Element> ex, const std::vector<BLS12381Element> ax,const std::vector<BLS12381Element> bx, Plaintext& beta, const std::vector<Plaintext>& sk_k, ThreadPool* pool) {
     
     std::mutex C_mutex;
 
@@ -96,7 +96,7 @@ size_t RotationProver::NIZKPoK(RotationProof& P, std::stringstream& ciphertexts,
     }
     
     for (size_t i = 0; i < P.n_tilde; ++i) {
-        futures.push_back(std::async(std::launch::async, [&, i]() -> PackResult {
+        futures.push_back(pool->enqueue([&, i]() -> PackResult {
             std::stringstream tmp_pack;
 
     

@@ -9,7 +9,7 @@ RangeVerifier::RangeVerifier(RangeProof& proof) :
 
 
 void RangeVerifier::NIZKPoK(const BLS12381Element y1, std::vector<BLS12381Element>& y3, std::vector<BLS12381Element>& y2, std::stringstream& ciphertexts, std::stringstream& cleartexts, const std::vector<BLS12381Element>& g1,
-    const ELGL_PK& pk){
+    const ELGL_PK& pk, ThreadPool* pool) {
     
 
     ciphertexts.seekg(0, std::ios::beg);
@@ -49,7 +49,7 @@ void RangeVerifier::NIZKPoK(const BLS12381Element y1, std::vector<BLS12381Elemen
     futures.reserve(P.n_proofs);
 
     for (size_t i = 0; i < P.n_proofs; i++){
-        futures.push_back(std::async(std::launch::async, [&, i]() {
+        futures.push_back(pool->enqueue([&, i]() {
             BLS12381Element gsr, gsx, gsxhsr;
             BLS12381Element t1y1lamda, t2y2lamda;        
             BLS12381Element gsxg1sr, t3y3lambda;
