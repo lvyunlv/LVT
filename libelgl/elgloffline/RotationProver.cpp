@@ -32,14 +32,6 @@ size_t RotationProver::NIZKPoK(RotationProof& P, std::stringstream& ciphertexts,
 
     // ciphertexts.resize_precise(allocate);
     // ciphertexts.reset_write_head();
-    assert(ax.size() >= P.n_tilde);
-    assert(bx.size() >= P.n_tilde);
-    assert(dx.size() >= P.n_tilde);
-    assert(ex.size() >= P.n_tilde);
-    std::cout << "ax.size():" << ax.size() << std::endl;
-    std::cout << "bx.size():" << bx.size() << std::endl;
-    std::cout << "dx.size():" << dx.size() << std::endl;
-    std::cout << "ex.size():" << ex.size() << std::endl;
     for (size_t i = 0; i < P.n_tilde; i++)
     {
         ax[i].pack(ciphertexts);
