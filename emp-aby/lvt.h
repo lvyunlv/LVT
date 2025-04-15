@@ -7,6 +7,9 @@
 #include "libelgl/elgloffline/RotationProof.h"
 #include "libelgl/elgloffline/RotationProver.h"
 #include "libelgl/elgloffline/RotationVerifier.h"
+#include "libelgl/elgloffline/Exp_proof.h"
+#include "libelgl/elgloffline/Exp_prover.h"
+#include "libelgl/elgloffline/Exp_verifier.h"
 
 #include "libelgl/elgloffline/Range_Proof.h"
 #include "libelgl/elgloffline/Range_Prover.h"
@@ -46,7 +49,6 @@ class LVT{
     ELGL<IO>* elgl;
     MPIOChannel<IO>* io;
     std::vector<Ciphertext> cr_i;
-    PRG prg;
     Fr alpha;
     size_t tb_size;
     // void shuffle(Ciphertext& c, bool* rotation, size_t batch_size, size_t i);
@@ -56,7 +58,6 @@ class LVT{
     Plaintext rotation;
     std::vector<ELGL_PK> user_pk;
     vector<Plaintext> lut_share;
-    vector<Plaintext> lut_value_share;
     
     int num_party;
     int party;
@@ -66,7 +67,7 @@ class LVT{
     void DistKeyGen();
     ~LVT();
     void generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation, vector<int64_t> table);
-    void lookup_online(Plaintext& out, vector<Plaintext>& lut_share, Plaintext& rotate, vector<Plaintext>& x_share, vector<Ciphertext> x_cipher);
+    void lookup_online(Plaintext& out, Plaintext& x_share, Ciphertext& x_cipher);
 };
 
 template <typename IO>
@@ -772,39 +773,105 @@ void LVT<IO>::DistKeyGen(){
 }
 
 template <typename IO>
-void LVT<IO>::lookup_online(Plaintext& out,  vector<Plaintext>& lut_share, Plaintext& rotate, vector<Plaintext>& x_share, vector<Ciphertext> x_cipher){
+void LVT<IO>::lookup_online(Plaintext& out, Plaintext& x_share, Ciphertext& x_cipher){
     vector<std::future<void>> res;
-    res.push_back(pool->enqueue([this, rotate, lut_share, x_share, x_cipher, &out](){
-        // cal c
-        Ciphertext c = cr_i[0] + x_cipher[0];
-        for (int i=1; i<num_party; i++){
-            c += cr_i[i] + x_cipher[i];
-        }
-        // rotate = this->rotation;
-        Plaintext x = x_share[this->party-1];
-        Plaintext ui = rotate + x;
-        elgl->serialize_sendall(ui);
-        Plaintext tmp;
-        for (size_t i = 1; i <= num_party; i++)
-        {
-            if (i!= party){
-                elgl->deserialize_recv(tmp, i);
-                ui += tmp;
+    vector<Ciphertext> x_ciphers;
+    x_ciphers.resize(num_party);
+    x_ciphers[party-1] = x_cipher;
+    // accept cipher from all party
+    for (size_t i = 1; i <= num_party; i++){
+        res.push_back(pool->enqueue([this, i, &x_ciphers](){
+            if (i != party){
+                Ciphertext x_cipher;
+                elgl->deserialize_recv(x_cipher, i);
+                x_ciphers[i-1] = x_cipher;
             }
-        }
-        mpz_class index;
-        mpz_class modsize;
-        modsize.setStr(to_string(tb_size));
-        mcl::gmp::mod(index, ui.get_message().getMpz(), modsize);
-        Fr ss;
-        ss.setMpz(index);
-        uint64_t index_ = ss.getUint64();
-        out = lut_share[index_];
-        cout << "party: " << party << ";  value_share: " << out.get_message().getStr() << endl;
-    }));
+        }));
+    }
+    elgl->serialize_sendall(x_cipher);
     for (auto& v : res)
         v.get();
     res.clear();
+
+    Ciphertext c = cr_i[0] + x_cipher[0];
+    for (int i=1; i<num_party; i++){
+        c += this->cr_i[i] + x_cipher[i];
+    }
+
+    // TDec_sk protocol
+    // cal a^sk
+    BLS12381Element ask = c.get_c0() * elgl->kp.get_sk().get_sk();
+    vector <BLS12381Element> ask_parties;
+    ask_parties.resize(num_party);
+    ask_parties[party-1] = ask;
+    // receive ask from all party
+    // for (size_t i = 1; i <= num_party; i++){
+    //     if (i != party){
+    //         res.push_back(pool->enqueue([this, i, &ask_parties](){
+    //             BLS12381Element ask;
+    //             elgl->deserialize_recv(ask, i);
+    //             ask_parties[i-1] = ask;
+    //         }));
+    //     }
+    // }
+    // elgl->serialize_sendall(ask);
+    // for (auto& v : res)
+    //     v.get();
+    // res.clear();
+    // call Exp prover 
+    ExpProof exp_proof(global_pk);
+    ExpProver exp_prover(exp_proof);
+    ExpVerifier exp_verifier(exp_proof);
+    std::stringstream commit, response;
+    exp_prover.NIZKPoK(exp_proof, commit, response, c.get_c0(), elgl->kp.get_pk().get_pk(), ask, elgl->kp.get_sk(), pool);
+
+    // convert commit and response to base64
+    std::stringstream commit_b64, response_b64;
+    std::string commit_raw = commit.str();
+    commit_b64 << base64_encode(commit_raw);
+    std::string response_raw = response.str();
+    response_b64 << base64_encode(response_raw);
+    // send commit and response to all party
+    elgl->serialize_sendall_(commit_b64);
+    elgl->serialize_sendall_(response_b64);
+    // receive commit and response from all party
+    for (size_t i = 1; i <= num_party; i++){
+        if (i != party){
+            res.push_back(pool->enqueue([this, i, &exp_verifier, &c, &ask_parties](){
+                std::stringstream commit_ro, response_ro;
+                std::string comm_raw, response_raw;
+                elgl->deserialize_recv_(commit_ro, i);
+                elgl->deserialize_recv_(response_ro, i);
+                comm_raw = commit_ro.str();
+                response_raw = response_ro.str();
+                commit_ro << base64_decode(comm_raw);
+                response_ro << base64_decode(response_raw);
+                BLS12381Element ask_i;
+                exp_verifier.NIZKPoK(c.get_c0(), this->user_pk[i-1].get_pk(), ask_i, commit_ro, response_ro);
+                ask_parties[i-1] = ask_i;
+            }));
+        }
+    }
+
+    for (auto& v : res)
+        v.get();
+    res.clear();
+
+    
+    BLS12381Element pi_ask = c.get_c1();
+    for (size_t i = 0; i < num_party; i++){
+        pi_ask -= ask_parties[i];
+    }
+
+    Fr u = P_to_m[pi_ask.getPoint().getStr()];
+    std::cout << "mm duibudui" << u.getStr() << endl;
+
+    // u mod table size
+    mcl::Vint tbs;
+    tbs.setStr(to_string(tb_size));
+    mcl::gmp::mod(u, u, tbs);
+
+    out = lut_share[u];
 }
 template <typename IO>
 LVT<IO>::~LVT(){

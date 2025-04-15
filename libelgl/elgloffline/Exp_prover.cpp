@@ -69,9 +69,9 @@ size_t ExpProver::NIZKPoK(ExpProof& P, std::stringstream&  ciphertexts, std::str
 
 
     Plaintext z;
-    g1.pack(ciphertexts);
+    // g1.pack(ciphertexts);
     for (unsigned int i = 0; i < y1.size(); i++){
-        y1[i].pack(ciphertexts);
+        // y1[i].pack(ciphertexts);
         y2[i].pack(ciphertexts);
     }
     // z = H(g1,y1,y2)

@@ -62,12 +62,12 @@ void ExpVerifier::NIZKPoK(BLS12381Element& g1, vector<BLS12381Element>& y1,vecto
     Plaintext z;
     std::stringstream buf;
 
-    g1.unpack(ciphertexts);
+    // g1.unpack(ciphertexts);
     g1.pack(buf);
     for (int i = 0; i < P.n_proofs; i++){
         // remember initial
 
-        y1[i].unpack(ciphertexts);
+        // y1[i].unpack(ciphertexts);
         y1[i].pack(buf);
         y2[i].unpack(ciphertexts);
         y2[i].pack(buf);
