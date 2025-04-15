@@ -107,7 +107,7 @@ namespace emp {
             }
 
             // 证明： (g, h, g^x, h^x)
-            void DecProof(const ELGL_PK global_pk, std::stringstream& commitment, std::stringstream& response, std::stringstream& encMap, vector<int64_t> table, unsigned table_size,vector<BLS12381Element>& EncTable_c0, vector<BLS12381Element>& EncTable_c1, ThreadPool * pool){
+            void DecProof(ELGL_PK global_pk, std::stringstream& commitment, std::stringstream& response, std::stringstream& encMap, vector<int64_t> table, unsigned table_size,vector<BLS12381Element>& EncTable_c0, vector<BLS12381Element>& EncTable_c1, ThreadPool * pool){
                 ExpProof proof(global_pk, table_size);
                 vector<BLS12381Element> y3;
                 table.resize(table_size);
@@ -130,6 +130,7 @@ namespace emp {
                     EncTable_c1[i] =  y3[i] + BLS12381Element(x[i].get_message());
                     EncTable_c1[i].pack(encMap);
                 }
+                
                 std::cout << "finish g1,y1,y2 gen" << std::endl;
                 std::cout << "prove start" << std::endl;
 

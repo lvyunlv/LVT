@@ -16,10 +16,9 @@ int main(int argc, char** argv) {
     vector<int64_t> table;
     table.resize(1<<num);
     Plaintext p;
-    for (size_t i = 0; i < table.size(); i++)
-    {
-        p.set_random(65535);
-        table[i] = p.get_message().getInt64();
+    for (size_t i = 0; i < table.size(); i++){
+        table[i] = i;
+        // cout << "table[" << i << "] = " << table[i] << endl;
     }
     serializeTable(table, "table.txt", table.size());
     return 0;

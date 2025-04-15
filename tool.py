@@ -34,6 +34,7 @@ def main():
         print("未找到生成元")
         
     # 计算alpha = g^(p-1)/n
+    # n = 65536
     n = 65536
     alpha = pow(g, (p-1) // n, p)
     print(f"alpha = g^(p-1)/n = {alpha}") 

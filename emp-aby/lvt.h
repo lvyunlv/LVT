@@ -86,15 +86,25 @@ LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, EL
     BLS12381Element::init();
 }
 
+void build_safe_P_to_m(std::map<std::string, Fr>& P_to_m, int num_party, size_t tb_size) {
+    size_t safety_margin = 4; // 额外保守项，可根据实际需求调大
+    size_t max_exponent = tb_size * (num_party + safety_margin);
+    // cout << "hahahhahhahah     max_exponent: " << max_exponent << endl;
+    for (size_t i = 0; i <= max_exponent; ++i) {
+        BLS12381Element g_i(i);
+        P_to_m[g_i.getPoint().getStr()] = Fr(i);
+    }
+    
+    // std::cout << "[P_to_m] Table built. Covers exponents from 0 to " << max_exponent << "." << std::endl;
+}
+
 template <typename IO>
 LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, ELGL<IO>* elgl, string tableFile, Fr& alpha, int table_size)
     : LVT(num_party, party, io, pool, elgl, alpha, table_size) {
     // load table from file
     deserializeTable(table, tableFile.c_str(), tb_size);
         // everybody calculate their own P_to_m table
-    for (size_t i = 0; i < tb_size * static_cast<size_t>(num_party); i++){
-        P_to_m[BLS12381Element(i).getPoint().getStr()] = i;
-    }
+        build_safe_P_to_m(P_to_m, num_party, tb_size);
 }
 
 
@@ -121,14 +131,19 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
     c1.resize(tb_size);
     c0_.resize(tb_size);
     c1_.resize(tb_size);
-
+    ELGL_SK sbsk;
+    ELGL_SK twosk;
     // 
     if (party == ALICE) {
         // encrypt the table
+        
         std::stringstream comm, response, encMap;
         //time
         auto start = std::chrono::high_resolution_clock::now();
-        elgl->DecProof(global_pk, comm, response, encMap, table, tb_size, c0, c1, pool);
+        elgl->DecProof(global_pk, comm, response, encMap, this->table, tb_size, c0, c1, pool);
+
+        // print comm response encMap
+
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
         std::cout << "DecProof time: " << elapsed.count() << " seconds" << std::endl;
@@ -171,7 +186,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
 
         // time verify
         start = std::chrono::high_resolution_clock::now();
-        elgl->DecVerify(global_pk ,comm_, response_, encMap_, c0, c1, tb_size, pool);
+        elgl->DecVerify(global_pk, comm_, response_, encMap_, c0, c1, tb_size, pool);
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;
         std::cout << "DecVerify time: " << elapsed.count() << " seconds" << std::endl;
@@ -447,10 +462,6 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
     Fr N_inv;
     // Fr::inv(omega_inv, alpha);
     Fr::inv(N_inv, N);
-    cout << "N * N_inv: " << N * N_inv << endl;
-
-    cout << "alpha * alpha_inv: " << alpha * alpha_inv.get_message()  << endl;
-
     // time ifft
     start = std::chrono::high_resolution_clock::now();
     res.push_back(pool->enqueue(
@@ -481,18 +492,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
     }
 
     std::cout << "finish IFFT" << std::endl; 
-    
-    // for (size_t i = 0; i < tb_size; ++i) {
-    //     if (c0[i] != c0_fft[i]){
-    //         std::cout << i << "错误" << std::endl;
-    //         // return 1;
-    //     }
-    //     if (c1_fft[i] != c1[i] ){
-    //         std::cout << i << "错误" << std::endl;
-    //         // return 1;
-    //     }
-    // }
-
+    // cal sk0 + sk1
 
     if (party == ALICE) {
         vector<Plaintext> y_alice;
@@ -563,10 +563,13 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
                 mcl::Vint r_;
                 mcl::Vint y_;
                 y_ = y.getMpz();
-                mcl::gmp::mod(r_, y_, num_party);
+                mcl::Vint tbs;
+                tbs.setStr(to_string(tb_size));
+                mcl::gmp::mod(r_, y_, tbs);
                 Fr r;
                 r.setMpz(r_);
                 lut_share[i].set_message(r);
+                // cout << "party: " << party << "计算的lut_share[" << i << "] = " << lut_share[i].get_message().getStr() << endl;
                 BLS12381Element l(r);
                 l += c0_[i] * this->elgl->kp.get_sk().get_sk();
                 L[i] = BLS12381Element(l);
@@ -729,6 +732,16 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         elapsed = end - start;
         std::cout << "receive and decode time: " << elapsed.count() << " seconds" << std::endl;
     }
+
+    // print rotation and party id
+    // std::cout << "party: " << party << ";  rotation: " << rotation.get_message().getStr() << std::endl;
+
+    // // print lut_share
+    // std::cout << "party: " << party << ";  lut_share: " << endl;
+    // for (size_t i = 0; i < tb_size; i++)
+    // {
+    //     std::cout << i << ":" << lut_share[i].get_message().getStr() << " " << std::endl;
+    // }
 }
 
 template <typename IO>
@@ -781,7 +794,7 @@ void LVT<IO>::lookup_online(Plaintext& out,  vector<Plaintext>& lut_share, Plain
         }
         mpz_class index;
         mpz_class modsize;
-        modsize.setStr("65536");
+        modsize.setStr(to_string(tb_size));
         mcl::gmp::mod(index, ui.get_message().getMpz(), modsize);
         Fr ss;
         ss.setMpz(index);

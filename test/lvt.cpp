@@ -68,7 +68,7 @@ int main(int argc, char** argv) {
     Plaintext alpha;
     alpha.assign("46605497109352149548364111935960392432509601054990529243781317021485154656122");
     Fr alpha_fr = alpha.get_message();
-    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../table.txt",alpha_fr, 16);
+    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../table.txt", alpha_fr, 16);
     // std::cout << "dist key gen" << std::endl;
     // dist key gen
     lvt->DistKeyGen();
@@ -80,19 +80,19 @@ int main(int argc, char** argv) {
           << time_from(start)/1e6 << " seconds" << std::endl;
 
 
-    vector<Plaintext> x_share;
-    vector<Ciphertext> x_cipher;
-    x_share.resize(lvt->table.size());
-    x_cipher.resize(lvt->table.size());
-    for(size_t i = 0; i < lvt->num_party; i++){
-        x_share[i].set_random();
-        x_cipher[i] = lvt->global_pk.encrypt(x_share[i]);
-    }
-    auto start2 = clock_start();
-    test_lookup_online(elgl, lvt, io, x_share, x_cipher);
-    std::cout << "test_lookup_online time: " 
-          << std::fixed << std::setprecision(3) 
-          << time_from(start2)/1e6 << " seconds" << std::endl;
+    // vector<Plaintext> x_share;
+    // vector<Ciphertext> x_cipher;
+    // x_share.resize(lvt->table.size());
+    // x_cipher.resize(lvt->table.size());
+    // for(size_t i = 0; i < lvt->num_party; i++){
+    //     x_share[i].set_random();
+    //     x_cipher[i] = lvt->global_pk.encrypt(x_share[i]);
+    // }
+    // auto start2 = clock_start();
+    // test_lookup_online(elgl, lvt, io, x_share, x_cipher);
+    // std::cout << "test_lookup_online time: " 
+    //       << std::fixed << std::setprecision(3) 
+        //   << time_from(start2)/1e6 << " seconds" << std::endl;
     delete io;
     delete elgl;
     delete lvt;
