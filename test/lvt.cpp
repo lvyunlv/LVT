@@ -94,5 +94,7 @@ int main(int argc, char** argv) {
           << std::fixed << std::setprecision(3) 
           << time_from(start2)/1e6 << " seconds" << std::endl;
     delete io;
+    delete elgl;
+    delete lvt;
     return 0;
 }
