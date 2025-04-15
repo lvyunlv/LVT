@@ -74,7 +74,6 @@ namespace emp {
             MPIOChannel<IO>* io;
             int num_party;
             vector<Ciphertext> ciphertext;
-            ELGL_PK pk_global;
             
             ELGL(int num_party, MPIOChannel<IO>* io, ThreadPool* pool, int party, int mult_depth = -1, bool keygen = true, bool mult = false, int add_count = 100){
                 BLS12381Element::init();
@@ -108,8 +107,8 @@ namespace emp {
             }
 
             // 证明： (g, h, g^x, h^x)
-            void DecProof(std::stringstream& commitment, std::stringstream& response, std::stringstream& encMap, vector<int64_t> table, unsigned table_size,vector<BLS12381Element>& EncTable_c0, vector<BLS12381Element>& EncTable_c1, ThreadPool * pool){
-                ExpProof proof(pk_global, table_size);
+            void DecProof(const ELGL_PK global_pk, std::stringstream& commitment, std::stringstream& response, std::stringstream& encMap, vector<int64_t> table, unsigned table_size,vector<BLS12381Element>& EncTable_c0, vector<BLS12381Element>& EncTable_c1, ThreadPool * pool){
+                ExpProof proof(global_pk, table_size);
                 vector<BLS12381Element> y3;
                 table.resize(table_size);
                 vector<Plaintext> x(table_size);
@@ -127,7 +126,7 @@ namespace emp {
                     r1[i].set_random();
                     //y1 = g^r, y2 = gpk^r
                     EncTable_c0[i] = BLS12381Element(r1[i].get_message());
-                    y3[i] = pk_global.get_pk() * r1[i].get_message();
+                    y3[i] = global_pk.get_pk() * r1[i].get_message();
                     EncTable_c1[i] =  y3[i] + BLS12381Element(x[i].get_message());
                     EncTable_c1[i].pack(encMap);
                 }
@@ -135,17 +134,17 @@ namespace emp {
                 std::cout << "prove start" << std::endl;
 
                 ExpProver prover(proof);
-                BLS12381Element pk_ = pk_global.get_pk();
+                BLS12381Element pk_ = global_pk.get_pk();
                 prover.NIZKPoK(proof, commitment, response, pk_, EncTable_c0, y3, r1, pool);
             }
 
-            void DecVerify(std::stringstream& commitment, std::stringstream& response, std::stringstream& encMap, vector<BLS12381Element>& EncTable_c0, vector<BLS12381Element>& EncTable_c1, unsigned table_size, ThreadPool * pool){
+            void DecVerify(const ELGL_PK global_pk, std::stringstream& commitment, std::stringstream& response, std::stringstream& encMap, vector<BLS12381Element>& EncTable_c0, vector<BLS12381Element>& EncTable_c1, unsigned table_size, ThreadPool * pool){
                 // verify
-                ExpProof proof(pk_global, table_size);
+                ExpProof proof(global_pk, table_size);
                 ExpVerifier verifier(proof);
                 vector<BLS12381Element> y3;
                 y3.resize(table_size);
-                BLS12381Element pk_ = pk_global.get_pk();
+                BLS12381Element pk_ = global_pk.get_pk();
                 verifier.NIZKPoK(pk_, EncTable_c0, y3, commitment, response, pool);
 
                 for (size_t i = 0; i < table_size; i++){
@@ -211,6 +210,18 @@ namespace emp {
             res.clear();
             free(c);
             s.clear();
+        }
+
+        void wait_for(int src){
+            bool c = false;
+            io->recv_bool(src, &c, 1);
+            io->flush(src, 0);
+        }
+    
+        void send_done(int dst){
+            bool c = true;
+            io->send_bool(dst, &c, 1, 0);
+            io->flush(dst, 0);
         }
         
             template <typename T>

@@ -39,7 +39,6 @@ class LVT{
     private:
     int num_used = 0;
     ThreadPool* pool;
-    Fr rotation;
     std::map<std::string, Fr> P_to_m;
     vector<vector<BLS12381Element>> cip_lut;
 
@@ -54,6 +53,7 @@ class LVT{
 
     public:
     ELGL_PK global_pk;
+    Plaintext rotation;
     std::vector<ELGL_PK> user_pk;
     vector<Plaintext> lut_share;
     vector<Plaintext> lut_value_share;
@@ -128,7 +128,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         std::stringstream comm, response, encMap;
         //time
         auto start = std::chrono::high_resolution_clock::now();
-        elgl->DecProof(comm, response, encMap, table, tb_size, c0, c1, pool);
+        elgl->DecProof(global_pk, comm, response, encMap, table, tb_size, c0, c1, pool);
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
         std::cout << "DecProof time: " << elapsed.count() << " seconds" << std::endl;
@@ -171,7 +171,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
 
         // time verify
         start = std::chrono::high_resolution_clock::now();
-        elgl->DecVerify(comm_, response_, encMap_, c0, c1, tb_size, pool);
+        elgl->DecVerify(global_pk ,comm_, response_, encMap_, c0, c1, tb_size, pool);
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;
         std::cout << "DecVerify time: " << elapsed.count() << " seconds" << std::endl;
@@ -614,6 +614,15 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         elapsed = end - start;
         std::cout << "encode and send time: " << elapsed.count() << " seconds" << std::endl;
         // serialize d
+        for (size_t i = 2; i <= num_party; i++)
+         {
+             res.push_back(pool->enqueue([this, i](){
+                 this->elgl->wait_for(i);
+             }));
+         }
+         for (auto& v : res)
+             v.get();
+         res.clear();
 
     }else{
         // sample x_i
@@ -714,6 +723,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         BLS12381Element pk__ = user_pk[0].get_pk();
         Range_verifier.NIZKPoK(pk__, y3, y2, comm_, response_, c0_, global_pk, pool);
         cip_lut[0] = y3;
+        elgl->send_done(ALICE);
         // time
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;

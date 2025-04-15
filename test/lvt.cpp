@@ -15,7 +15,6 @@ int num_party;
 
 template <typename IO>
 void test_generate_shares(ELGL<IO>* he, LVT<IO>* lut, MPIOChannel<IO>* io){
-    Plaintext rotation;
     lut->generate_shares(lut->lut_share, rotation, lut->table);
 }
 
