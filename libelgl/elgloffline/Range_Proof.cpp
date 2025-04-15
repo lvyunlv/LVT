@@ -7,6 +7,7 @@ void RangeProof::set_challenge(const std::stringstream& ciphertexts) {
     char* tmp = new char[size];
     buf->sgetn(tmp, size);
     challenge.setHashof(tmp, size);
+    delete [] tmp;
 }
 
 // void RangeProof::generate_challenge(const Player &P)

@@ -93,6 +93,6 @@ int main(int argc, char** argv) {
     std::cout << "test_lookup_online time: " 
           << std::fixed << std::setprecision(3) 
           << time_from(start2)/1e6 << " seconds" << std::endl;
-
+    delete io;
     return 0;
 }
