@@ -127,6 +127,7 @@ public:
         s.clear();
     }
 
+
     template <typename T>
     void serialize_sendall(T& obj, int j = 0, MESSAGE_TYPE mt = NORM_MSG) {
         std::stringstream s;

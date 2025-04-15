@@ -42,5 +42,5 @@ void Schnorr_Verifier::NIZKPoK(std::vector<BLS12381Element>& c, std::stringstrea
             throw std::runtime_error("invalid proof");
         }
     }
-    std::cout << "valid proof" << std::endl;
+    // std::cout << "valid proof" << std::endl;
 }

@@ -73,5 +73,5 @@ void EncVerifier::NIZKPoK(std::vector<Ciphertext>& c, std::stringstream& ciphert
             throw std::runtime_error("invalid proof");
         }
     }
-    std::cout << "valid proof" << std::endl;
+    // std::cout << "valid proof" << std::endl;
 }

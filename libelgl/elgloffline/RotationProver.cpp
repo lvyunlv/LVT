@@ -36,10 +36,10 @@ size_t RotationProver::NIZKPoK(RotationProof& P, std::stringstream& ciphertexts,
     assert(bx.size() >= P.n_tilde);
     assert(dx.size() >= P.n_tilde);
     assert(ex.size() >= P.n_tilde);
-    std::cout << "ax.size():" << ax.size() << std::endl;
-    std::cout << "bx.size():" << bx.size() << std::endl;
-    std::cout << "dx.size():" << dx.size() << std::endl;
-    std::cout << "ex.size():" << ex.size() << std::endl;
+    // std::cout << "ax.size():" << ax.size() << std::endl;
+    // std::cout << "bx.size():" << bx.size() << std::endl;
+    // std::cout << "dx.size():" << dx.size() << std::endl;
+    // std::cout << "ex.size():" << ex.size() << std::endl;
     for (size_t i = 0; i < P.n_tilde; i++)
     {
         ax[i].pack(ciphertexts);
@@ -48,7 +48,7 @@ size_t RotationProver::NIZKPoK(RotationProof& P, std::stringstream& ciphertexts,
         ex[i].pack(ciphertexts);
     }
 
-    std::cout << "finish packing " << std::endl;
+    // std::cout << "finish packing " << std::endl;
     // PRNG G;
     // G.ReSeed();
     // gen m_tilde b

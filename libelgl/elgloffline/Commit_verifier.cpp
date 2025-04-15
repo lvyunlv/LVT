@@ -74,5 +74,5 @@ void CommitVerifier::NIZKPoK(vector<Ciphertext>& c,vector<BLS12381Element>& y3, 
             throw runtime_error("invalid proof");
         }
     }
-    cout << "valid proof" << endl;
+    // cout << "valid proof" << endl;
 }

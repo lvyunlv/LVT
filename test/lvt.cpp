@@ -15,8 +15,7 @@ int num_party;
 
 template <typename IO>
 void test_generate_shares(ELGL<IO>* he, LVT<IO>* lut, MPIOChannel<IO>* io){
-    Plaintext rotation;
-    lut->generate_shares(lut->lut_share, rotation, lut->table);
+    lut->generate_shares(lut->lut_share, lut->rotation, lut->table);
 }
 
 template <typename IO>
@@ -61,39 +60,48 @@ int main(int argc, char** argv) {
 
     MultiIO* io = new MultiIO(party, num_party, net_config);
 
-    std::cout << "io setup" << std::endl;
+    // std::cout << "io setup" << std::endl;
 
     ELGL<MultiIOBase>* elgl = new ELGL<MultiIOBase>(num_party, io, &pool, party);
 
     // table has been loaded from a file
     Plaintext alpha;
-    alpha.assign("46605497109352149548364111935960392432509601054990529243781317021485154656122");
+    alpha.assign("3465144826073652318776269530687742778270252468765361963008");
     Fr alpha_fr = alpha.get_message();
-    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "/Users/lvbao/Desktop/ScalableMixedModeMPC/table.txt",alpha_fr, 16);
+    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "/Users/lvbao/Desktop/ScalableMixedModeMPC/table.txt",alpha_fr, 2);
     // std::cout << "dist key gen" << std::endl;
     // dist key gen
     lvt->DistKeyGen();
 
+    // cout table
     auto start = clock_start();
     test_generate_shares(elgl, lvt, io);
     std::cout << "test_generate_shares time: " 
           << std::fixed << std::setprecision(3) 
-          << time_from(start)/1e6 << " seconds" << std::endl;
+          << time_from(start)/1e3 << " m-seconds" << std::endl;
 
-
-    vector<Plaintext> x_share;
-    vector<Ciphertext> x_cipher;
-    x_share.resize(lvt->table.size());
-    x_cipher.resize(lvt->table.size());
-    for(size_t i = 0; i < lvt->num_party; i++){
-        x_share[i].set_random();
-        x_cipher[i] = lvt->global_pk.encrypt(x_share[i]);
+    cout << "～～～～～～离线阶段结束～～～～～～" << endl;
+    for (size_t i = 0; i < lvt->lut_share.size(); i++){
+        std::cout << "lut_share[" << i << "] = " << lvt->lut_share[i].get_message() << std::endl;
     }
-    auto start2 = clock_start();
-    test_lookup_online(elgl, lvt, io, x_share, x_cipher);
-    std::cout << "test_lookup_online time: " 
-          << std::fixed << std::setprecision(3) 
-          << time_from(start2)/1e6 << " seconds" << std::endl;
 
+    std::cout << "rotation " << lvt->rotation.get_message().getStr() << std::endl;
+
+
+    // vector<Plaintext> x_share;
+    // vector<Ciphertext> x_cipher;
+    // x_share.resize(lvt->table.size());
+    // x_cipher.resize(lvt->table.size());
+    // for(size_t i = 0; i < lvt->num_party; i++){
+    //     x_share[i].set_random(4097);
+    //     cout << "x_share[" << i << "] = " << x_share[i].get_message() << std::endl;
+    //     x_cipher[i] = lvt->global_pk.encrypt(x_share[i]);
+    // }
+    // auto start2 = clock_start();
+    // test_lookup_online(elgl, lvt, io, x_share, x_cipher);
+    // std::cout << "test_lookup_online time: " 
+    //       << std::fixed << std::setprecision(3) 
+    //       << time_from(start2)/1e3 << " m-seconds" << std::endl;
+    
     return 0;
 }

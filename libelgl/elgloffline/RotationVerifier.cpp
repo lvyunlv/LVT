@@ -200,5 +200,5 @@ void RotationVerifier::NIZKPoK(std::vector<BLS12381Element> &dx, std::vector<BLS
             throw std::invalid_argument("--invalid proof--");
         }
         
-        std::cout << "valid proof" << std::endl;
+        // std::cout << "valid proof" << std::endl;
     }

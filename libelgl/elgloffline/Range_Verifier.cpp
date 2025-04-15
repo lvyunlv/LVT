@@ -103,5 +103,5 @@ void RangeVerifier::NIZKPoK(const BLS12381Element y1, std::vector<BLS12381Elemen
     futures.clear();
 
 
-    std::cout << "valid proof" << std::endl;
+    // std::cout << "valid proof" << std::endl;
 }
