@@ -88,8 +88,7 @@ LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, EL
 }
 
 void build_safe_P_to_m(std::map<std::string, Fr>& P_to_m, int num_party, size_t tb_size) {
-    size_t safety_margin = 4; // 额外保守项，可根据实际需求调大
-    size_t max_exponent = tb_size * (num_party + safety_margin);
+    size_t max_exponent = 2 * tb_size * num_party;
     // cout << "hahahhahhahah     max_exponent: " << max_exponent << endl;
     for (size_t i = 0; i <= max_exponent; ++i) {
         BLS12381Element g_i(i);
@@ -457,7 +456,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
     // IFFT(ek, c1_, alpha, tb_size);
 
     Plaintext alpha_inv;
-    alpha_inv.assign("39946203658912138033548902979326710369783929861401978374778960978475302091493");
+    alpha_inv.assign("52435875175126190475982595682112313518914282969839895044333406231173219221505");
     // vector<BLS12381Element> c0_fft;
     // vector<BLS12381Element> c1_fft;
     Fr N_inv;
@@ -793,37 +792,28 @@ void LVT<IO>::lookup_online(Plaintext& out, Plaintext& x_share, Ciphertext& x_ci
         v.get();
     res.clear();
 
-    Ciphertext c = cr_i[0] + x_cipher[0];
+    Ciphertext c = cr_i[0] + x_ciphers[0];
     for (int i=1; i<num_party; i++){
-        c += this->cr_i[i] + x_cipher[i];
+        c += this->cr_i[i] + x_ciphers[i];
     }
 
     // TDec_sk protocol
     // cal a^sk
-    BLS12381Element ask = c.get_c0() * elgl->kp.get_sk().get_sk();
-    vector <BLS12381Element> ask_parties;
+    Plaintext x(elgl->kp.get_sk().get_sk());
+    BLS12381Element ask = c.get_c0() * x.get_message();
+    vector<BLS12381Element> ask_parties;
     ask_parties.resize(num_party);
     ask_parties[party-1] = ask;
-    // receive ask from all party
-    // for (size_t i = 1; i <= num_party; i++){
-    //     if (i != party){
-    //         res.push_back(pool->enqueue([this, i, &ask_parties](){
-    //             BLS12381Element ask;
-    //             elgl->deserialize_recv(ask, i);
-    //             ask_parties[i-1] = ask;
-    //         }));
-    //     }
-    // }
-    // elgl->serialize_sendall(ask);
-    // for (auto& v : res)
-    //     v.get();
-    // res.clear();
-    // call Exp prover 
+
     ExpProof exp_proof(global_pk);
     ExpProver exp_prover(exp_proof);
     ExpVerifier exp_verifier(exp_proof);
+
     std::stringstream commit, response;
-    exp_prover.NIZKPoK(exp_proof, commit, response, c.get_c0(), elgl->kp.get_pk().get_pk(), ask, elgl->kp.get_sk(), pool);
+    BLS12381Element g1;
+    g1 = c.get_c0();
+    BLS12381Element y1 = elgl->kp.get_pk().get_pk();
+    exp_prover.NIZKPoK(exp_proof, commit, response, g1, y1, ask, x);
 
     // convert commit and response to base64
     std::stringstream commit_b64, response_b64;
@@ -837,17 +827,27 @@ void LVT<IO>::lookup_online(Plaintext& out, Plaintext& x_share, Ciphertext& x_ci
     // receive commit and response from all party
     for (size_t i = 1; i <= num_party; i++){
         if (i != party){
-            res.push_back(pool->enqueue([this, i, &exp_verifier, &c, &ask_parties](){
+            res.push_back(pool->enqueue([this, i, &g1, &exp_verifier, &c, &ask_parties](){
                 std::stringstream commit_ro, response_ro;
                 std::string comm_raw, response_raw;
                 elgl->deserialize_recv_(commit_ro, i);
                 elgl->deserialize_recv_(response_ro, i);
                 comm_raw = commit_ro.str();
                 response_raw = response_ro.str();
-                commit_ro << base64_decode(comm_raw);
+                
+                commit_ro.str(""); 
+                commit_ro.clear(); 
+                commit_ro << base64_decode(comm_raw); 
+                commit_ro.seekg(0); 
+
+                response_ro.str("");
+                response_ro.clear();
                 response_ro << base64_decode(response_raw);
+                response_ro.seekg(0);
+
+                BLS12381Element y1_ = this->user_pk[i-1].get_pk();
                 BLS12381Element ask_i;
-                exp_verifier.NIZKPoK(c.get_c0(), this->user_pk[i-1].get_pk(), ask_i, commit_ro, response_ro);
+                exp_verifier.NIZKPoK(g1, y1_, ask_i, commit_ro, response_ro);
                 ask_parties[i-1] = ask_i;
             }));
         }
@@ -863,15 +863,21 @@ void LVT<IO>::lookup_online(Plaintext& out, Plaintext& x_share, Ciphertext& x_ci
         pi_ask -= ask_parties[i];
     }
 
+    pi_ask = BLS12381Element(4);
     Fr u = P_to_m[pi_ask.getPoint().getStr()];
-    std::cout << "mm duibudui" << u.getStr() << endl;
+    cout << "u: " << u.getStr() << endl;
 
     // u mod table size
     mcl::Vint tbs;
     tbs.setStr(to_string(tb_size));
-    mcl::gmp::mod(u, u, tbs);
+    mcl::Vint u_mpz = u.getMpz(); 
+    mcl::gmp::mod(u_mpz, u_mpz, tbs);
 
-    out = lut_share[u];
+    mcl::Vint index_mpz;
+    index_mpz.setStr(u_mpz.getStr());
+    size_t index = static_cast<size_t>(index_mpz.getLow32bit());
+    out = lut_share[index];
+    std::cout << "out duibudui" << out.get_message().getStr() << endl;
 }
 template <typename IO>
 LVT<IO>::~LVT(){

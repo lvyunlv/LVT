@@ -3,10 +3,12 @@ project (emp-aby)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(NAME "emp-aby")
-
 # Debug
 set(CMAKE_BUILD_TYPE Release)
 set(CMAKE_OSX_SYSROOT /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk)
+set(EMP_TOOL_DIR ${CMAKE_SOURCE_DIR}/emp-tool)
+include_directories(${EMP_TOOL_DIR})
+include_directories(/opt/homebrew/opt/openssl/include)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     message(STATUS "Enabling AddressSanitizer")
@@ -24,13 +26,12 @@ endif()
 
 set(CMAKE_CXX_STANDARD 17)
 
-find_path(CMAKE_FOLDER NAMES cmake/emp-tool-config.cmake)
+set(CMAKE_FOLDER /Users/lvbao/Desktop/ScalableMixedModeMPC/emp-tool)
 include(${CMAKE_FOLDER}/cmake/emp-base.cmake)
 
 find_package(OpenFHE REQUIRED)
 add_subdirectory(external/mcl)
 add_subdirectory(libelgl)
-
 
 include_directories(external/mcl/include)
 include_directories(libelgl)

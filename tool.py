@@ -35,7 +35,7 @@ def main():
         
     # 计算alpha = g^(p-1)/n
     # n = 65536
-    n = 65536
+    n = 4
     alpha = pow(g, (p-1) // n, p)
     print(f"alpha = g^(p-1)/n = {alpha}") 
     # 计算alpha的逆元

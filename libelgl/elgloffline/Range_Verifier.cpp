@@ -8,7 +8,7 @@ RangeVerifier::RangeVerifier(RangeProof& proof) :
 }
 
 
-void RangeVerifier::NIZKPoK(const BLS12381Element y1, std::vector<BLS12381Element>& y3, std::vector<BLS12381Element>& y2, std::stringstream& ciphertexts, std::stringstream& cleartexts, const std::vector<BLS12381Element>& g1,
+void RangeVerifier::NIZKPoK(const BLS12381Element& y1, std::vector<BLS12381Element>& y3, std::vector<BLS12381Element>& y2, std::stringstream& ciphertexts, std::stringstream& cleartexts, const std::vector<BLS12381Element>& g1,
     const ELGL_PK& pk, ThreadPool* pool) {
     
 
