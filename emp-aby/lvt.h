@@ -110,7 +110,7 @@ LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, EL
 
 template <typename IO>
 void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation, vector<int64_t> table) {
-    std::cout <<"alpha:" << alpha << std::endl;
+    // std::cout <<"alpha:" << alpha << std::endl;
     vector<std::future<void>> res;
     vector<BLS12381Element> c0;
     vector<BLS12381Element> c1;
@@ -133,6 +133,19 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
     c1_.resize(tb_size);
     ELGL_SK sbsk;
     ELGL_SK twosk;
+
+    rotation.set_random(bound);
+    Ciphertext my_rot_cipher = global_pk.encrypt(rotation);
+    elgl->serialize_sendall(my_rot_cipher);
+    for (int i = 1; i <= num_party; ++i) {
+        if (i == party) {
+            cr_i[party-1] = my_rot_cipher;
+        } else {
+            Ciphertext other_rot_cipher;
+            elgl->deserialize_recv(other_rot_cipher, i);
+            cr_i[i-1] = other_rot_cipher;
+        }
+    }
     // 
     if (party == ALICE) {
         // encrypt the table
@@ -226,13 +239,6 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
 
     if (party == ALICE)
     {
-        mcl::Vint bound;
-        bound.setStr(to_string(tb_size));
-        rotation.set_random(bound);
-
-        Ciphertext cipher_rot =  elgl->kp.get_pk().encrypt(rotation);
-        cr_i[party-1] = cipher_rot;
-
         Plaintext beta;
         vector<Plaintext> betak;
         betak.resize(tb_size);
@@ -287,11 +293,9 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         comm_ro_ << base64_encode(comm_raw);
         std::string response_raw = response_ro.str();
         response_ro_ << base64_encode(response_raw);
-        // print comm_ response_ cipher_rot
 
         elgl->serialize_sendall_(comm_ro_);
         elgl->serialize_sendall_(response_ro_);
-        elgl->serialize_sendall(cipher_rot);
         // time prove and encode
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;
@@ -313,7 +317,6 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
                 bk_thread.resize(tb_size);
                 dk_thread.resize(tb_size);
                 ek_thread.resize(tb_size);
-                Ciphertext cipher_rot;
                 // TODO: read ciphertexts and proof
                 std::stringstream comm_ro, response_ro;
                 std::string comm_raw, response_raw;
@@ -322,7 +325,6 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
                 auto start = std::chrono::high_resolution_clock::now();
                 elgl->deserialize_recv_(comm_ro, i);
                 elgl->deserialize_recv_(response_ro, i);
-                elgl->deserialize_recv(cipher_rot, i);
 
                 comm_raw = comm_ro.str();
                 response_raw = response_ro.str();
@@ -333,7 +335,6 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
                 std::chrono::duration<double> elapsed = end - start;
                 std::cout << "receive and decode time: " << elapsed.count() << " seconds" << std::endl;
 
-                this->cr_i[index] = cipher_rot;
                 // time verify
                 start = std::chrono::high_resolution_clock::now();
                 Rot_verifier.NIZKPoK(dk_thread, ek_thread, ak_thread, bk_thread, comm_, response_, this->global_pk, this->global_pk, pool);
@@ -349,11 +350,6 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
                     vector<BLS12381Element> ek_;
                     dk_.resize(tb_size);
                     ek_.resize(tb_size);
-                    mcl::Vint bound;
-                    bound.setStr(to_string(tb_size));
-                    rotation.set_random(bound);
-                    Ciphertext cipher_rot =  elgl->kp.get_pk().encrypt(rotation);
-                    this->cr_i[this->party-1] = cipher_rot;
                     Plaintext beta;
                     Plaintext::pow(beta, alpha, rotation);
                     // betak.assign("1");
@@ -406,7 +402,6 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
 
                     elgl->serialize_sendall_(comm_ro_final);
                     elgl->serialize_sendall_(response_ro_final);
-                    elgl->serialize_sendall(cipher_rot);
                     // time encode and send
                     end = std::chrono::high_resolution_clock::now();
                     elapsed = end - start;
@@ -425,18 +420,15 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
     res.clear();
 
     if (party != num_party){
-            // all party wait for the last party
-        Ciphertext cipher_rot;
+        
         // TODO: read ciphertexts and proof
         std::stringstream comm_ro, response_ro;
         std::string comm_raw, response_raw;
         std::stringstream comm_, response_;
-// time receive and decode
+        
         auto start = std::chrono::high_resolution_clock::now();
         elgl->deserialize_recv_(comm_ro, num_party);
         elgl->deserialize_recv_(response_ro, num_party);
-        elgl->deserialize_recv(cipher_rot, num_party);
-        cr_i[num_party-1] = cipher_rot;
         comm_raw = comm_ro.str();
         response_raw = response_ro.str();
         comm_ << base64_decode(comm_raw);
@@ -451,18 +443,13 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         elapsed = end - start;
         std::cout << "NIZKPoK verify time: " << elapsed.count() << " seconds" << std::endl;
     }
-    
-    // IFFT(dk, c0_, alpha, tb_size);
-    // IFFT(ek, c1_, alpha, tb_size);
 
     Plaintext alpha_inv;
-    alpha_inv.assign("52435875175126190475982595682112313518914282969839895044333406231173219221505");
-    // vector<BLS12381Element> c0_fft;
-    // vector<BLS12381Element> c1_fft;
+    Fr alpha_inv_;
+    Fr::inv(alpha_inv_, alpha);
+    alpha_inv.assign(alpha_inv_.getMpz());
     Fr N_inv;
-    // Fr::inv(omega_inv, alpha);
     Fr::inv(N_inv, N);
-    // time ifft
     start = std::chrono::high_resolution_clock::now();
     res.push_back(pool->enqueue(
         [this, &dk, &c0_, &N, &alpha_inv]()
@@ -734,13 +721,10 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
     }
 
     // print rotation and party id
-    // std::cout << "party: " << party << ";  rotation: " << rotation.get_message().getStr() << std::endl;
-
-    // // print lut_share
-    // std::cout << "party: " << party << ";  lut_share: " << endl;
-    // for (size_t i = 0; i < tb_size; i++)
-    // {
-    //     std::cout << i << ":" << lut_share[i].get_message().getStr() << " " << std::endl;
+    std::cout << "party: " << party << ";  rotation: " << rotation.get_message().getStr() << std::endl;
+    // print lut_share
+    // for (size_t i = 0; i < tb_size; i++){
+    //     std::cout << "table[" << i << "]:" << lut_share[i].get_message().getStr() << " " << std::endl;
     // }
 }
 
@@ -772,6 +756,80 @@ void LVT<IO>::DistKeyGen(){
 }
 
 template <typename IO>
+Fr threshold_decrypt(Ciphertext& c, ELGL<IO>* elgl, const ELGL_PK& global_pk, const std::vector<ELGL_PK>& user_pks, MPIOChannel<IO>* io, ThreadPool* pool, int party, int num_party, std::map<std::string, Fr>& P_to_m) {
+
+    Plaintext sk(elgl->kp.get_sk().get_sk());
+    BLS12381Element ask = c.get_c0() * sk.get_message();
+    std::vector<BLS12381Element> ask_parts(num_party);
+    ask_parts[party - 1] = ask;
+
+    ExpProof exp_proof(global_pk);
+    ExpProver exp_prover(exp_proof);
+    ExpVerifier exp_verifier(exp_proof);
+
+    std::stringstream commit, response;
+    BLS12381Element g1 = c.get_c0();
+    BLS12381Element y1 = elgl->kp.get_pk().get_pk();
+    exp_prover.NIZKPoK(exp_proof, commit, response, g1, y1, ask, sk);
+
+    std::stringstream commit_b64, response_b64;
+    commit_b64 << base64_encode(commit.str());
+    response_b64 << base64_encode(response.str());
+
+    elgl->serialize_sendall_(commit_b64);
+    elgl->serialize_sendall_(response_b64);
+
+    std::vector<std::future<void>> res;
+
+    for (int i = 1; i <= num_party; ++i) {
+        if (i == party) continue;
+
+        res.push_back(pool->enqueue([&, i]() {
+            std::stringstream commit_in, response_in;
+            std::string comm_raw, resp_raw;
+
+            elgl->deserialize_recv_(commit_in, i);
+            elgl->deserialize_recv_(response_in, i);
+
+            comm_raw = commit_in.str();
+            resp_raw = response_in.str();
+
+            commit_in.str("");
+            commit_in.clear();
+            commit_in << base64_decode(comm_raw);
+            commit_in.seekg(0);
+
+            response_in.str("");
+            response_in.clear();
+            response_in << base64_decode(resp_raw);
+            response_in.seekg(0);
+
+            BLS12381Element y1_other = user_pks[i - 1].get_pk();
+            BLS12381Element ask_i;
+            exp_verifier.NIZKPoK(g1, y1_other, ask_i, commit_in, response_in);
+            ask_parts[i - 1] = ask_i;
+        }));
+    }
+
+    for (auto& f : res) f.get();
+
+    // pi_ask = c1 - sum(a^sk)
+    BLS12381Element pi_ask = c.get_c1();
+    for (auto& ask_i : ask_parts) {
+        pi_ask -= ask_i;
+    }
+
+    std::string key = pi_ask.getPoint().getStr();
+    auto it = P_to_m.find(key);
+    if (it == P_to_m.end()) {
+        std::cerr << "[Error] pi_ask not found in P_to_m! pi_ask = " << key << std::endl;
+    }
+
+    return it->second;
+}
+
+
+template <typename IO>
 void LVT<IO>::lookup_online(Plaintext& out, Plaintext& x_share, Ciphertext& x_cipher){
     vector<std::future<void>> res;
     vector<Ciphertext> x_ciphers;
@@ -781,9 +839,9 @@ void LVT<IO>::lookup_online(Plaintext& out, Plaintext& x_share, Ciphertext& x_ci
     for (size_t i = 1; i <= num_party; i++){
         res.push_back(pool->enqueue([this, i, &x_ciphers](){
             if (i != party){
-                Ciphertext x_cipher;
-                elgl->deserialize_recv(x_cipher, i);
-                x_ciphers[i-1] = x_cipher;
+                Ciphertext x_cip;
+                elgl->deserialize_recv(x_cip, i);
+                x_ciphers[i-1] = x_cip;
             }
         }));
     }
@@ -793,91 +851,25 @@ void LVT<IO>::lookup_online(Plaintext& out, Plaintext& x_share, Ciphertext& x_ci
     res.clear();
 
     Ciphertext c = cr_i[0] + x_ciphers[0];
-    for (int i=1; i<num_party; i++){
+    for (size_t i=0; i<num_party; i++){
         c += this->cr_i[i] + x_ciphers[i];
     }
 
-    // TDec_sk protocol
-    // cal a^sk
-    Plaintext x(elgl->kp.get_sk().get_sk());
-    BLS12381Element ask = c.get_c0() * x.get_message();
-    vector<BLS12381Element> ask_parties;
-    ask_parties.resize(num_party);
-    ask_parties[party-1] = ask;
-
-    ExpProof exp_proof(global_pk);
-    ExpProver exp_prover(exp_proof);
-    ExpVerifier exp_verifier(exp_proof);
-
-    std::stringstream commit, response;
-    BLS12381Element g1;
-    g1 = c.get_c0();
-    BLS12381Element y1 = elgl->kp.get_pk().get_pk();
-    exp_prover.NIZKPoK(exp_proof, commit, response, g1, y1, ask, x);
-
-    // convert commit and response to base64
-    std::stringstream commit_b64, response_b64;
-    std::string commit_raw = commit.str();
-    commit_b64 << base64_encode(commit_raw);
-    std::string response_raw = response.str();
-    response_b64 << base64_encode(response_raw);
-    // send commit and response to all party
-    elgl->serialize_sendall_(commit_b64);
-    elgl->serialize_sendall_(response_b64);
-    // receive commit and response from all party
-    for (size_t i = 1; i <= num_party; i++){
-        if (i != party){
-            res.push_back(pool->enqueue([this, i, &g1, &exp_verifier, &c, &ask_parties](){
-                std::stringstream commit_ro, response_ro;
-                std::string comm_raw, response_raw;
-                elgl->deserialize_recv_(commit_ro, i);
-                elgl->deserialize_recv_(response_ro, i);
-                comm_raw = commit_ro.str();
-                response_raw = response_ro.str();
-                
-                commit_ro.str(""); 
-                commit_ro.clear(); 
-                commit_ro << base64_decode(comm_raw); 
-                commit_ro.seekg(0); 
-
-                response_ro.str("");
-                response_ro.clear();
-                response_ro << base64_decode(response_raw);
-                response_ro.seekg(0);
-
-                BLS12381Element y1_ = this->user_pk[i-1].get_pk();
-                BLS12381Element ask_i;
-                exp_verifier.NIZKPoK(g1, y1_, ask_i, commit_ro, response_ro);
-                ask_parties[i-1] = ask_i;
-            }));
-        }
-    }
-
-    for (auto& v : res)
-        v.get();
-    res.clear();
-
-    
-    BLS12381Element pi_ask = c.get_c1();
-    for (size_t i = 0; i < num_party; i++){
-        pi_ask -= ask_parties[i];
-    }
-
-    pi_ask = BLS12381Element(4);
-    Fr u = P_to_m[pi_ask.getPoint().getStr()];
-    cout << "u: " << u.getStr() << endl;
+    Fr u = threshold_decrypt(c, elgl, global_pk, user_pk, io, pool, party, num_party, P_to_m);
+    // std::cout << "masked lookup index before mod: u = " << u.getStr() << std::endl;
 
     // u mod table size
     mcl::Vint tbs;
     tbs.setStr(to_string(tb_size));
     mcl::Vint u_mpz = u.getMpz(); 
     mcl::gmp::mod(u_mpz, u_mpz, tbs);
+    std::cout << "masked lookup index: " << u_mpz.getStr() << std::endl;
 
     mcl::Vint index_mpz;
     index_mpz.setStr(u_mpz.getStr());
     size_t index = static_cast<size_t>(index_mpz.getLow32bit());
     out = lut_share[index];
-    std::cout << "out duibudui" << out.get_message().getStr() << endl;
+    std::cout << "T[x]_share for party " << party << ": " << out.get_message().getStr() << endl;
 }
 template <typename IO>
 LVT<IO>::~LVT(){

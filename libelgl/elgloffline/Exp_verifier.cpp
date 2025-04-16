@@ -116,16 +116,8 @@ void ExpVerifier::NIZKPoK(BLS12381Element& g1, BLS12381Element& y1, BLS12381Elem
     Plaintext z;
     std::stringstream buf;
 
-    // g1.unpack(ciphertexts);
-    // g1.pack(buf);
-    // for (int i = 0; i < P.n_proofs; i++){
-        // remember initial
-
-        // y1.unpack(ciphertexts);
-        // y1.pack(buf);
-        y2.unpack(ciphertexts);
-        y2.pack(buf);
-    // }
+    y2.unpack(ciphertexts);
+    y2.pack(buf);
 
     z.setHashof(buf.str().c_str(), buf.str().size()); 
 
@@ -134,28 +126,20 @@ void ExpVerifier::NIZKPoK(BLS12381Element& g1, BLS12381Element& y1, BLS12381Elem
     // v = (g^z * g1)^s * (y1^z * y2)^challenge
     Plaintext s;
     BLS12381Element v;
-    // for (int i = 0; i < P.n_proofs; i++){
-        s.unpack(cleartexts);
-        v.unpack(ciphertexts);
-    // }
-    // vector<std::future<void>> futures;
-    // for (int i = 0; i < P.n_proofs; i++){
-        // futures.emplace_back(pool->enqueue([this, &g1, &z, &s, &v, &y1, &y2]() {
-            BLS12381Element Right1, Right2;
-            Right1 = BLS12381Element(z.get_message()) + g1;
-            Right1 = Right1 * s.get_message();
-            Right2 = y1 * z.get_message() + y2;
-            Right2 = Right2 * P.challenge.get_message();
+    
+    s.unpack(cleartexts);
+    v.unpack(ciphertexts);
 
-            Right1 += Right2;
-            if (v != Right1 ){
-                throw runtime_error("invalid exp proof");
-            }
-        // }));
-    // }
-    // for (auto& f : futures) {
-    //     f.get();
-    // }
+    BLS12381Element Right1, Right2;
+    Right1 = BLS12381Element(z.get_message()) + g1;
+    Right1 = Right1 * s.get_message();
+    Right2 = y1 * z.get_message() + y2;
+    Right2 = Right2 * P.challenge.get_message();
+
+    Right1 += Right2;
+    if (v != Right1 ){
+        throw runtime_error("invalid exp proof");
+    }
 
     cout << "valid proof" << endl;
 }

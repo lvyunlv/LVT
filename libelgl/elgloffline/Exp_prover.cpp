@@ -126,57 +126,24 @@ size_t ExpProver::NIZKPoK(ExpProof& P, std::stringstream&  ciphertexts, std::str
     const BLS12381Element& y1,
     const BLS12381Element& y2,
     const Plaintext& x){
-     // TODO: check if allocate is enough
-
-
     Plaintext z;
-    // g1.pack(ciphertexts);
-    // for (unsigned int i = 0; i < y1.size(); i++){
-        // y1.pack(ciphertexts);
-        y2.pack(ciphertexts);
-    // }
-    // z = H(g1,y1,y2)
+    y2.pack(ciphertexts);
 
-    z.setHashof(ciphertexts.str().c_str(), ciphertexts.str().size()); 
-    // int V = P.n_proofs;
-
-    // std::vector<std::future<thread1Ret>> futures1;
     // v = (g^z * g1)^k, z = H(y1,y2)
-    // for (int i = 0; i < P.n_proofs; i++) {
-        // futures1.emplace_back(pool->enqueue([this, &g1, &z]() -> thread1Ret {
-            BLS12381Element v;
-            this->k[0].set_random();
-            v = BLS12381Element(z.get_message()) + g1;
-            v = v * k[0].get_message();
-        //     return {v};
-        // }));
-    // }
+    z.setHashof(ciphertexts.str().c_str(), ciphertexts.str().size()); 
+    
+    BLS12381Element v;
+    this->k[0].set_random();
+    v = BLS12381Element(z.get_message()) + g1;
+    v = v * k[0].get_message();
     v.pack(ciphertexts);
-    // for (auto& f : futures1) {
-    //     thread1Ret result = f.get();
-    //     result.v.pack(ciphertexts);
-    // }
 
     P.set_challenge(ciphertexts);
 
-
-    // std::vector<std::future<thread2Ret>> futures2;
-    // s = k - x * challenge
-    // for (int i = 0; i < P.n_proofs; i++){
-        // futures2.emplace_back(pool->enqueue([this, &x, &P]() -> thread2Ret {
-            Plaintext s;
-            s = this->k[0];
-            s -= x * P.challenge;
-            // return {s};
-        // }));
-    // }
+    Plaintext s;
+    s = this->k[0];
+    s -= x * P.challenge;
     s.pack(cleartexts);
-    // for (auto & f : futures2) {
-    //     thread2Ret result = f.get();
-        // result.s.pack(cleartexts);
-    // }
-    // futures1.clear();
-    // futures2.clear();
     return report_size();
 }
 
