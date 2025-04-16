@@ -136,16 +136,23 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
 
     rotation.set_random(bound);
     Ciphertext my_rot_cipher = global_pk.encrypt(rotation);
-    elgl->serialize_sendall(my_rot_cipher);
     for (int i = 1; i <= num_party; ++i) {
-        if (i == party) {
-            cr_i[party-1] = my_rot_cipher;
-        } else {
-            Ciphertext other_rot_cipher;
-            elgl->deserialize_recv(other_rot_cipher, i);
-            cr_i[i-1] = other_rot_cipher;
-        }
+        res.emplace_back(pool.enqueue([this, &my_rot_cipher, i]() {
+            if (i == party){
+                this->cr_i[party-1] = my_rot_cipher;
+            }else{
+                Ciphertext other_rot_cipher;
+                elgl->deserialize_recv(other_rot_cipher, i);
+                this->cr_i[i-1] = other_rot_cipher;
+            }
+        }));
     }
+
+    for (auto & f : res) {
+        f.get();
+    }
+    res.clear();
+    elgl->serialize_sendall(my_rot_cipher);
     // 
     if (party == ALICE) {
         // encrypt the table
