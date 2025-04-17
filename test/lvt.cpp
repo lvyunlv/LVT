@@ -51,7 +51,7 @@ int main(int argc, char** argv) {
     ELGL<MultiIOBase>* elgl = new ELGL<MultiIOBase>(num_party, io, &pool, party);
 
     
-    int num = 16; 
+    int num = 8; 
     Plaintext alpha;
     const mcl::Vint p("0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001");
     const mcl::Vint g("5"); 
@@ -59,7 +59,7 @@ int main(int argc, char** argv) {
     mcl::Vint alpha_vint;
     mcl::gmp::powMod(alpha_vint, g, (p - 1) / n, p);
     alpha.assign(alpha_vint.getStr());
-    std::cout << "alpha: " << alpha.get_message().getStr() << std::endl;
+    // std::cout << "alpha: " << alpha.get_message().getStr() << std::endl;
     Fr alpha_fr = alpha.get_message();
     LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../table.txt", alpha_fr, num);
 
@@ -69,19 +69,18 @@ int main(int argc, char** argv) {
     test_generate_shares(lvt);
     std::cout << "test_generate_shares time: "
               << std::fixed << std::setprecision(3)
-              << time_from(start) / 1e6 << " seconds" << std::endl;
+              << time_from(start) / 1e3 << " milionseconds" << std::endl;
 
     Plaintext x_share;
     Ciphertext x_cipher;
-    mcl::Vint bound = 1 << 2;
-    x_share.set_random(bound);
+    x_share.set_random(n);
     x_cipher = lvt->global_pk.encrypt(x_share);
 
     auto start2 = clock_start();
     test_lookup_online(lvt, x_share, x_cipher);
     std::cout << "test_lookup_online time: "
               << std::fixed << std::setprecision(3)
-              << time_from(start2) / 1e6 << " seconds" << std::endl;
+              << time_from(start2) / 1e3 << " milionseconds" << std::endl;
 
     delete io;
     delete elgl;

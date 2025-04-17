@@ -1,0 +1,22 @@
+[  1%] Built target gen_base.o
+[  3%] Built target gen_bint.o
+[  6%] Built target mcl
+[ 12%] Built target mcl_st
+[ 15%] Built target mclbn256
+[ 18%] Built target mclbn384
+[ 21%] Built target mclbn384_256
+[ 57%] Built target libelgl
+[ 60%] Built target test_bit_triple
+[ 63%] Built target test_simd_exec
+[ 66%] Built target test_circuit
+[ 69%] Built target test_positive
+[ 72%] Built target test_mp_bit_triple
+[ 75%] Built target test_mp_simd_exec
+[ 78%] Built target test_he
+[ 81%] Built target test_lut
+[ 84%] Built target test_b2aconverter
+[ 87%] Built target test_a2bconverter
+[ 90%] Built target test_arithmetic_circ
+[ 93%] Built target test_mp_circuit
+[ 96%] Built target test_gen_File
+[100%] Built target test_lvt

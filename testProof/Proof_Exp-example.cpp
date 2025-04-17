@@ -34,9 +34,9 @@ int main(){
         y2[i] = g1 * x[i].get_message();
     }
 
-    std::cout << "finish g1,y1,y2 gen" << std::endl;
+    // std::cout << "finish g1,y1,y2 gen" << std::endl;
 
-    std::cout << "prove start" << std::endl;
+    // std::cout << "prove start" << std::endl;
     ExpProver prover(proof);
     stringstream ciphertexts, cleartexts;
     // stds::cout << ciphertexts.str()<< std::endl;    

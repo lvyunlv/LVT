@@ -2,15 +2,21 @@
 #include "libelgl/elgloffline/Range_Verifier.h"
 #include "libelgl/elgl/ELGL_Key.h"
 #include "libelgl/elgl/Plaintext.h"
+#include "emp-aby/io/multi-io.hpp"
 #include <chrono>
 
 using namespace std;
+
+const int threads = 4;
 int main(){
+
     BLS12381Element::init();
     ELGL_KeyPair key;
     key.generate();
+
+    ThreadPool pool(threads);
     
-    RangeProof proof(key.get_pk(), 65536, 65536);
+    RangeProof proof(key.get_pk(), 2, 2);
     Plaintext r;
     r.set_random();
     ELGL_PK pk = key.get_pk();
@@ -37,7 +43,7 @@ int main(){
     std::cout << "prove start" << std::endl;
     auto start = std::chrono::high_resolution_clock::now();
 
-    prover.NIZKPoK(proof, ciphertexts, cleartexts, pk, g1, y3, y2, x, r);
+    prover.NIZKPoK(proof, ciphertexts, cleartexts, pk, g1, y3, y2, x, r, &pool);
 
     auto end = std::chrono::high_resolution_clock::now(); 
     std::chrono::duration<double, std::milli> duration = end - start;
@@ -48,7 +54,7 @@ int main(){
     RangeVerifier verifier(proof);
     std::cout << "verify start" << std::endl;
     auto start2 = std::chrono::high_resolution_clock::now();
-    verifier.NIZKPoK(y1, y3, y2, ciphertexts, cleartexts, g1, pk);
+    verifier.NIZKPoK(y1, y3, y2, ciphertexts, cleartexts, g1, pk, &pool);
     auto end2 = std::chrono::high_resolution_clock::now(); 
     std::chrono::duration<double, std::milli> duration2 = end2 - start2;
     std::cout << "verify end. Time: " << duration2.count() << " ms" << std::endl;

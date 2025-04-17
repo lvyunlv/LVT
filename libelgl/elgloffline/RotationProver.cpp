@@ -40,7 +40,7 @@ size_t RotationProver::NIZKPoK(RotationProof& P, std::stringstream& ciphertexts,
         ex[i].pack(ciphertexts);
     }
 
-    std::cout << "finish packing " << std::endl;
+    // std::cout << "finish packing " << std::endl;
     // PRNG G;
     // G.ReSeed();
     // gen m_tilde b
@@ -56,17 +56,19 @@ size_t RotationProver::NIZKPoK(RotationProof& P, std::stringstream& ciphertexts,
 
     std::vector<Plaintext> z(3);
     std::stringstream tmp_pack;
-    for (size_t i = 0; i < 3; i++){
+    // for (size_t i = 0; i < 3; i++){
         tmp_pack.str("");
         tmp_pack.clear();
         // mpz(i).pack(tmp_pack);
-        tmp_pack << i;
-        ax[i].pack(tmp_pack);
-        bx[i].pack(tmp_pack);
-        dx[i].pack(tmp_pack);
-        ex[i].pack(tmp_pack);
-        z[i].setHashof(tmp_pack.str().c_str(), tmp_pack.str().size());
-    }
+        tmp_pack << 0;
+        ax[0].pack(tmp_pack);
+        bx[0].pack(tmp_pack);
+        dx[0].pack(tmp_pack);
+        ex[0].pack(tmp_pack);
+        z[0].setHashof(tmp_pack.str().c_str(), tmp_pack.str().size());
+        z[1].setHashof(tmp_pack.str().c_str(), tmp_pack.str().size());
+        z[2].setHashof(tmp_pack.str().c_str(), tmp_pack.str().size());
+    // }
     
     mk.resize(P.n_tilde);
     tk.resize(P.n_tilde);

@@ -131,8 +131,8 @@ namespace emp {
                     EncTable_c1[i].pack(encMap);
                 }
                 
-                std::cout << "finish g1,y1,y2 gen" << std::endl;
-                std::cout << "prove start" << std::endl;
+                // std::cout << "finish g1,y1,y2 gen" << std::endl;
+                // std::cout << "prove start" << std::endl;
 
                 ExpProver prover(proof);
                 BLS12381Element pk_ = global_pk.get_pk();

@@ -88,5 +88,5 @@ void EncVerifier::NIZKPoK(std::vector<Ciphertext>& c, std::stringstream& ciphert
         f.get();
     }
 
-    std::cout << "valid proof" << std::endl;
+    // std::cout << "valid proof" << std::endl;
 }

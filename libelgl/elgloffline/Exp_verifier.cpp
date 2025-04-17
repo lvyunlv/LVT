@@ -103,7 +103,7 @@ void ExpVerifier::NIZKPoK(BLS12381Element& g1, vector<BLS12381Element>& y1,vecto
         f.get();
     }
 
-    cout << "valid proof" << endl;
+    // cout << "valid proof" << endl;
 }
 
 void ExpVerifier::NIZKPoK(BLS12381Element& g1, BLS12381Element& y1, BLS12381Element& y2, std::stringstream&  ciphertexts, std::stringstream&  cleartexts){
@@ -138,8 +138,10 @@ void ExpVerifier::NIZKPoK(BLS12381Element& g1, BLS12381Element& y1, BLS12381Elem
 
     Right1 += Right2;
     if (v != Right1 ){
-        throw runtime_error("invalid exp proof");
+        // std::cout << v.getPoint().getStr() << std::endl;
+        // std::cout << Right1.getPoint().getStr() << std::endl;
+        throw runtime_error("------- invalid exp proof -------");
     }
 
-    cout << "valid proof" << endl;
+    // cout << "+++++++++ valid proof +++++++++" << endl;
 }

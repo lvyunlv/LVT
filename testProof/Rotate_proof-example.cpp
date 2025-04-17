@@ -9,6 +9,7 @@
 #include <vector>
 
 using namespace std;
+const int threads = 4;
 
 static const std::string base64_chars =
              "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -54,7 +55,9 @@ int main(){
     ELGL_KeyPair keypair;
     keypair.generate();
     ELGL_PK pk = keypair.get_pk();
-    size_t n_tilde = 65536;
+    size_t n_tilde = 2;
+
+    ThreadPool pool(threads);
 
     RotationProof proof(pk, pk, n_tilde);
     vector<BLS12381Element> ax, bx, dx, ex;
@@ -65,7 +68,12 @@ int main(){
 
     Plaintext exp, alpha, beta;
     exp.set_random();
-    alpha.assign("3465144826073652318776269530687742778270252468765361963008");
+    const mcl::Vint p("0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001");
+    const mcl::Vint g("5"); 
+    mcl::Vint n = mcl::Vint(1) << 1;
+    mcl::Vint alpha_vint;
+    mcl::gmp::powMod(alpha_vint, g, (p - 1) / n, p);
+    alpha.assign(alpha_vint.getStr());
     Plaintext::pow(beta, alpha, exp);
     std::cout << "finish beta gen" << std::endl;
 
@@ -108,28 +116,8 @@ int main(){
     RotationProver prover(proof);
     stringstream ciphertexts, cleartexts;
 
-    // print dx, ex, ax, bx
-    std::cout << "dx: ";
-    for (size_t i = 0; i < 2; i++){
-        std::cout << i << dx[i] << " ";
-    }
     std::cout << std::endl;
-    std::cout << "ex: ";
-    for (size_t i = 0; i < 2; i++){
-        std::cout << i << ex[i] << " ";
-    }
-    std::cout << std::endl;
-    std::cout << "ax: ";
-    for (size_t i = 0; i < 2; i++){
-        std::cout << i << ax[i] << " ";
-    }
-    std::cout << std::endl;
-    std::cout << "bx: ";
-    for (size_t i = 0; i < 2; i++){
-        std::cout << i << bx[i] << " ";
-    }
-    std::cout << std::endl;
-    prover.NIZKPoK(proof, ciphertexts, cleartexts, pk, pk, dx, ex, ax, bx, beta, sk_k);
+    prover.NIZKPoK(proof, ciphertexts, cleartexts, pk, pk, dx, ex, ax, bx, beta, sk_k, &pool);
     auto end = std::chrono::high_resolution_clock::now(); 
     std::chrono::duration<double, std::milli> duration = end - start;
     std::cout << "prove end. Time: " << duration.count() << " ms" << std::endl;
@@ -142,9 +130,6 @@ int main(){
     comm_ << base64_encode(comm_raw);
     response_ << base64_encode(response_raw);
 
-
-    
-
     std::stringstream comm_ro, response_ro;
     std::string comm_raw_final, response_raw_final;
     comm_raw_final = comm_.str();
@@ -155,30 +140,8 @@ int main(){
     std::cout << "verify start" << std::endl;
     auto start2 = std::chrono::high_resolution_clock::now();
     RotationVerifier verifier(proof);
-    verifier.NIZKPoK(dx, ex, ax, bx, comm_ro, response_ro, pk, pk);
-    // print dx, ex, ax, bx
-    std::cout << "dx: ";
-    for (size_t i = 0; i < 2; i++){
-        
-        std::cout << i << dx[i] << " ";
-    }
-    std::cout << std::endl;
-    std::cout << "ex: ";
-    for (size_t i = 0; i < 2; i++){
-        
-        std::cout << i << ex[i] << " ";
-    }
-    std::cout << std::endl;
-    std::cout << "ax: ";
-    for (size_t i = 0; i < 2; i++){
+    verifier.NIZKPoK(dx, ex, ax, bx, comm_ro, response_ro, pk, pk, &pool);
 
-        std::cout << i << ax[i] << " ";
-    }
-    std::cout << std::endl;
-    std::cout << "bx: ";
-    for (size_t i = 0; i < 2; i++){
-        std::cout << i << bx[i] << " ";
-    }
     std::cout << std::endl;
     auto end2 = std::chrono::high_resolution_clock::now(); 
     std::chrono::duration<double, std::milli> duration2 = end2 - start2;

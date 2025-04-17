@@ -76,16 +76,18 @@ void RotationVerifier::NIZKPoK(std::vector<BLS12381Element> &dx, std::vector<BLS
         // cal z_i
         std::stringstream tmp_pack;
         std::vector<Plaintext> z(3);
-        for (size_t i = 0; i < 3; i++){
+        // for (size_t i = 0; i < 3; i++){
             tmp_pack.str("");
             tmp_pack.clear();
-            tmp_pack << i;
-            ax[i].pack(tmp_pack);
-            bx[i].pack(tmp_pack);
-            dx[i].pack(tmp_pack);
-            ex[i].pack(tmp_pack);
-            z[i].setHashof(tmp_pack.str().c_str(), tmp_pack.str().size());
-        }
+            tmp_pack << 0;
+            ax[0].pack(tmp_pack);
+            bx[0].pack(tmp_pack);
+            dx[0].pack(tmp_pack);
+            ex[0].pack(tmp_pack);
+            z[0].setHashof(tmp_pack.str().c_str(), tmp_pack.str().size());
+            z[1].setHashof(tmp_pack.str().c_str(), tmp_pack.str().size());
+            z[2].setHashof(tmp_pack.str().c_str(), tmp_pack.str().size());
+        // }
 
         // cal yk
         std::vector<Plaintext> yk(P.n_tilde);
@@ -200,5 +202,5 @@ void RotationVerifier::NIZKPoK(std::vector<BLS12381Element> &dx, std::vector<BLS
             throw std::invalid_argument("--invalid proof--");
         }
         
-        std::cout << "valid proof" << std::endl;
+        // std::cout << "valid proof" << std::endl;
     }
