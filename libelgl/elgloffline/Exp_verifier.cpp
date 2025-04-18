@@ -106,7 +106,7 @@ void ExpVerifier::NIZKPoK(BLS12381Element& g1, vector<BLS12381Element>& y1,vecto
     // cout << "valid proof" << endl;
 }
 
-void ExpVerifier::NIZKPoK(BLS12381Element& g1, BLS12381Element& y1, BLS12381Element& y2, std::stringstream&  ciphertexts, std::stringstream&  cleartexts){
+void ExpVerifier::NIZKPoK(BLS12381Element& g1, BLS12381Element& y1, BLS12381Element& y2, std::stringstream&  ciphertexts, std::stringstream& cleartexts){
     ciphertexts.seekg(0);
     cleartexts.seekg(0);
     P.set_challenge(ciphertexts);

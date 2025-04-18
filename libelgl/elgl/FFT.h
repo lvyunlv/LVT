@@ -16,10 +16,10 @@ void FFT(const std::vector<BLS12381Element>& input,
     std::vector<BLS12381Element>& output, 
     const Fr& alpha, 
     size_t N);
-void IFFT(const std::vector<BLS12381Element>& input, 
-    std::vector<BLS12381Element>& output, 
-    const Fr& alpha, 
-    size_t N);
+// void IFFT(const std::vector<BLS12381Element>& input, 
+//     std::vector<BLS12381Element>& output, 
+//     const Fr& alpha, 
+//     size_t N);
 
 void FFT_Para(const std::vector<BLS12381Element>& input, std::vector<BLS12381Element>& output, const Fr &omega, size_t n);
 

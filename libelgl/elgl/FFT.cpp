@@ -64,20 +64,20 @@ void FFT(const vector<BLS12381Element>& input, vector<BLS12381Element>& output, 
 /**
  * IFFT 使用 FFT 计算，只需传入单位根的逆元。
  */
-void IFFT(const vector<BLS12381Element>& input, vector<BLS12381Element>& output, const Fr &omega, size_t n) {
-    // 计算 omega 的逆元：我们将使用 omega_inv 替代 omega 进行 FFT
-    Fr omega_inv;
-    Fr::inv(omega_inv, omega);
-    vector<BLS12381Element> temp;
-    FFT(input, temp, omega_inv, n);
-    // 归一化：每个元素乘以 1/n
-    Fr invN;
-    Fr::inv(invN, Fr(n)); // n 的逆元
-    output.resize(n);
-    for (size_t i = 0; i < n; i++) {
-        output[i] = temp[i] * invN;
-    }
-}
+// void IFFT(const vector<BLS12381Element>& input, vector<BLS12381Element>& output, const Fr &omega, size_t n) {
+//     // 计算 omega 的逆元：我们将使用 omega_inv 替代 omega 进行 FFT
+//     Fr omega_inv;
+//     Fr::inv(omega_inv, omega);
+//     vector<BLS12381Element> temp;
+//     FFT(input, temp, omega_inv, n);
+//     // 归一化：每个元素乘以 1/n
+//     Fr invN;
+//     Fr::inv(invN, Fr(n)); // n 的逆元
+//     output.resize(n);
+//     for (size_t i = 0; i < n; i++) {
+//         output[i] = temp[i] * invN;
+//     }
+// }
 
 
 void FFT_recursive_para(const std::vector<BLS12381Element>& a, std::vector<BLS12381Element>& A, const Fr &omega, size_t n) {

@@ -164,32 +164,63 @@ size_t RotationProver::NIZKPoK(RotationProof& P, std::stringstream& ciphertexts,
     Plaintext phi_sum(0);
     sigma += b;
 
-
     Plaintext betak(1);
+    t_star[0].assign_zero();
+    // for (size_t i = 0; i < P.n_tilde; i++){
+    //     t_star[i+1] = beta * t_star[i];
+    //     t_star[i+1] += tk[i];
 
+    //     phi[i] = P.challenge * tk[i];
+    //     phi[i] += mk[i];
+    //     miu[i] = P.challenge * betak;
+    //     betak *= beta;
+    //     miu[i] += uk[i];
+
+    //     niu[i] = P.challenge * sk_k[i];
+    //     niu[i] += vk[i];
+
+    //     rou[i] = P.challenge * t_star[i];
+    //     rou[i] += m_tilde_k[i];
+    //     phi_sum += phi[i] * yk[i];
+    // }
 
     // t_star[0].assign_zero();
     for (size_t i = 0; i < P.n_tilde; i++){
         t_star[i+1] = beta * t_star[i];
         t_star[i+1] += tk[i];
-
-        phi[i] = P.challenge * tk[i];
-        phi[i] += mk[i];
-        miu[i] = P.challenge * betak;
         betak *= beta;
-        miu[i] += uk[i];
+    }
 
-        niu[i] = P.challenge * sk_k[i];
-        niu[i] += vk[i];
+    vector<std::future<void>> futures2;
+    for (size_t i = 0; i < P.n_tilde; i++){
+        futures2.push_back(pool->enqueue([&, i]() {
+            Plaintext exp, exp_tmp;
+            exp.assign(std::to_string(i));
+            Plaintext::pow(exp_tmp, beta, exp);
 
-        rou[i] = P.challenge * t_star[i];
-        rou[i] += m_tilde_k[i];
+            phi[i] = P.challenge * tk[i];
+            phi[i] += mk[i];
+            miu[i] = P.challenge * exp_tmp;
+            miu[i] += uk[i];
+
+            niu[i] = P.challenge * sk_k[i];
+            niu[i] += vk[i];
+
+            rou[i] = P.challenge * t_star[i];
+            rou[i] += m_tilde_k[i];
+        }));
+    }
+    for (auto& f : futures2) {
+        f.get();
+    }
+    futures2.clear();
+
+    for (size_t i = 0; i < P.n_tilde; i++) {
         phi_sum += phi[i] * yk[i];
     }
 
     Plaintext eta = P.challenge * t_star[P.n_tilde];
     eta += m_tilde;
-
 
     // allocate = (3 * P.n_tilde + 3) * Fr::getByteSize();
     // cleartexts.resize_precise(allocate);
