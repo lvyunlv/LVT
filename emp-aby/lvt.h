@@ -168,7 +168,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
 
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
-        std::cout << "DecProof time: " << elapsed.count() << " seconds" << std::endl;
+        // std::cout << "DecProof time: " << elapsed.count() << " seconds" << std::endl;
         // print comm response encMap
         std::stringstream comm_, response_, encMap_;        
         std::string comm_raw = comm.str();
@@ -186,7 +186,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         // time encode and send
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;
-        std::cout << "encode and send time: " << elapsed.count() << " seconds" << std::endl;
+        // std::cout << "encode and send time: " << elapsed.count() << " seconds" << std::endl;
     }else{
         std::stringstream comm, response, encMap;
         std::string comm_raw, response_raw, encMap_raw;
@@ -204,14 +204,14 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         encMap_ << base64_decode(encMap_raw);
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
-        std::cout << "receive and decode time: " << elapsed.count() << " seconds" << std::endl;
+        // std::cout << "receive and decode time: " << elapsed.count() << " seconds" << std::endl;
 
         // time verify
         start = std::chrono::high_resolution_clock::now();
         elgl->DecVerify(global_pk, comm_, response_, encMap_, c0, c1, tb_size, pool);
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;
-        std::cout << "DecVerify time: " << elapsed.count() << " seconds" << std::endl;
+        // std::cout << "DecVerify time: " << elapsed.count() << " seconds" << std::endl;
     }
 
     vector<BLS12381Element> ak;
@@ -243,7 +243,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
     res.clear();
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = end - start;
-    std::cout << "FFT time: " << elapsed.count() << " seconds" << std::endl;
+    // std::cout << "FFT time: " << elapsed.count() << " seconds" << std::endl;
 
 
     if (party == ALICE)
@@ -286,14 +286,14 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         res.clear();
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
-        std::cout << "dk ek time: " << elapsed.count() << " seconds" << std::endl;
+        // std::cout << "dk ek time: " << elapsed.count() << " seconds" << std::endl;
         // time prove
         start = std::chrono::high_resolution_clock::now();
         std::stringstream commit_ro, response_ro;
         Rot_prover.NIZKPoK(rot_proof, commit_ro, response_ro, global_pk, global_pk, dk, ek, ak, bk, beta, sk, pool);
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;
-        std::cout << "NIZKPoK time: " << elapsed.count() << " seconds" << std::endl;
+        // std::cout << "NIZKPoK time: " << elapsed.count() << " seconds" << std::endl;
         // time prove and encode
         start = std::chrono::high_resolution_clock::now();
         std::stringstream comm_ro_, response_ro_;        
@@ -307,7 +307,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         // time prove and encode
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;
-        std::cout << "prove and encode time: " << elapsed.count() << " seconds" << std::endl;
+        // std::cout << "prove and encode time: " << elapsed.count() << " seconds" << std::endl;
     }
     
     for (size_t i = 1; i <= num_party -1; i++){
@@ -341,19 +341,19 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
                 response_ << base64_decode(response_raw);
                 auto end = std::chrono::high_resolution_clock::now();
                 std::chrono::duration<double> elapsed = end - start;
-                std::cout << "receive and decode time: " << elapsed.count() << " seconds" << std::endl;
+                // std::cout << "receive and decode time: " << elapsed.count() << " seconds" << std::endl;
 
                 // time verify
                 start = std::chrono::high_resolution_clock::now();
                 Rot_verifier.NIZKPoK(dk_thread, ek_thread, ak_thread, bk_thread, comm_, response_, this->global_pk, this->global_pk, pool);
                 end = std::chrono::high_resolution_clock::now();
                 elapsed = end - start;
-                std::cout << "NIZKPoK verify time: " << elapsed.count() << " seconds" << std::endl;
+                // std::cout << "NIZKPoK verify time: " << elapsed.count() << " seconds" << std::endl;
 
                 if (i == this->party - 1)
                 {
 
-                    std::cout << "last party begin prove." << std::endl;
+                    // std::cout << "last party begin prove." << std::endl;
                     vector<BLS12381Element> dk_;
                     vector<BLS12381Element> ek_;
                     dk_.resize(tb_size);
@@ -390,7 +390,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
                     res_.clear();
                     auto end = std::chrono::high_resolution_clock::now();
                     std::chrono::duration<double> elapsed = end - start;
-                    std::cout << "dk ek time: " << elapsed.count() << " seconds" << std::endl;
+                    // std::cout << "dk ek time: " << elapsed.count() << " seconds" << std::endl;
 
                     std::stringstream commit_ro, response_ro;
                     // time prove
@@ -398,7 +398,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
                     Rot_prover.NIZKPoK(rot_proof, commit_ro, response_ro, global_pk, global_pk, dk_, ek_, dk_thread, ek_thread, beta, sk, pool);
                     end = std::chrono::high_resolution_clock::now();
                     elapsed = end - start;
-                    std::cout << "NIZKPoK time: " << elapsed.count() << " seconds" << std::endl;
+                    // std::cout << "NIZKPoK time: " << elapsed.count() << " seconds" << std::endl;
                     // time encode and send
                     start = std::chrono::high_resolution_clock::now();
                     std::stringstream comm_ro_final, response_ro_final; 
@@ -413,7 +413,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
                     // time encode and send
                     end = std::chrono::high_resolution_clock::now();
                     elapsed = end - start;
-                    std::cout << "prove and encode time: " << elapsed.count() << " seconds" << std::endl;
+                    // std::cout << "prove and encode time: " << elapsed.count() << " seconds" << std::endl;
                     if (this->num_party == this->party){
                         dk = dk_;
                         ek = ek_;
@@ -443,13 +443,13 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         response_ << base64_decode(response_raw);
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
-        std::cout << "receive and decode time: " << elapsed.count() << " seconds" << std::endl;
+        // std::cout << "receive and decode time: " << elapsed.count() << " seconds" << std::endl;
         // time verify
         start = std::chrono::high_resolution_clock::now();
         Rot_verifier.NIZKPoK(dk, ek, ak, bk, comm_, response_, global_pk, global_pk, pool);
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;
-        std::cout << "NIZKPoK verify time: " << elapsed.count() << " seconds" << std::endl;
+        // std::cout << "NIZKPoK verify time: " << elapsed.count() << " seconds" << std::endl;
     }
 
     Plaintext alpha_inv;
@@ -479,7 +479,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
     // FFT_Para(ek, c1_, alpha_inv.get_message(), N);
     end = std::chrono::high_resolution_clock::now();
     elapsed = end - start;
-    std::cout << "IFFT time: " << elapsed.count() << " seconds" << std::endl;
+    // std::cout << "IFFT time: " << elapsed.count() << " seconds" << std::endl;
 
     for (size_t i = 0; i < tb_size; i++) {
         res.push_back(pool->enqueue([&c0_, &c1_, &N_inv, i]() {
@@ -526,7 +526,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
             response_ << base64_decode(response_raw);
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> elapsed = end - start;
-            std::cout << "receive and decode time: " << elapsed.count() << " seconds" << std::endl;
+            // std::cout << "receive and decode time: " << elapsed.count() << " seconds" << std::endl;
             
             BLS12381Element pk__ = user_pk[i-1].get_pk();
             // time 
@@ -534,7 +534,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
             Range_verifier.NIZKPoK(pk__, y3, y2, comm_, response_, c0_, global_pk, pool);
             end = std::chrono::high_resolution_clock::now();
             elapsed = end - start;
-            std::cout << "NIZKPoK verify time: " << elapsed.count() << " seconds" << std::endl;
+            // std::cout << "NIZKPoK verify time: " << elapsed.count() << " seconds" << std::endl;
             //time
             start = std::chrono::high_resolution_clock::now();
             for (size_t j = 0; j < tb_size; j++)
@@ -544,7 +544,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
             }
             end = std::chrono::high_resolution_clock::now();
             elapsed = end - start;
-            std::cout << "l_alice time: " << elapsed.count() << " seconds" << std::endl;
+            // std::cout << "l_alice time: " << elapsed.count() << " seconds" << std::endl;
             
             cip_lut[i-1] = y3;
         }
@@ -594,7 +594,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         // time
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;
-        std::cout << "cal l time: " << elapsed.count() << " seconds" << std::endl;
+        // std::cout << "cal l time: " << elapsed.count() << " seconds" << std::endl;
 
         std::stringstream commit_ss, response_ss;
         std::string commit_raw, response_raw;
@@ -605,7 +605,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         Range_prover.NIZKPoK(Range_proof, commit_ss, response_ss, global_pk, c0_, cip_lut[0], L, lut_share, elgl->kp.get_sk().get_sk(), pool);
         end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
-        std::cout << "NIZKPoK prove time: " << elapsed.count() << " seconds" << std::endl;
+        // std::cout << "NIZKPoK prove time: " << elapsed.count() << " seconds" << std::endl;
         // cout<<"alice自己验证"<<endl;
         // Range_verifier.NIZKPoK(elgl->kp.get_pk().get_pk(), cip_lut[0], L, commit_ss, response_ss, c0_, global_pk);
         
@@ -622,7 +622,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         // time
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;
-        std::cout << "encode and send time: " << elapsed.count() << " seconds" << std::endl;
+        // std::cout << "encode and send time: " << elapsed.count() << " seconds" << std::endl;
         // serialize d
         for (size_t i = 2; i <= num_party; i++)
          {
@@ -669,7 +669,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         // time
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
-        std::cout << "cal l_1 and cip_i time: " << elapsed.count() << " seconds" << std::endl;
+        // std::cout << "cal l_1 and cip_i time: " << elapsed.count() << " seconds" << std::endl;
         cip_lut[party-1] = cip_v;
 
         // time prove
@@ -677,7 +677,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         Range_prover.NIZKPoK(Range_proof, commit_ss, response_ss, global_pk, c0_, cip_v, l_1_v, lut_share, elgl->kp.get_sk().get_sk(), pool);
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;
-        std::cout << "NIZKPoK prove time: " << elapsed.count() << " seconds" << std::endl;
+        // std::cout << "NIZKPoK prove time: " << elapsed.count() << " seconds" << std::endl;
         
         // convert comit_ss and response_ss to base64
         // time
@@ -693,7 +693,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         // time
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;
-        std::cout << "encode and send time: " << elapsed.count() << " seconds" << std::endl;
+        // std::cout << "encode and send time: " << elapsed.count() << " seconds" << std::endl;
 
         // receive all others commit and response
         for (size_t i = 2; i <= num_party; i++){
@@ -740,12 +740,12 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         // time
         end = std::chrono::high_resolution_clock::now();
         elapsed = end - start;
-        std::cout << "receive and decode time: " << elapsed.count() << " seconds" << std::endl;
+        // std::cout << "receive and decode time: " << elapsed.count() << " seconds" << std::endl;
     }
 
-    // print rotation and party id
+    // // print rotation and party id
     // std::cout << "party: " << party << ";  rotation: " << rotation.get_message().getStr() << std::endl;
-    // print lut_share
+    // // print lut_share
     // for (size_t i = 0; i < tb_size; i++){
     //     std::cout << "table[" << i << "]:" << lut_share[i].get_message().getStr() << " " << std::endl;
     // }
@@ -854,7 +854,7 @@ Fr threshold_decrypt(Ciphertext& c, ELGL<IO>* elgl, const ELGL_PK& global_pk, co
 
 template <typename IO>
 void LVT<IO>::lookup_online(Plaintext& out, Plaintext& x_share, Ciphertext& x_cipher){
-    cout << "party: " << party << " x_share = " << x_share.get_message().getStr() << endl;
+    // cout << "party: " << party << " x_share = " << x_share.get_message().getStr() << endl;
     vector<std::future<void>> res;
     vector<Ciphertext> x_ciphers;
     vector<Plaintext> u_shares;
@@ -906,7 +906,7 @@ void LVT<IO>::lookup_online(Plaintext& out, Plaintext& x_share, Ciphertext& x_ci
     tbs.setStr(to_string(tb_size));
     mcl::Vint u_mpz = u.getMpz(); 
     mcl::gmp::mod(u_mpz, u_mpz, tbs);
-    std::cout << "masked lookup index: " << u_mpz.getStr() << std::endl;
+    // std::cout << "masked lookup index: " << u_mpz.getStr() << std::endl;
 
     mcl::Vint index_mpz;
     index_mpz.setStr(u_mpz.getStr());
@@ -918,7 +918,7 @@ void LVT<IO>::lookup_online(Plaintext& out, Plaintext& x_share, Ciphertext& x_ci
     //     Fr t = lut_share[i].get_message();
     //     cout << "table[" << i << "] = " << t.getStr() << endl;
     // }
-    std::cout << "T[x]_share for party " << party << ": " << out.get_message().getStr() << endl;
+    // std::cout << "T[x]_share for party " << party << ": " << out.get_message().getStr() << endl;
 
     // send done
     

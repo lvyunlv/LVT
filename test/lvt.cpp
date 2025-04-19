@@ -51,7 +51,7 @@ int main(int argc, char** argv) {
     ELGL<MultiIOBase>* elgl = new ELGL<MultiIOBase>(num_party, io, &pool, party);
 
     
-    int num = 14; 
+    int num = 1; 
     Plaintext alpha;
     const mcl::Vint p("0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001");
     const mcl::Vint g("5"); 
@@ -61,7 +61,7 @@ int main(int argc, char** argv) {
     alpha.assign(alpha_vint.getStr());
     // std::cout << "alpha: " << alpha.get_message().getStr() << std::endl;
     Fr alpha_fr = alpha.get_message();
-    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../table.txt", alpha_fr, num);
+    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../bui/bin/table.txt", alpha_fr, num);
 
     lvt->DistKeyGen();
 

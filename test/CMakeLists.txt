@@ -33,5 +33,7 @@ endmacro()
 # add_test_case_with_runarg(arithmetic_circ "2")
 # add_test_case_with_runarg(mp_circuit "emp-aby/modsum.txt 2")
 add_test_case_with_run(gen_File)
+add_test_case_with_run(generate_b2a_input)
+add_test_case_with_run(lvt_b2a)
 
 add_test_case_with_run(lvt)

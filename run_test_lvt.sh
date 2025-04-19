@@ -25,7 +25,7 @@ cd "$PROJECT_DIR" || exit
 # 随机生成每个参与方的输入并运行命令
 echo "Generating random inputs for $NUM_PARTIES parties..."
 for ((i=1; i<=NUM_PARTIES; i++)); do
-    INPUT=$((RANDOM % (2**14))) # 随机生成一个 0 到 9999 的整数
+    INPUT=$((RANDOM % (2))) # 随机生成一个 0 到 9999 的整数
     echo "Party $i input: $INPUT"
     ./test_lvt $i $PORT $NUM_PARTIES & # 在后台运行每个命令
 done
