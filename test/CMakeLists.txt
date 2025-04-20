@@ -35,5 +35,6 @@ endmacro()
 add_test_case_with_run(gen_File)
 add_test_case_with_run(generate_b2a_input)
 add_test_case_with_run(lvt_b2a)
+add_test_case_with_run(lvt_a2b)
 
 add_test_case_with_run(lvt)

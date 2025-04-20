@@ -51,7 +51,7 @@ int main(int argc, char** argv) {
     ELGL<MultiIOBase>* elgl = new ELGL<MultiIOBase>(num_party, io, &pool, party);
 
     
-    int num = 1; 
+    int num = 10; 
     Plaintext alpha;
     const mcl::Vint p("0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001");
     const mcl::Vint g("5"); 

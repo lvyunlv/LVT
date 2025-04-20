@@ -794,7 +794,7 @@ Fr threshold_decrypt(Ciphertext& c, ELGL<IO>* elgl, const ELGL_PK& global_pk, co
     std::stringstream commit, response;
     BLS12381Element g1 = c.get_c0();
     BLS12381Element y1 = elgl->kp.get_pk().get_pk();
-    exp_prover.NIZKPoK(exp_proof, commit, response, g1, y1, ask, sk);
+    exp_prover.NIZKPoK(exp_proof, commit, response, g1, y1, ask, sk, party, pool);
 
     std::stringstream commit_b64, response_b64;
     commit_b64 << base64_encode(commit.str());
@@ -804,39 +804,40 @@ Fr threshold_decrypt(Ciphertext& c, ELGL<IO>* elgl, const ELGL_PK& global_pk, co
     elgl->serialize_sendall_(response_b64);
 
     // 并行化处理验证过程
-    // std::vector<std::future<void>> verify_futures;
-    std::vector<std::stringstream> commit_streams(num_party);
-    std::vector<std::stringstream> response_streams(num_party);
-
+    std::vector<std::future<void>> verify_futures;
     for (int i = 1; i <= num_party; ++i) {
         if (i != party) {
-            // verify_futures.push_back(pool->enqueue([i, &commit_streams, &response_streams, &ask_parts, &g1, &user_pks, &exp_verifier]() {
-                elgl->deserialize_recv_(commit_streams[i-1], i);
-                elgl->deserialize_recv_(response_streams[i-1], i);
+            verify_futures.push_back(pool->enqueue([i, &party, global_pk, elgl, &ask_parts, &g1, &user_pks, pool]() {
+                ExpProof exp_proof(global_pk);
+                std::stringstream local_commit_stream, local_response_stream;
 
-                std::string comm_raw = commit_streams[i-1].str();
-                std::string resp_raw = response_streams[i-1].str();
+                elgl->deserialize_recv_(local_commit_stream, i);
+                elgl->deserialize_recv_(local_response_stream, i);
 
-                commit_streams[i-1].str("");
-                commit_streams[i-1].clear();
-                commit_streams[i-1] << base64_decode(comm_raw);
-                commit_streams[i-1].seekg(0);
+                std::string comm_raw = local_commit_stream.str();
+                std::string resp_raw = local_response_stream.str();
 
-                response_streams[i-1].str("");
-                response_streams[i-1].clear();
-                response_streams[i-1] << base64_decode(resp_raw);
-                response_streams[i-1].seekg(0);
+                local_commit_stream.str("");
+                local_commit_stream.clear();
+                local_commit_stream << base64_decode(comm_raw);
+                local_commit_stream.seekg(0);
+
+                local_response_stream.str("");
+                local_response_stream.clear();
+                local_response_stream << base64_decode(resp_raw);
+                local_response_stream.seekg(0);
 
                 BLS12381Element y1_other = user_pks[i - 1].get_pk();
                 BLS12381Element ask_i;
-                BLS12381Element g1_other = g1;
-                exp_verifier.NIZKPoK(g1_other, y1_other, ask_i, commit_streams[i-1], response_streams[i-1]);
+                ExpVerifier exp_verifier(exp_proof);
+                exp_verifier.NIZKPoK(g1, y1_other, ask_i, local_commit_stream, local_response_stream, pool, i);
                 ask_parts[i - 1] = ask_i;
-            // }));
+            }));
         }
     }
-    // for (auto& fut : verify_futures) fut.get();
-    // verify_futures.clear();
+    for (auto& fut : verify_futures) fut.get();
+    verify_futures.clear();
+
 
     BLS12381Element pi_ask = c.get_c1();
     for (auto& ask_i : ask_parts) {
@@ -944,4 +945,3 @@ void serializeTable(vector<int64_t>& table, const char* filename, size_t table_s
     outFile.write(reinterpret_cast<const char*>(table.data()), table.size() * sizeof(int64_t));
     outFile.close();
 }
-

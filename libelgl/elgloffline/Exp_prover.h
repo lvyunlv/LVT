@@ -23,7 +23,7 @@ class ExpProver{
         const BLS12381Element& g1,
         const BLS12381Element& y1,
         const BLS12381Element& y2,
-        const Plaintext& x);
+        const Plaintext& x, int i, ThreadPool* pool);
     
     size_t report_size();
 

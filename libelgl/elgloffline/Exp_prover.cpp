@@ -121,30 +121,47 @@ size_t ExpProver::NIZKPoK(ExpProof& P, std::stringstream&  ciphertexts, std::str
 }
 
 // Online 中使用的
-size_t ExpProver::NIZKPoK(ExpProof& P, std::stringstream&  ciphertexts, std::stringstream&  cleartexts,
+size_t ExpProver::NIZKPoK(ExpProof& P, std::stringstream& ciphertexts, std::stringstream&  cleartexts,
     const BLS12381Element& g1,
     const BLS12381Element& y1,
     const BLS12381Element& y2,
-    const Plaintext& x){
-    Plaintext z;
-    y2.pack(ciphertexts);
+    const Plaintext& x, int i, ThreadPool* pool){
+    std::future<size_t> future = pool->enqueue([&, i]() -> size_t {
+        // Step 1: 先为 hash 创建 buffer
+        std::stringstream hashbuf;
+        BLS12381Element yy2 = y2;
+        yy2.pack(hashbuf);  // only include y2 for hash
+        std::string hash_input = hashbuf.str();
 
-    // v = (g^z * g1)^k, z = H(y1,y2)
-    z.setHashof(ciphertexts.str().c_str(), ciphertexts.str().size()); 
-    
-    BLS12381Element v;
-    this->k[0].set_random();
-    v = BLS12381Element(z.get_message()) + g1;
-    v = v * k[0].get_message();
-    v.pack(ciphertexts);
+        // Step 2: compute z
+        Plaintext z;
+        z.setHashof(hash_input.c_str(), hash_input.size()); 
 
-    P.set_challenge(ciphertexts);
+        // Step 3: write into actual transmission ciphertexts
+        this->k[0].set_random();
+        yy2.pack(ciphertexts);  // now write y2 into ciphertexts
+        BLS12381Element v = BLS12381Element(z.get_message()) + g1;
+        v = v * k[0].get_message();
+        v.pack(ciphertexts);    // v goes after y2
 
-    Plaintext s;
-    s = this->k[0];
-    s -= x * P.challenge;
-    s.pack(cleartexts);
-    return report_size();
+        P.set_challenge(ciphertexts);
+        Fr challenge = P.challenge.get_message();
+
+        Plaintext s;
+        s = this->k[0];
+        s -= x * P.challenge;
+        s.pack(cleartexts);
+        // // if (i == 1){
+        //     std::cout << "***************** " << i << " *****************" << endl << "P.challenge: " << challenge.getStr() << std::endl;
+        // // }
+        // std::cout << "***************** " << i << " *****************" << endl << "y2: " << yy2.getPoint().getStr() << std::endl;
+        // std::cout << "***************** " << i << " *****************" << endl << "z: " << z.get_message() << std::endl;
+        // std::cout << "***************** " << i << " *****************" << endl << "v: " << v.getPoint().getStr() << std::endl;
+        // std::cout << "***************** " << i << " *****************" << endl << "s: " << s.get_message() << std::endl;
+
+        return report_size();
+    });
+    return future.get();
 }
 
 size_t ExpProver::report_size(){

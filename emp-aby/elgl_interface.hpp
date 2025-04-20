@@ -176,42 +176,67 @@ namespace emp {
                 int string_size = str.size();
                 char* c         = (char*)malloc(string_size);
                 s.read(c, string_size);
-            std::vector<std::future<void>> res;
-            for (int i = 1; i <= num_party; ++i) {
-                if (i != party) {
-                    res.push_back(std::async([this, i, c, string_size, j, mt]() {
-                        io->send_data(i, c, string_size, j, mt);
-                        io->flush(i, j);
-                    }));
+                std::vector<std::future<void>> res;
+                for (int i = 1; i <= num_party; ++i) {
+                    if (i != party) {
+                        res.push_back(std::async([this, i, c, string_size, j, mt]() {
+                            io->send_data(i, c, string_size, j, mt);
+                            io->flush(i, j);
+                        }));
+                    }
                 }
+                for (auto& fut : res)
+                    fut.get();
+                res.clear();
+                free(c);
+                s.clear();
             }
-            for (auto& fut : res)
-                fut.get();
-            res.clear();
-            free(c);
-            s.clear();
-        }
 
-        void serialize_sendall_(std::stringstream& s, int j = 0, MESSAGE_TYPE mt = NORM_MSG) {
-            string str      = s.str();
+            // void serialize_sendall_(std::stringstream& s, int j = 0, MESSAGE_TYPE mt = NORM_MSG) {
+            //     string str      = s.str();
+            //     int string_size = str.size();
+            //     char* c         = (char*)malloc(string_size);
+            //     s.read(c, string_size);
+            //     std::vector<std::future<void>> res;
+            //     for (int i = 1; i <= num_party; ++i) {
+            //         if (i != party) {
+            //             res.push_back(std::async([this, i, c, string_size, j, mt]() {
+            //                 io->send_data(i, c, string_size, j, mt);
+            //                 io->flush(i, j);
+            //             }));
+            //         }
+            //     }
+            //     for (auto& fut : res)
+            //         fut.get();
+            //     res.clear();
+            //     free(c);
+            //     s.clear();
+            // }
+
+            void serialize_sendall_(std::stringstream& s, int j = 0, MESSAGE_TYPE mt = NORM_MSG) {
+                string str = s.str();
                 int string_size = str.size();
-                char* c         = (char*)malloc(string_size);
-                s.read(c, string_size);
-            std::vector<std::future<void>> res;
-            for (int i = 1; i <= num_party; ++i) {
-                if (i != party) {
-                    res.push_back(std::async([this, i, c, string_size, j, mt]() {
-                        io->send_data(i, c, string_size, j, mt);
-                        io->flush(i, j);
-                    }));
+
+                std::vector<std::future<void>> res;
+                for (int i = 1; i <= num_party; ++i) {
+                    if (i != party) {
+                        // 分配独立的数据副本
+                        char* c = (char*)malloc(string_size + sizeof(int));
+                        memcpy(c, &party, sizeof(int)); // 添加发送方 ID
+                        memcpy(c + sizeof(int), str.data(), string_size); // 添加实际数据
+
+                        res.push_back(std::async([this, i, c, string_size, j, mt]() {
+                            io->send_data(i, c, string_size + sizeof(int), j, mt);
+                            io->flush(i, j);
+                            free(c); // 释放内存
+                        }));
+                    }
                 }
+
+                for (auto& fut : res) fut.get();
+                res.clear();
+                s.clear();
             }
-            for (auto& fut : res)
-                fut.get();
-            res.clear();
-            free(c);
-            s.clear();
-        }
 
         void wait_for(int src){
             bool c = false;
@@ -237,11 +262,33 @@ namespace emp {
                 s.clear();
             }
 
+            // void deserialize_recv_(std::stringstream& s, int i, int j = 0, MESSAGE_TYPE mt = NORM_MSG) {
+            //     int string_size = 0;
+            //     char* c         = (char*)io->recv_data(i, string_size, j, mt);
+            //     s.write(c, string_size);
+            //     // printf("%d %d\n", party, string_size);
+            //     free(c);
+            // }
             void deserialize_recv_(std::stringstream& s, int i, int j = 0, MESSAGE_TYPE mt = NORM_MSG) {
                 int string_size = 0;
-                char* c         = (char*)io->recv_data(i, string_size, j, mt);
-                s.write(c, string_size);
-                // printf("%d %d\n", party, string_size);
+                char* c = (char*)io->recv_data(i, string_size, j, mt);
+                if (c == nullptr || string_size <= sizeof(int)) {
+                    std::cerr << "[Error] Invalid data received from party " << i << std::endl;
+                    return;
+                }
+
+                // 提取发送方 ID
+                int sender_id = 0;
+                memcpy(&sender_id, c, sizeof(int));
+                // std::cout << "Received data from sender ID: " << sender_id << std::endl;
+
+                
+                // 写入实际数据到流
+                {
+                    // std::lock_guard<std::mutex> lock(stream_mutex);
+                    s.write(c + sizeof(int), string_size - sizeof(int));
+                }
+
                 free(c);
             }
     };

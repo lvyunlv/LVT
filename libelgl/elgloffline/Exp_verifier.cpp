@@ -52,7 +52,7 @@ ExpVerifier::ExpVerifier(ExpProof& proof) :
 //     cout << "valid proof" << endl;
 // }
 
-void ExpVerifier::NIZKPoK(BLS12381Element& g1, vector<BLS12381Element>& y1,vector<BLS12381Element>& y2, std::stringstream&  ciphertexts, std::stringstream&  cleartexts, ThreadPool* pool){
+void ExpVerifier::NIZKPoK(BLS12381Element& g1, vector<BLS12381Element>& y1,vector<BLS12381Element>& y2, std::stringstream& ciphertexts, std::stringstream& cleartexts, ThreadPool* pool){
     ciphertexts.seekg(0);
     cleartexts.seekg(0);
     P.set_challenge(ciphertexts);
@@ -106,42 +106,61 @@ void ExpVerifier::NIZKPoK(BLS12381Element& g1, vector<BLS12381Element>& y1,vecto
     // cout << "valid proof" << endl;
 }
 
-void ExpVerifier::NIZKPoK(BLS12381Element& g1, BLS12381Element& y1, BLS12381Element& y2, std::stringstream&  ciphertexts, std::stringstream& cleartexts){
-    ciphertexts.seekg(0);
-    cleartexts.seekg(0);
-    P.set_challenge(ciphertexts);
-    ciphertexts.seekg(0);
-    cleartexts.seekg(0);
+void ExpVerifier::NIZKPoK(BLS12381Element& g1, BLS12381Element& y1, BLS12381Element& y2, std::stringstream& ciphertexts, std::stringstream& cleartexts, ThreadPool* pool, int i){
 
-    Plaintext z;
-    std::stringstream buf;
+    std::future<void> future;
+    future = pool->enqueue([&, i]() {
 
-    y2.unpack(ciphertexts);
-    y2.pack(buf);
+        ciphertexts.seekg(0);
+        cleartexts.seekg(0);
+        P.set_challenge(ciphertexts);
+        ciphertexts.seekg(0);
+        cleartexts.seekg(0);
+        y2.unpack(ciphertexts);
+        Fr challenge = P.challenge.get_message();
 
-    z.setHashof(buf.str().c_str(), buf.str().size()); 
+        std::stringstream hashbuf;
+        y2.pack(hashbuf);  // only include y2 for hash
+        std::string hash_input = hashbuf.str();
 
-    BLS12381Element t1, t2, t3;
-    
-    // v = (g^z * g1)^s * (y1^z * y2)^challenge
-    Plaintext s;
-    BLS12381Element v;
-    
-    s.unpack(cleartexts);
-    v.unpack(ciphertexts);
+        // Step 2: compute z
+        Plaintext z;
+        z.setHashof(hash_input.c_str(), hash_input.size()); 
 
-    BLS12381Element Right1, Right2;
-    Right1 = BLS12381Element(z.get_message()) + g1;
-    Right1 = Right1 * s.get_message();
-    Right2 = y1 * z.get_message() + y2;
-    Right2 = Right2 * P.challenge.get_message();
+        BLS12381Element t1, t2, t3;
+        
+        // v = (g^z * g1)^s * (y1^z * y2)^challenge
+        Plaintext s;
+        BLS12381Element v;
+        
+        s.unpack(cleartexts);
+        v.unpack(ciphertexts);
+        BLS12381Element Right1, Right2;
+        Right1 = BLS12381Element(z.get_message()) + g1;
+        Right1 = Right1 * s.get_message();
+        Right2 = y1 * z.get_message() + y2;
+        Right2 = Right2 * P.challenge.get_message();
 
-    Right1 += Right2;
-    if (v != Right1 ){
-        // std::cout << v.getPoint().getStr() << std::endl;
-        // std::cout << Right1.getPoint().getStr() << std::endl;
-        throw runtime_error("------- invalid exp proof -------");
-    }
+        Right1 += Right2;
+        if (v != Right1 ){
+            // std::cout << v.getPoint().getStr() << std::endl;
+            // std::cout << Right1.getPoint().getStr() << std::endl;
+            
+            // // if (i == 1){
+            // std::cout << "=========error!!======== from " << i << " ==================" << endl << " g1: " << g1.getPoint().getStr() << std::endl;
+            // std::cout << "=========error!!======== from " << i << " ==================" << endl << " y1: " << y1.getPoint().getStr() << std::endl;
+            // std::cout << "=========error!!======== from " << i << " ==================" << endl << " P.challenge: " << challenge.getStr() << std::endl;
+            // std::cout << "=========error!!======== from " << i << " ==================" << endl << " y2: " << y2.getPoint().getStr() << std::endl;
+            // std::cout << "=========error!!======== from " << i << " ==================" << endl << "z: " << z.get_message() << std::endl;
+            // std::cout << "=========error!!======== from " << i << " ==================" << endl << "v: " << v.getPoint().getStr() << std::endl;
+            // std::cout << "=========error!!======== from " << i << " ==================" << endl << "s: " << s.get_message() << std::endl;
+            // // }
+
+            // cout << "错误来自party: " << i << endl; 
+            throw runtime_error("------- invalid exp proof -------");
+        }
+        });
+    future.get();
 
     // cout << "+++++++++ valid proof +++++++++" << endl;
 }

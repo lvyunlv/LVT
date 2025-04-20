@@ -78,17 +78,7 @@ int main(int argc, char** argv) {
 
     const size_t bitlen = bool_bits.size();
 
-
-    vector<Fr> power(bitlen);
-    power[0] = 1;
-    for (size_t i = 1; i < bitlen; ++i) {
-        power[i] = power[i-1] + power[i-1];
-    }
-    Fr module = power[bitlen-1] * 2;
-    cout << "module: " << module.getStr() << endl;
-
     // === 构建每个 bit 的 LVT 实例（共 bitlen 个） ===
-    auto start = chrono::high_resolution_clock::now();
     vector<LVT<MultiIOBase>*> lvt_list;
     for (size_t i = 0; i < bitlen; ++i) {
         auto* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../bui/bin/table.txt", alpha_fr, table_size);
@@ -98,6 +88,20 @@ int main(int argc, char** argv) {
     }
 
     cout << "lvt_list.size(): " << lvt_list.size() << endl;
+
+
+    Plaintext pow2_plain(2), bitlen_plain(bitlen);
+
+    vector<Fr> power(bitlen);
+    power[0] = 1;
+    for (size_t i = 1; i < bitlen; ++i) {
+        power[i] = power[i-1] + power[i-1];
+    }
+    Fr module = power[bitlen-1] * 2;
+    cout << "module: " << module.getStr() << endl;
+
+    // === 执行 B2A 并计时 ===
+    auto start = chrono::high_resolution_clock::now();
     Fr result = 0;
 
     for (size_t i = 0; i < bitlen; ++i) {
