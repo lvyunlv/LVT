@@ -11,7 +11,7 @@ NUM_PARTIES=$1
 PORT=$2
 
 # 项目目录
-PROJECT_DIR="/Users/lvbao/Desktop/ScalableMixedModeMPC/bui/bin"
+PROJECT_DIR="$(dirname "$0")/build/bin"
 
 # 检查项目目录是否存在
 if [ ! -d "$PROJECT_DIR" ]; then

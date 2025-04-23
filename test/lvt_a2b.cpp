@@ -81,7 +81,7 @@ int main(int argc, char** argv) {
     // === 构建每个 bit 的 LVT 实例（共 bitlen 个） ===
     vector<LVT<MultiIOBase>*> lvt_list;
     for (size_t i = 0; i < bitlen; ++i) {
-        auto* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../bui/bin/table.txt", alpha_fr, table_size);
+        auto* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../build/bin/table.txt", alpha_fr, table_size);
         lvt->DistKeyGen();
         lvt->generate_shares(lvt->lut_share, lvt->rotation, lvt->table);
         lvt_list.push_back(lvt);
