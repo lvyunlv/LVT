@@ -5,13 +5,49 @@ import os
 BIN_PATH = "../build/bin/test_ao2a"  # 可执行文件路径
 RESULT_DIR = "results"
 os.makedirs(RESULT_DIR, exist_ok=True)
-OUT_FILE = os.path.join(RESULT_DIR, "ao2a")
+OUT_FILE = os.path.join(RESULT_DIR, "ao2a-mascot-lan")
 
 PARTY_COUNTS = [2, 4, 6, 8, 16, 32]
 RUNS = 3
 BASE_PORT = 9000
 
+def set_tc(bandwidth="1gbit", delay="0.1ms"):
+    """设置网络模拟参数"""
+    try:
+        # 清除现有规则
+        subprocess.run(["sudo", "tc", "qdisc", "del", "dev", "lo", "root"], 
+                      stderr=subprocess.DEVNULL, check=False)
+        
+        # 设置新规则
+        subprocess.run(["sudo", "tc", "qdisc", "add", "dev", "lo", "root", "handle", "1:", "htb", "default", "12"], check=True)
+        subprocess.run(["sudo", "tc", "class", "add", "dev", "lo", "parent", "1:", "classid", "1:1", "htb", "rate", bandwidth], check=True)
+        subprocess.run(["sudo", "tc", "class", "add", "dev", "lo", "parent", "1:1", "classid", "1:12", "htb", "rate", bandwidth], check=True)
+        subprocess.run(["sudo", "tc", "qdisc", "add", "dev", "lo", "parent", "1:12", "netem", "delay", delay], check=True)
+        
+        print(f"Network configured: bandwidth={bandwidth}, delay={delay}")
+    except subprocess.CalledProcessError as e:
+        print(f"Error configuring network: {e}")
+        sys.exit(1)
+
+def set_tc_lan():
+    """模拟局域网环境 (高速低延迟)"""
+    set_tc(bandwidth="1gbit", delay="0.1ms")
+
+def set_tc_wan():
+    """模拟广域网环境 (低速高延迟)"""
+    set_tc(bandwidth="200mbit", delay="100ms")
+
+def clear_tc():
+    """清除所有流量控制规则"""
+    try:
+        subprocess.run(["sudo", "tc", "qdisc", "del", "dev", "lo", "root"], 
+                      stderr=subprocess.DEVNULL, check=False)
+        print("Network rules cleared")
+    except Exception as e:
+        print(f"Error clearing rules: {e}")
+
 def run_one_case(num_party):
+    set_tc_lan()
     times = []
     comms = []
     for run in range(RUNS):
@@ -49,3 +85,5 @@ with open(OUT_FILE, "w") as fout:
         fout.write(f"{num_party},{avg_time:.3f},{avg_comm:.3f}\n")
         fout.flush()
 print("All done. Results saved to", OUT_FILE)
+
+clear_tc()
