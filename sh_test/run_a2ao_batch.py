@@ -7,7 +7,7 @@ RESULT_DIR = "results"
 os.makedirs(RESULT_DIR, exist_ok=True)
 OUT_FILE = os.path.join(RESULT_DIR, "a2ao")
 
-PARTY_COUNTS = [2, 4, 6, 8, 16, 32, 64]
+PARTY_COUNTS = [2, 4, 6, 8, 16, 32]
 RUNS = 3
 BASE_PORT = 9000
 
@@ -41,10 +41,11 @@ def run_one_case(num_party):
     return avg_time, avg_comm
 
 with open(OUT_FILE, "w") as fout:
-    fout.write("party_num,avg_time_ms,avg_comm_kb\n")
+    fout.write("party_num,avg_time(ms),avg_comm(KB)\n")
     for num_party in PARTY_COUNTS:
         print(f"Running for {num_party} parties...")
         avg_time, avg_comm = run_one_case(num_party)
+        print(f"  [Summary] party_num={num_party}, avg_time={avg_time:.3f} ms, avg_comm={avg_comm:.3f} KB\n")
         fout.write(f"{num_party},{avg_time:.3f},{avg_comm:.3f}\n")
         fout.flush()
 print("All done. Results saved to", OUT_FILE)

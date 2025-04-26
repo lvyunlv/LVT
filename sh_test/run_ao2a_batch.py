@@ -7,7 +7,7 @@ RESULT_DIR = "results"
 os.makedirs(RESULT_DIR, exist_ok=True)
 OUT_FILE = os.path.join(RESULT_DIR, "ao2a")
 
-PARTY_COUNTS = [2, 4, 6, 8, 16, 32, 64]
+PARTY_COUNTS = [2, 4, 6, 8, 16, 32]
 RUNS = 3
 BASE_PORT = 9000
 

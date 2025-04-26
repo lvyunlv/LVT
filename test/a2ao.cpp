@@ -7,6 +7,7 @@
 #include <vector>
 #include <thread>
 #include <cassert>
+#include <mcl/vint.hpp>
 
 using namespace emp;
 using namespace std;
@@ -15,7 +16,7 @@ using namespace std;
 int party, port;
 const static int threads = 8;
 int num_party;
-const int FIELD_SIZE = 1000; // A prime number for modular arithmetic
+const mcl::Vint FIELD_SIZE("340282366920938463463374607431768211297");
 const int num = 12; 
 
 int main(int argc, char** argv) {
@@ -68,9 +69,10 @@ int main(int argc, char** argv) {
     }
     
     // input 声明
-    int64_t x_mascot = mascot.rng() % FIELD_SIZE;
+    mcl::Vint x_mascot; 
+    x_mascot.setRand(1000);
     Plaintext x;
-    x.assign(to_string(x_mascot));
+    x.assign(x_mascot.getStr());
     Ciphertext cx;
     cx = lvt->global_pk.encrypt(x);
 
@@ -93,13 +95,14 @@ int main(int argc, char** argv) {
     int bytes_start = io->get_total_bytes_sent();
     auto t1 = std::chrono::high_resolution_clock::now();
 
-    int64_t r_mascot = mascot.rng() % FIELD_SIZE;
+    mcl::Vint r_mascot; 
+    r_mascot.setRand(1000);
     MASCOT<MultiIOBase>::LabeledShare shared_r;
     shared_r = mascot.distributed_share(r_mascot);
     shared_x = mascot.distributed_share(x_mascot);
 
     Plaintext r;
-    r.assign(to_string(r_mascot));
+    r.assign(r_mascot.getStr());
 
     Ciphertext cr, count;
 
@@ -119,11 +122,11 @@ int main(int argc, char** argv) {
     Fr u;
     u = threshold_decrypt_easy<MultiIOBase>(count, elgl, lvt->global_pk, lvt->user_pk, io, &pool, party, num_party, P_to_m);
     // std::cout << "u: " << u.getStr() << std::endl;
-    int64_t uu = u.getInt64();
-    uu = uu % field_size;
+    mcl::Vint uu = mcl::Vint(u.getStr());
+    uu = uu % FIELD_SIZE;
     // std::cout << "uu: " << to_string(uu) << std::endl;
 
-    int64_t u_int;
+    mcl::Vint u_int;
     MASCOT<MultiIOBase>::LabeledShare shared_u;
     shared_u = mascot.add(shared_x, shared_r);
     u_int = mascot.reconstruct(shared_u);

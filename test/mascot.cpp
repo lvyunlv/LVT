@@ -7,6 +7,7 @@
 #include <vector>
 #include <thread>
 #include <cassert>
+#include <mcl/vint.hpp>
 
 using namespace emp;
 using namespace std;
@@ -69,46 +70,50 @@ int main(int argc, char** argv) {
     std::cout << "\n==== Testing MASCOT Protocol ====\n" << std::endl;
     
     // 测试秘密共享和重构
-    int64_t test_input = 3;
+    mcl::Vint test_input; 
+    test_input = party; 
+    test_input %= FIELD_SIZE;
     MASCOT<MultiIOBase>::LabeledShare shared_value;
     shared_value = mascot.distributed_share(test_input);
 
-    int64_t reconstructed = mascot.reconstruct(shared_value);
+    mcl::Vint reconstructed = mascot.reconstruct(shared_value);
     
-    std::cout << "Reconstructed value: " << std::to_string(reconstructed) << std::endl;
+    std::cout << "Reconstructed value: " << reconstructed.getStr() << std::endl;
     
     // 测试加法
-    int64_t x1 = party, x2 = 2 + party;
+    mcl::Vint x1, x2; 
+    x1 = party; x1 %= FIELD_SIZE; 
+    x2 = party; x2 %= FIELD_SIZE;
     MASCOT<MultiIOBase>::LabeledShare x1_share, x2_share;
     
-    std::cout << "\nTesting addition: " << std::to_string(x1) << " + " << std::to_string(x2) << std::endl;
+    std::cout << "\nTesting addition: " << x1.getStr() << " + " << x2.getStr() << std::endl;
     x1_share = mascot.distributed_share(x1);
     x2_share = mascot.distributed_share(x2);
     
     auto sum_share = mascot.add(x1_share, x2_share);
-    int64_t sum_result = mascot.reconstruct(sum_share);
+    mcl::Vint sum_result = mascot.reconstruct(sum_share);
     
-    std::cout << "Addition result: " << std::to_string(sum_result) << std::endl;
+    std::cout << "Addition result: " << sum_result.getStr() << std::endl;
     
     // 测试标量乘法
-    int64_t scalar = 5;
+    mcl::Vint scalar; scalar = 2; scalar %= FIELD_SIZE;
     
     auto scalar_mul_share = mascot.mul_const(x1_share, scalar);
-    int64_t scalar_mul_result = mascot.reconstruct(scalar_mul_share);
+    mcl::Vint scalar_mul_result = mascot.reconstruct(scalar_mul_share);
     
-    std::cout << "\nTesting scalar multiplication: " << std::to_string(x1) << " * " << std::to_string(scalar) << std::endl;
-    std::cout << "Scalar multiplication result: " << std::to_string(scalar_mul_result) << std::endl;
+    std::cout << "\nTesting scalar multiplication: " << x1.getStr() << " * " << scalar.getStr() << std::endl;
+    std::cout << "Scalar multiplication result: " << scalar_mul_result.getStr() << std::endl;
     
     // 测试乘法
     std::cout << "\nTesting multiplication..." << std::endl;
     auto mul_share = mascot.multiply(x1_share, x2_share);
 
-    int64_t k1 = mascot.reconstruct(x1_share);
-    int64_t k2 = mascot.reconstruct(x2_share);
-    int64_t k3 = mascot.reconstruct(mul_share);
+    mcl::Vint k1 = mascot.reconstruct(x1_share);
+    mcl::Vint k2 = mascot.reconstruct(x2_share);
+    mcl::Vint k3 = mascot.reconstruct(mul_share);
     
-    std::cout << "\nTesting multiplication: " << std::to_string(k1) << " * " << std::to_string(k2) << std::endl;
-    std::cout << "Multiplication result: " << std::to_string(k3) << std::endl;
+    std::cout << "\nTesting multiplication: " << k1.getStr() << " * " << k2.getStr() << std::endl;
+    std::cout << "Multiplication result: " << k3.getStr() << std::endl;
     
     // 清理资源
     delete elgl;
