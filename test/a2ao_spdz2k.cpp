@@ -15,7 +15,8 @@ using namespace std;
 int party, port;
 const static int threads = 8;
 int num_party;
-const uint64_t FIELD_SIZE = (1ULL << 63) - 1;
+const mcl::Vint FIELD_SIZE = (1ULL << 63) - 1;
+
 const int num = 12; 
 
 int main(int argc, char** argv) {
@@ -68,10 +69,10 @@ int main(int argc, char** argv) {
     }
     
     // input 声明
-    mcl::Vint x_mascot; 
-    x_mascot.setRand(1000);
+    mcl::Vint x_spdz2k; 
+    x_spdz2k.setRand(1000);
     Plaintext x;
-    x.assign(x_mascot.getStr());
+    x.assign(x_spdz2k.getStr());
     Ciphertext cx;
     cx = lvt->global_pk.encrypt(x);
 
@@ -94,14 +95,14 @@ int main(int argc, char** argv) {
     int bytes_start = io->get_total_bytes_sent();
     auto t1 = std::chrono::high_resolution_clock::now();
 
-    mcl::Vint r_mascot; 
-    r_mascot.setRand(1000);
+    mcl::Vint r_spdz2k; 
+    r_spdz2k.setRand(1000);
     SPDZ2k<MultiIOBase>::LabeledShare shared_r;
-    shared_r = spdz2k.distributed_share(static_cast<uint64_t>(std::stoull(r_mascot.getStr())));
-    shared_x = spdz2k.distributed_share(static_cast<uint64_t>(std::stoull(x_mascot.getStr())));
+    shared_r = spdz2k.distributed_share(static_cast<uint64_t>(std::stoull(r_spdz2k.getStr())));
+    shared_x = spdz2k.distributed_share(static_cast<uint64_t>(std::stoull(x_spdz2k.getStr())));
 
     Plaintext r;
-    r.assign(r_mascot.getStr());
+    r.assign(r_spdz2k.getStr());
 
     Ciphertext cr, count;
 
