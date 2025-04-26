@@ -166,6 +166,18 @@ namespace emp {
                 free(c);
                 s.clear();
             }
+
+            void serialize_send_(std::stringstream& s, int i, int j = 0, MESSAGE_TYPE mt = NORM_MSG){
+                string str      = s.str();
+                int string_size = str.size();
+
+                char* c         = (char*)malloc(string_size);
+                s.read(c, string_size);
+                io->send_data(i, c, string_size, j, mt);
+                io->flush(i, j);
+                free(c);
+                s.clear();
+            }
         
         
             template <typename T>
@@ -290,6 +302,63 @@ namespace emp {
                 }
 
                 free(c);
+            }
+
+            void serialize_send_with_tag(std::stringstream& s, int i, int tag, MESSAGE_TYPE mt = NORM_MSG) {
+                string str = s.str();
+                int string_size = str.size();
+                char* c = (char*)malloc(sizeof(int) + string_size);
+                memcpy(c, &tag, sizeof(int));
+                memcpy(c + sizeof(int), str.data(), string_size);
+                io->send_data(i, c, sizeof(int) + string_size, 0, mt);
+                io->flush(i, 0);
+                free(c);
+                s.clear();
+            }
+
+            void deserialize_recv_with_tag(std::stringstream& s, int i, int tag, MESSAGE_TYPE mt = NORM_MSG) {
+                while (true) {
+                    int string_size = 0;
+                    char* c = (char*)io->recv_data(i, string_size, 0, mt);
+                    if (c == nullptr || string_size < sizeof(int)) {
+                        std::cerr << "[Error] Invalid data received from party " << i << std::endl;
+                        free(c);
+                        continue;
+                    }
+                    int recv_tag = 0;
+                    memcpy(&recv_tag, c, sizeof(int));
+                    if (recv_tag == tag) {
+                        s.write(c + sizeof(int), string_size - sizeof(int));
+                        free(c);
+                        break;
+                    } else {
+                        // 丢弃不匹配的消息（或缓存起来，视需求而定）
+                        free(c);
+                        continue;
+                    }
+                }
+                s.clear();
+            }
+
+            void serialize_sendall_with_tag(std::stringstream& s, int tag, int j = 0, MESSAGE_TYPE mt = NORM_MSG) {
+                string str = s.str();
+                int string_size = str.size();
+                std::vector<std::future<void>> res;
+                for (int i = 1; i <= num_party; ++i) {
+                    if (i != party) {
+                        char* c = (char*)malloc(sizeof(int) + string_size);
+                        memcpy(c, &tag, sizeof(int));
+                        memcpy(c + sizeof(int), str.data(), string_size);
+                        res.push_back(std::async([this, i, c, string_size, j, mt]() {
+                            io->send_data(i, c, sizeof(int) + string_size, j, mt);
+                            io->flush(i, j);
+                            free(c);
+                        }));
+                    }
+                }
+                for (auto& fut : res) fut.get();
+                res.clear();
+                s.clear();
             }
     };
 

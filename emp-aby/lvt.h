@@ -853,6 +853,61 @@ Fr threshold_decrypt(Ciphertext& c, ELGL<IO>* elgl, const ELGL_PK& global_pk, co
     return it->second;
 }
 
+
+template <typename IO>
+Fr threshold_decrypt_easy(Ciphertext& c, ELGL<IO>* elgl, const ELGL_PK& global_pk, const std::vector<ELGL_PK>& user_pks, MPIOChannel<IO>* io, ThreadPool* pool, int party, int num_party, std::map<std::string, Fr>& P_to_m) {
+    // 第一部分保持不变
+    Plaintext sk(elgl->kp.get_sk().get_sk());
+    BLS12381Element ask = c.get_c0() * sk.get_message();
+    std::vector<BLS12381Element> ask_parts(num_party);
+    ask_parts[party - 1] = ask;
+
+    std::stringstream commit;
+    BLS12381Element g1 = c.get_c0();
+    BLS12381Element y1 = elgl->kp.get_pk().get_pk();
+    ask.pack(commit);
+
+    std::stringstream commit_b64;
+    commit_b64 << base64_encode(commit.str());
+    elgl->serialize_sendall_(commit_b64);
+
+    // 并行化处理验证过程
+    std::vector<std::future<void>> verify_futures;
+    for (int i = 1; i <= num_party; ++i) {
+        if (i != party) {
+            verify_futures.push_back(pool->enqueue([i, &party, global_pk, elgl, &ask_parts, &g1, &user_pks, pool]() {
+                std::stringstream local_commit_stream;
+
+                elgl->deserialize_recv_(local_commit_stream, i);
+                std::string comm_raw = local_commit_stream.str();
+
+                local_commit_stream.str("");
+                local_commit_stream.clear();
+                local_commit_stream << base64_decode(comm_raw);
+                local_commit_stream.seekg(0);
+
+                ask_parts[i - 1].unpack(local_commit_stream);
+                BLS12381Element y1_other = user_pks[i - 1].get_pk();
+            }));
+        }
+    }
+    for (auto& fut : verify_futures) fut.get();
+    verify_futures.clear();
+
+    BLS12381Element pi_ask = c.get_c1();
+    for (auto& ask_i : ask_parts) {
+        pi_ask -= ask_i;
+    }
+
+    std::string key = pi_ask.getPoint().getStr();
+    auto it = P_to_m.find(key);
+    if (it == P_to_m.end()) {
+        std::cerr << "[Error] pi_ask not found in P_to_m! pi_ask = " << key << std::endl;
+        exit(1);
+    }
+    return it->second;
+}
+
 template <typename IO>
 void LVT<IO>::lookup_online(Plaintext& out, Plaintext& x_share, Ciphertext& x_cipher){
     // cout << "party: " << party << " x_share = " << x_share.get_message().getStr() << endl;
