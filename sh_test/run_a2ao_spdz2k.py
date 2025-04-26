@@ -1,11 +1,12 @@
 import subprocess
 import time
+import sys
 import os
 
-BIN_PATH = "../build/bin/test_ao2a_mascot"  # 可执行文件路径
+BIN_PATH = "../build/bin/test_a2ao_spdz2k"  # 可执行文件路径
 RESULT_DIR = "results"
 os.makedirs(RESULT_DIR, exist_ok=True)
-OUT_FILE = os.path.join(RESULT_DIR, "ao2a-mascot-lan")
+OUT_FILE = os.path.join(RESULT_DIR, "a2ao-spdz2k-wan")
 
 PARTY_COUNTS = [2, 4, 6, 8, 16, 32]
 RUNS = 3
@@ -47,7 +48,7 @@ def clear_tc():
         print(f"Error clearing rules: {e}")
 
 def run_one_case(num_party):
-    set_tc_lan()
+    set_tc_wan()
     times = []
     comms = []
     for run in range(RUNS):
@@ -86,4 +87,4 @@ with open(OUT_FILE, "w") as fout:
         fout.flush()
 print("All done. Results saved to", OUT_FILE)
 
-clear_tc()
+# clear_tc()

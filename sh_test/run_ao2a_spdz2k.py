@@ -2,10 +2,10 @@ import subprocess
 import time
 import os
 
-BIN_PATH = "../build/bin/test_ao2a_mascot"  # 可执行文件路径
+BIN_PATH = "../build/bin/test_ao2a_spdz2k"  # 可执行文件路径
 RESULT_DIR = "results"
 os.makedirs(RESULT_DIR, exist_ok=True)
-OUT_FILE = os.path.join(RESULT_DIR, "ao2a-mascot-lan")
+OUT_FILE = os.path.join(RESULT_DIR, "ao2a-spdz2k-lan")
 
 PARTY_COUNTS = [2, 4, 6, 8, 16, 32]
 RUNS = 3
