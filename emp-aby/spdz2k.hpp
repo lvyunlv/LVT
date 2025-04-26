@@ -15,6 +15,10 @@ const uint64_t spdz2k_field_size = (1ULL << 63) - 1; // 2^63-1，示例用素数
 
 namespace emp {
 
+inline uint64_t mulmod(uint64_t a, uint64_t b, uint64_t mod) {
+    return static_cast<uint64_t>((__uint128_t)a * b % mod);
+}
+
 template <typename IO>
 class SPDZ2k {
 public:
@@ -92,11 +96,11 @@ public:
                 b_full = (b_full + other_b) % fs;
             }
         }
-        uint64_t c_full = (a_full * b_full) % fs;
+        uint64_t c_full = mulmod(a_full, b_full, fs);
         uint64_t c_local = (party == 1) ? c_full : 0;
-        uint64_t mac_a = (a_local * mac_key) % fs;
-        uint64_t mac_b = (b_local * mac_key) % fs;
-        uint64_t mac_c = (c_local * mac_key) % fs;
+        uint64_t mac_a = mulmod(a_local, mac_key, fs);
+        uint64_t mac_b = mulmod(b_local, mac_key, fs);
+        uint64_t mac_c = mulmod(c_local, mac_key, fs);
         triples_pool.emplace_back(a_local, b_local, c_local, mac_a, mac_b, mac_c);
     }
     Triple get_triple() {
@@ -108,7 +112,7 @@ public:
         return t;
     }
     bool check_mac(uint64_t value, uint64_t mac) const {
-        return mac == (value * mac_key) % spdz2k_field_size;
+        return mac == mulmod(value, mac_key, spdz2k_field_size);
     }
     void send_value_and_mac(uint64_t value, uint64_t mac, int dst) {
         std::stringstream ss;
@@ -163,7 +167,7 @@ public:
             if (i == party) continue;
             if (party < i) {
                 std::stringstream ss;
-                uint64_t mac = (shares[i-1] * mac_key) % fs;
+                uint64_t mac = mulmod(shares[i-1], mac_key, fs);
                 ss << shares[i-1] << " " << mac << " ";
                 elgl->serialize_send_with_tag(ss, i, 4000 * i + party, NORM_MSG);
                 std::stringstream ss_recv;
@@ -180,7 +184,7 @@ public:
                 assert(check_mac(share, mac2));
                 received[i-1] = share % fs;
                 std::stringstream ss;
-                uint64_t mac = (shares[i-1] * mac_key) % fs;
+                uint64_t mac = mulmod(shares[i-1], mac_key, fs);
                 ss << shares[i-1] << " " << mac << " ";
                 elgl->serialize_send_with_tag(ss, i, 4000 * i + party, NORM_MSG);
             }
@@ -190,7 +194,7 @@ public:
         for (int i = 0; i < num_parties; ++i) {
             local_share = (local_share + received[i]) % fs;
         }
-        uint64_t mac = (local_share * mac_key) % fs;
+        uint64_t mac = mulmod(local_share, mac_key, fs);
         return LabeledShare(local_share, mac, party, &spdz2k_field_size);
     }
     uint64_t reconstruct(const LabeledShare& share) {
@@ -238,13 +242,13 @@ public:
         );
         uint64_t epsilon_open = reconstruct(eps_share);
         uint64_t delta_open = reconstruct(del_share);
-        uint64_t z_value = (t.c + (epsilon_open * t.b) % fs + (delta_open * t.a) % fs) % fs;
+        uint64_t z_value = (t.c + mulmod(epsilon_open, t.b, fs) + mulmod(delta_open, t.a, fs)) % fs;
         if (party == 1) {
-            z_value = (z_value + (epsilon_open * delta_open) % fs) % fs;
+            z_value = (z_value + mulmod(epsilon_open, delta_open, fs)) % fs;
         }
-        uint64_t z_mac = (t.mac_c + (epsilon_open * t.mac_b) % fs + (delta_open * t.mac_a) % fs) % fs;
+        uint64_t z_mac = (t.mac_c + mulmod(epsilon_open, t.mac_b, fs) + mulmod(delta_open, t.mac_a, fs)) % fs;
         if (party == 1) {
-            z_mac = (z_mac + (epsilon_open * delta_open * mac_key) % fs) % fs;
+            z_mac = (z_mac + mulmod(mulmod(epsilon_open, delta_open, fs), mac_key, fs)) % fs;
         }
         assert(check_mac(z_value, z_mac));
         return LabeledShare(z_value, z_mac, party, &spdz2k_field_size);
