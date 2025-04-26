@@ -15,7 +15,8 @@ using namespace std;
 int party, port;
 const static int threads = 8;
 int num_party;
-const mcl::Vint FIELD_SIZE = (1ULL << 63) - 1;
+const uint64_t FIELD_SIZE = (1ULL << 63) - 1;
+
 const int num = 12; 
 
 int main(int argc, char** argv) {
@@ -68,10 +69,10 @@ int main(int argc, char** argv) {
     }
     
     // input 声明
-    mcl::Vint x_spdz2k;
-    x_spdz2k.setRand(1000); // 128位大素数域足够
+    uint64_t fd = 1000;
+    uint64_t x_spdz2k = spdz2k.rng() % fd;
     SPDZ2k<MultiIOBase>::LabeledShare shared_x;
-    shared_x = spdz2k.distributed_share(static_cast<uint64_t>(std::stoull(x_spdz2k.getStr())));
+    shared_x = spdz2k.distributed_share(x_spdz2k);
 
     // output 声明
     vector<Ciphertext> vec_cx(num_party);
@@ -80,14 +81,13 @@ int main(int argc, char** argv) {
     int bytes_start = io->get_total_bytes_sent();
     auto t1 = std::chrono::high_resolution_clock::now();
 
-    mcl::Vint r_spdz2k;
-    r_spdz2k.setRand(1000); // 128位大素数域足够
+    uint64_t r_spdz2k = spdz2k.rng() % fd;
     SPDZ2k<MultiIOBase>::LabeledShare shared_r;
-    shared_r = spdz2k.distributed_share(static_cast<uint64_t>(std::stoull(r_spdz2k.getStr())));
+    shared_r = spdz2k.distributed_share(r_spdz2k);
 
     Plaintext x, r;
-    x.assign(x_spdz2k.getStr());
-    r.assign(r_spdz2k.getStr());
+    x.assign(to_string(x_spdz2k));
+    r.assign(to_string(r_spdz2k));
 
     Ciphertext cx, cr, count;
 
@@ -112,18 +112,19 @@ int main(int argc, char** argv) {
     Fr u;
     u = threshold_decrypt_easy<MultiIOBase>(count, elgl, lvt->global_pk, lvt->user_pk, io, &pool, party, num_party, P_to_m);
     // std::cout << "u: " << u.getStr() << std::endl;
-    mcl::Vint uu = mcl::Vint(u.getStr());
+    uint64_t uu = u.getUint64();
     uu = uu % FIELD_SIZE;
     // std::cout << "uu: " << to_string(uu) << std::endl;
 
-    mcl::Vint u_int;
+    uint64_t u_int;
     SPDZ2k<MultiIOBase>::LabeledShare shared_u;
     shared_u = spdz2k.add(shared_x, shared_r);
     u_int = spdz2k.reconstruct(shared_u);
     // std::cout << "u_int: " << to_string(u_int) << std::endl;
-
+    
     if (uu != u_int) {
         std::cout << "failed" << std::endl;
+        return 0;
     } else {
         std::cout << "success" << std::endl;
     }

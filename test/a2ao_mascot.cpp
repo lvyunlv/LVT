@@ -134,6 +134,7 @@ int main(int argc, char** argv) {
 
     if (uu != u_int) {
         std::cout << "failed" << std::endl;
+        return 0;
     } else {
         std::cout << "success" << std::endl;
     }

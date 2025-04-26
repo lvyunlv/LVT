@@ -87,4 +87,4 @@ with open(OUT_FILE, "w") as fout:
         fout.flush()
 print("All done. Results saved to", OUT_FILE)
 
-# clear_tc()
+clear_tc()
