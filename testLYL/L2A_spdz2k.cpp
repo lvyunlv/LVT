@@ -3,6 +3,7 @@
 #include "emp-aby/lvt.h"
 #include "emp-aby/elgl_interface.hpp"
 #include "emp-aby/spdz2k.hpp"
+#include "L2A_spdz2k.hpp"
 #include <iostream>
 #include <vector>
 #include <thread>
@@ -15,7 +16,7 @@ using namespace std;
 int party, port;
 const static int threads = 8;
 int num_party;
-const uint64_t FIELD_SIZE = (1ULL << 63) - 1;
+const uint64_t FIELD_SIZE = (1ULL << 12) ;
 
 const int num = 12; 
 
@@ -71,72 +72,25 @@ int main(int argc, char** argv) {
     // input 声明
     uint64_t fd = 1000;
     uint64_t x_spdz2k = spdz2k.rng() % fd;
-    SPDZ2k<MultiIOBase>::LabeledShare shared_x;
-    shared_x = spdz2k.distributed_share(x_spdz2k);
-
-    // output 声明
-    vector<Ciphertext> vec_cx(num_party);
-
-    // TODO: 测试时间和通信开销
-    int bytes_start = io->get_total_bytes_sent();
-    auto t1 = std::chrono::high_resolution_clock::now();
-
-    uint64_t r_spdz2k = spdz2k.rng() % fd;
-    SPDZ2k<MultiIOBase>::LabeledShare shared_r;
-    shared_r = spdz2k.distributed_share(r_spdz2k);
-
-    Plaintext x, r;
+    Plaintext x;
     x.assign(to_string(x_spdz2k));
-    r.assign(to_string(r_spdz2k));
-
-    Ciphertext cx, cr, count;
-
+    Ciphertext cx;
     cx = lvt->global_pk.encrypt(x);
-    cr = lvt->global_pk.encrypt(r);
-    count = cx + cr;
+
+    vector<Ciphertext> vec_cx(num_party);
     vec_cx[party - 1] = cx;
 
     elgl->serialize_sendall(cx);
-    elgl->serialize_sendall(cr);
-
     for(int i = 1; i <= num_party; i++) {
         if(i != party) {
-            Ciphertext cx_i, cr_i;
+            Ciphertext cx_i;
             elgl->deserialize_recv(cx_i, i);
-            elgl->deserialize_recv(cr_i, i);
-            count += cx_i + cr_i;
             vec_cx[i - 1] = cx_i;
         }
     }
 
-    Fr u;
-    u = threshold_decrypt_easy<MultiIOBase>(count, elgl, lvt->global_pk, lvt->user_pk, io, &pool, party, num_party, P_to_m);
-    // std::cout << "u: " << u.getStr() << std::endl;
-    uint64_t uu = u.getUint64();
-    uu = uu % FIELD_SIZE;
-    // std::cout << "uu: " << to_string(uu) << std::endl;
-
-    uint64_t u_int;
-    SPDZ2k<MultiIOBase>::LabeledShare shared_u;
-    shared_u = spdz2k.add(shared_x, shared_r);
-    u_int = spdz2k.reconstruct(shared_u);
-    // std::cout << "u_int: " << to_string(u_int) << std::endl;
-    
-    if (uu != u_int) {
-        std::cout << "failed" << std::endl;
-        return 0;
-    } else {
-        std::cout << "success" << std::endl;
-    }
-
-    // 统计结束通信字节和时间
-    auto t2 = std::chrono::high_resolution_clock::now();
-    int bytes_end = io->get_total_bytes_sent();
-    double comm_kb = double(bytes_end - bytes_start) / 1024.0;
-    double time_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
-    std::cout << std::fixed << std::setprecision(3)
-              << "Communication: " << comm_kb << " KB, "
-              << "Time: " << time_ms << " ms" << std::endl;
+    // output 声明
+    auto shared_x = L2A_spdz2k::L2A(elgl, lvt, spdz2k, party, num_party, io, &pool, x, vec_cx, FIELD_SIZE, P_to_m);
     
     // 清理资源
     delete elgl;

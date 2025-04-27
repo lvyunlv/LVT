@@ -3,6 +3,7 @@
 #include "emp-aby/lvt.h"
 #include "emp-aby/elgl_interface.hpp"
 #include "emp-aby/mascot.hpp"
+#include "A2L_mascot.hpp"
 #include <iostream>
 #include <vector>
 #include <thread>
@@ -16,7 +17,8 @@ using namespace std;
 int party, port;
 const static int threads = 8;
 int num_party;
-const mcl::Vint FIELD_SIZE("340282366920938463463374607431768211297");
+// const mcl::Vint FIELD_SIZE("340282366920938463463374607431768211297");
+const mcl::Vint FIELD_SIZE = (1ULL << 12) ;
 const int num = 12; 
 
 int main(int argc, char** argv) {
@@ -74,70 +76,7 @@ int main(int argc, char** argv) {
     MASCOT<MultiIOBase>::LabeledShare shared_x;
     shared_x = mascot.distributed_share(x_mascot);
 
-    // output 声明
-    vector<Ciphertext> vec_cx(num_party);
-
-    // TODO: 测试时间和通信开销
-    int bytes_start = io->get_total_bytes_sent();
-    auto t1 = std::chrono::high_resolution_clock::now();
-
-    mcl::Vint r_mascot;
-    r_mascot.setRand(1000); // 128位大素数域足够
-    MASCOT<MultiIOBase>::LabeledShare shared_r;
-    shared_r = mascot.distributed_share(r_mascot);
-
-    Plaintext x, r;
-    x.assign(x_mascot.getStr());
-    r.assign(r_mascot.getStr());
-
-    Ciphertext cx, cr, count;
-
-    cx = lvt->global_pk.encrypt(x);
-    cr = lvt->global_pk.encrypt(r);
-    count = cx + cr;
-    vec_cx[party - 1] = cx;
-
-    elgl->serialize_sendall(cx);
-    elgl->serialize_sendall(cr);
-
-    for(int i = 1; i <= num_party; i++) {
-        if(i != party) {
-            Ciphertext cx_i, cr_i;
-            elgl->deserialize_recv(cx_i, i);
-            elgl->deserialize_recv(cr_i, i);
-            count += cx_i + cr_i;
-            vec_cx[i - 1] = cx_i;
-        }
-    }
-
-    Fr u;
-    u = threshold_decrypt_easy<MultiIOBase>(count, elgl, lvt->global_pk, lvt->user_pk, io, &pool, party, num_party, P_to_m);
-    // std::cout << "u: " << u.getStr() << std::endl;
-    mcl::Vint uu = mcl::Vint(u.getStr());
-    uu = uu % FIELD_SIZE;
-    // std::cout << "uu: " << to_string(uu) << std::endl;
-
-    mcl::Vint u_int;
-    MASCOT<MultiIOBase>::LabeledShare shared_u;
-    shared_u = mascot.add(shared_x, shared_r);
-    u_int = mascot.reconstruct(shared_u);
-    // std::cout << "u_int: " << to_string(u_int) << std::endl;
-
-    if (uu != u_int) {
-        std::cout << "failed" << std::endl;
-        return 0;
-    } else {
-        std::cout << "success" << std::endl;
-    }
-
-    // 统计结束通信字节和时间
-    auto t2 = std::chrono::high_resolution_clock::now();
-    int bytes_end = io->get_total_bytes_sent();
-    double comm_kb = double(bytes_end - bytes_start) / 1024.0;
-    double time_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
-    std::cout << std::fixed << std::setprecision(3)
-              << "Communication: " << comm_kb << " KB, "
-              << "Time: " << time_ms << " ms" << std::endl;
+    auto [x, vec_cx] = A2L_mascot::A2L(elgl, lvt, mascot, party, num_party, io, &pool, shared_x, n, P_to_m);
     
     // 清理资源
     delete elgl;

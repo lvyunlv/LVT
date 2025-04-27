@@ -19,6 +19,19 @@ void test_lookup_online(LVT<IO>* lut, Plaintext& x_share, Ciphertext& x_cipher) 
     lut->lookup_online(out, x_share, x_cipher);
 }
 
+Fr alpha_init(int num) {
+    Plaintext alpha;
+    const mcl::Vint p("0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001");
+    const mcl::Vint g("5"); 
+    mcl::Vint n = mcl::Vint(1) << num;
+    mcl::Vint alpha_vint;
+    mcl::gmp::powMod(alpha_vint, g, (p - 1) / n, p);
+    alpha.assign(alpha_vint.getStr());
+    // std::cout << "alpha: " << alpha.get_message().getStr() << std::endl;
+    Fr alpha_fr = alpha.get_message();
+    return alpha_fr;
+}
+
 int main(int argc, char** argv) {
     BLS12381Element::init();
     if (argc < 4) {
@@ -50,17 +63,8 @@ int main(int argc, char** argv) {
     MultiIO* io = new MultiIO(party, num_party, net_config);
     ELGL<MultiIOBase>* elgl = new ELGL<MultiIOBase>(num_party, io, &pool, party);
 
-    
-    int num = 1; 
-    Plaintext alpha;
-    const mcl::Vint p("0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001");
-    const mcl::Vint g("5"); 
-    mcl::Vint n = mcl::Vint(1) << num;
-    mcl::Vint alpha_vint;
-    mcl::gmp::powMod(alpha_vint, g, (p - 1) / n, p);
-    alpha.assign(alpha_vint.getStr());
-    // std::cout << "alpha: " << alpha.get_message().getStr() << std::endl;
-    Fr alpha_fr = alpha.get_message();
+    int num = 1; int n = 1ULL << num;
+    Fr alpha_fr = alpha_init(num);
     LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../build/bin/table.txt", alpha_fr, num);
 
     lvt->DistKeyGen();

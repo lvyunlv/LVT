@@ -13,10 +13,10 @@ set(EMP_TOOL_DIR ${CMAKE_SOURCE_DIR}/emp-tool)
 include_directories(${EMP_TOOL_DIR})
 
 # mac 设置 OpenSSL 路径
-# include_directories(/opt/homebrew/opt/openssl/include)
+include_directories(/opt/homebrew/opt/openssl/include)
 
 # 服务器 设置 OpenSSL 的相对路径
-include_directories(${CMAKE_SOURCE_DIR}/external/openssl/include)
+# include_directories(${CMAKE_SOURCE_DIR}/external/openssl/include)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     message(STATUS "Enabling AddressSanitizer")
@@ -75,4 +75,5 @@ install(DIRECTORY emp-aby DESTINATION include/)
 # 启用测试
 ENABLE_TESTING()
 ADD_SUBDIRECTORY(test)
+ADD_SUBDIRECTORY(testLYL)
 ADD_SUBDIRECTORY(testProof)

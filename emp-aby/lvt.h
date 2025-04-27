@@ -46,7 +46,6 @@ class LVT{
     int num_used = 0;
     ThreadPool* pool;
     std::map<std::string, Fr> P_to_m;
-    vector<vector<BLS12381Element>> cip_lut;
 
 
     ELGL<IO>* elgl;
@@ -61,6 +60,7 @@ class LVT{
     Plaintext rotation;
     std::vector<ELGL_PK> user_pk;
     vector<Plaintext> lut_share;
+    vector<vector<BLS12381Element>> cip_lut;
     
     int num_party;
     int party;
