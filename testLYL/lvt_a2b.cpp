@@ -109,9 +109,9 @@ int main(int argc, char** argv) {
         Plaintext x_share;
         x_share.assign(to_string(x));
         Ciphertext x_cipher = lvt_list[i]->global_pk.encrypt(x_share);
-
+        vector<Ciphertext> x_ciphers(num_party);
         Plaintext out;
-        lvt_list[i]->lookup_online(out, x_share, x_cipher);
+        lvt_list[i]->lookup_online(out, x_share, x_cipher, x_ciphers);
         Fr out_fr = out.get_message();
         cout << out_fr.getStr() << " ";
 

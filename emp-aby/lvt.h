@@ -70,7 +70,7 @@ class LVT{
     void DistKeyGen();
     ~LVT();
     void generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation, vector<int64_t> table);
-    void lookup_online(Plaintext& out, Plaintext& x_share, Ciphertext& x_cipher);
+    void lookup_online(Plaintext& out, Plaintext& x_share, Ciphertext& x_cipher, vector<Ciphertext>& x_ciphers);
 };
 
 template <typename IO>
@@ -909,10 +909,9 @@ Fr threshold_decrypt_easy(Ciphertext& c, ELGL<IO>* elgl, const ELGL_PK& global_p
 }
 
 template <typename IO>
-void LVT<IO>::lookup_online(Plaintext& out, Plaintext& x_share, Ciphertext& x_cipher){
+void LVT<IO>::lookup_online(Plaintext& out, Plaintext& x_share, Ciphertext& x_cipher, vector<Ciphertext>& x_ciphers){
     // cout << "party: " << party << " x_share = " << x_share.get_message().getStr() << endl;
     vector<std::future<void>> res;
-    vector<Ciphertext> x_ciphers;
     vector<Plaintext> u_shares;
 
     x_ciphers.resize(num_party);
@@ -946,10 +945,22 @@ void LVT<IO>::lookup_online(Plaintext& out, Plaintext& x_share, Ciphertext& x_ci
         c +=  x_ciphers[i] + cr_i[i];
         uu += u_shares[i];
     }
+    // uu mod tb_size
+    mcl::Vint h;
+    h.setStr(to_string(tb_size));
+    mcl::Vint q1 = uu.get_message().getMpz();
+    mcl::gmp::mod(q1, q1, h);
+    uu.assign(q1.getStr());
 
     Fr u = threshold_decrypt(c, elgl, global_pk, user_pk, elgl->io, pool, party, num_party, P_to_m);
-
+    // u mod tb_size
+    mcl::Vint q2 = u.getMpz(); 
+    mcl::gmp::mod(q2, q2, h);
+    u.setStr(q2.getStr());
+    
     if (u != uu.get_message()){
+        cout << "u = " << u.getStr() << endl;
+        cout << "uu = " << uu.get_message().getStr() << endl;
         cout << "error: in online lookup" << endl;
         exit(1);
     }
