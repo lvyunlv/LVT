@@ -63,8 +63,7 @@ int main(int argc, char** argv) {
     }
     
     // input
-    uint64_t fd = 1000;
-    uint64_t x_spdz2k = spdz2k.rng() % fd;
+    uint64_t x_spdz2k = spdz2k.rng() % FIELD_SIZE;
     SPDZ2k<MultiIOBase>::LabeledShare shared_x;
     shared_x = spdz2k.distributed_share(x_spdz2k);
 

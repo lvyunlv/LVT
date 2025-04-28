@@ -7,14 +7,14 @@ from concurrent.futures import ThreadPoolExecutor
 # 设置基本参数
 bin_dir = "../build/bin/"
 bin_files = [
-    "test_A2B_mascot",
-    "test_A2L_mascot",
-    "test_A2B_spdz2k",
-    "test_B2A_mascot",
-    "test_A2L_spdz2k",
     "test_L2A_mascot",
-    "test_B2A_spdz2k",
     "test_L2A_spdz2k",
+    "test_A2L_mascot",
+    "test_A2L_spdz2k",
+    "test_B2A_mascot",
+    "test_B2A_spdz2k",
+    "test_A2B_mascot",
+    "test_A2B_spdz2k",
 ]
 base_port = 22222   # 补上！！！
 

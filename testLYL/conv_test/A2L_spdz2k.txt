@@ -1,0 +1,6 @@
+-n Party number: 2	
+Average time: 21.2038ms && Average communication: 0.325586KB
+-n Party number: 4	
+Average time: 86.4058ms && Average communication: 0.976562KB
+-n Party number: 8	
+Average time: 359.73ms && Average communication: 2.27988KB
