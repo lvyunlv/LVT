@@ -27,14 +27,13 @@ inline MASCOT<MultiIOBase>::LabeledShare B2A(
     MultiIO* io,
     ThreadPool* pool,
     const mcl::Vint& FIELD_SIZE,
-    std::map<std::string, Fr>& P_to_m,
     const vector<TinyMAC<MultiIOBase>::LabeledShare>& x_bits
 ) {
     int l = x_bits.size();
     vector<MASCOT<MultiIOBase>::LabeledShare> shared_x(l); 
 
-    int bytes_start = io->get_total_bytes_sent();
-    auto t1 = std::chrono::high_resolution_clock::now();
+    // int bytes_start = io->get_total_bytes_sent();
+    // auto t1 = std::chrono::high_resolution_clock::now();
     
     // 1. 随机r_bits
     vector<TinyMAC<MultiIOBase>::LabeledShare> r_bits(l), u_bits(l);
@@ -62,8 +61,8 @@ inline MASCOT<MultiIOBase>::LabeledShare B2A(
     vector<MASCOT<MultiIOBase>::LabeledShare> shared_r(l);
     shared_x.resize(l);
     for (int i = 0; i < l; ++i) {
-        shared_x[i] = L2A_mascot::L2A_for_B2A(elgl, lvt, mascot, party, num_party, io, pool, x_plain[i], x_lut_ciphers[i], FIELD_SIZE, P_to_m);
-        shared_r[i] = L2A_mascot::L2A_for_B2A(elgl, lvt, mascot, party, num_party, io, pool, r_plain[i], r_lut_ciphers[i], FIELD_SIZE, P_to_m);
+        shared_x[i] = L2A_mascot::L2A_for_B2A(elgl, lvt, mascot, party, num_party, io, pool, x_plain[i], x_lut_ciphers[i], FIELD_SIZE);
+        shared_r[i] = L2A_mascot::L2A_for_B2A(elgl, lvt, mascot, party, num_party, io, pool, r_plain[i], r_lut_ciphers[i], FIELD_SIZE);
     }
 
     // 4. 校验一致性（可选，出错抛异常）
@@ -100,17 +99,16 @@ inline MASCOT<MultiIOBase>::LabeledShare B2A(
         share_x_decimal = share_x_decimal * 2 + shared_x[i];
     }
 
-    auto t2 = std::chrono::high_resolution_clock::now();
-    int bytes_end = io->get_total_bytes_sent();
-    double comm_kb = double(bytes_end - bytes_start) / 1024.0;
-    double time_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
-    std::cout << std::fixed << std::setprecision(3)
-              << "Communication: " << comm_kb << " KB, "
-              << "Time: " << time_ms << " ms" << std::endl;
+    // auto t2 = std::chrono::high_resolution_clock::now();
+    // int bytes_end = io->get_total_bytes_sent();
+    // double comm_kb = double(bytes_end - bytes_start) / 1024.0;
+    // double time_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
+    // std::cout << std::fixed << std::setprecision(3)
+    //           << "Communication: " << comm_kb << " KB, "
+    //           << "Time: " << time_ms << " ms" << std::endl;
 
     return share_x_decimal; 
 }
-
 
 inline MASCOT<MultiIOBase>::LabeledShare B2A_for_A2B(
     ELGL<MultiIOBase>* elgl,
@@ -122,7 +120,6 @@ inline MASCOT<MultiIOBase>::LabeledShare B2A_for_A2B(
     MultiIO* io,
     ThreadPool* pool,
     const mcl::Vint& FIELD_SIZE,
-    std::map<std::string, Fr>& P_to_m,
     const vector<TinyMAC<MultiIOBase>::LabeledShare>& x_bits
 ) {
     int l = x_bits.size();
@@ -157,8 +154,8 @@ inline MASCOT<MultiIOBase>::LabeledShare B2A_for_A2B(
     vector<MASCOT<MultiIOBase>::LabeledShare> shared_r(l);
     shared_x.resize(l);
     for (int i = 0; i < l; ++i) {
-        shared_x[i] = L2A_mascot::L2A_for_B2A(elgl, lvt, mascot, party, num_party, io, pool, x_plain[i], x_lut_ciphers[i], FIELD_SIZE, P_to_m);
-        shared_r[i] = L2A_mascot::L2A_for_B2A(elgl, lvt, mascot, party, num_party, io, pool, r_plain[i], r_lut_ciphers[i], FIELD_SIZE, P_to_m);
+        shared_x[i] = L2A_mascot::L2A_for_B2A(elgl, lvt, mascot, party, num_party, io, pool, x_plain[i], x_lut_ciphers[i], FIELD_SIZE);
+        shared_r[i] = L2A_mascot::L2A_for_B2A(elgl, lvt, mascot, party, num_party, io, pool, r_plain[i], r_lut_ciphers[i], FIELD_SIZE);
     }
 
     // 4. 校验一致性（可选，出错抛异常）

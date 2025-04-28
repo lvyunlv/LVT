@@ -27,14 +27,13 @@ inline tuple<Plaintext, vector<Ciphertext>> A2L(
     MultiIO* io,
     ThreadPool* pool,
     const MASCOT<MultiIOBase>::LabeledShare& shared_x,
-    const mcl::Vint& fd,
-    map<std::string, Fr>& P_to_m
+    const mcl::Vint& fd
 ) {
     Plaintext x;
     vector<Ciphertext> vec_cx(num_party);
 
-    int bytes_start = io->get_total_bytes_sent();
-    auto t1 = std::chrono::high_resolution_clock::now();
+    // int bytes_start = io->get_total_bytes_sent();
+    // auto t1 = std::chrono::high_resolution_clock::now();
 
     mcl::Vint r_mascot; r_mascot.setRand(fd);
     MASCOT<MultiIOBase>::LabeledShare shared_r = mascot.distributed_share(r_mascot);
@@ -68,7 +67,7 @@ inline tuple<Plaintext, vector<Ciphertext>> A2L(
         }
     }
 
-    Fr u = threshold_decrypt_easy<MultiIOBase>(count, elgl, lvt->global_pk, lvt->user_pk, io, pool, party, num_party, P_to_m);
+    Fr u = threshold_decrypt_easy<MultiIOBase>(count, elgl, lvt->global_pk, lvt->user_pk, io, pool, party, num_party, lvt->P_to_m, lvt);
     mcl::Vint uu(u.getStr());
     uu %= fd; if (uu < 0) uu += fd;
 
@@ -91,13 +90,13 @@ inline tuple<Plaintext, vector<Ciphertext>> A2L(
     // std::cout << "uu: " << uu.getStr() << std::endl;
     // std::cout << "u_int: " << u_int.getStr() << std::endl;
 
-    auto t2 = std::chrono::high_resolution_clock::now();
-    int bytes_end = io->get_total_bytes_sent();
-    double comm_kb = double(bytes_end - bytes_start) / 1024.0;
-    double time_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
-    std::cout << std::fixed << std::setprecision(3)
-              << "Communication: " << comm_kb << " KB, "
-              << "Time: " << time_ms << " ms" << std::endl;
+    // auto t2 = std::chrono::high_resolution_clock::now();
+    // int bytes_end = io->get_total_bytes_sent();
+    // double comm_kb = double(bytes_end - bytes_start) / 1024.0;
+    // double time_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
+    // std::cout << std::fixed << std::setprecision(3)
+    //           << "Communication: " << comm_kb << " KB, "
+    //           << "Time: " << time_ms << " ms" << std::endl;
 
     return std::make_tuple(x, vec_cx);
 }

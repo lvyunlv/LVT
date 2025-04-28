@@ -24,21 +24,20 @@ inline tuple<Plaintext, vector<Ciphertext>> A2L(
     MultiIO* io,
     ThreadPool* pool,
     const SPDZ2k<MultiIOBase>::LabeledShare& shared_x,
-    uint64_t fd,
-    map<std::string, Fr>& P_to_m
+    uint64_t fd
 ) {
     // output 声明
     Plaintext x;
     vector<Ciphertext> vec_cx(num_party);
 
-    int bytes_start = io->get_total_bytes_sent();
-    auto t1 = std::chrono::high_resolution_clock::now();
+    // int bytes_start = io->get_total_bytes_sent();
+    // auto t1 = std::chrono::high_resolution_clock::now();
 
     uint64_t r_spdz2k = spdz2k.rng() % fd; if (r_spdz2k < 0) r_spdz2k += fd;
     SPDZ2k<MultiIOBase>::LabeledShare shared_r;
     shared_r = spdz2k.distributed_share(r_spdz2k);
-    cout << "shared_x: " << shared_x.value << endl;
-    cout << "shared_r: " << shared_r.value << endl;
+    // cout << "shared_x: " << shared_x.value << endl;
+    // cout << "shared_r: " << shared_r.value << endl;
 
     uint64_t xval = shared_x.value % fd; if (xval < 0) xval += fd;
     uint64_t rval = shared_r.value % fd; if (rval < 0) rval += fd;
@@ -66,7 +65,7 @@ inline tuple<Plaintext, vector<Ciphertext>> A2L(
         }
     }
 
-    Fr u = threshold_decrypt_easy<MultiIOBase>(count, elgl, lvt->global_pk, lvt->user_pk, io, pool, party, num_party, P_to_m);
+    Fr u = threshold_decrypt_easy<MultiIOBase>(count, elgl, lvt->global_pk, lvt->user_pk, io, pool, party, num_party, lvt->P_to_m, lvt);
     uint64_t uu = u.getUint64();
     uu %= fd;
 
@@ -86,13 +85,13 @@ inline tuple<Plaintext, vector<Ciphertext>> A2L(
     }
     
     // 统计结束通信字节和时间
-    auto t2 = std::chrono::high_resolution_clock::now();
-    int bytes_end = io->get_total_bytes_sent();
-    double comm_kb = double(bytes_end - bytes_start) / 1024.0;
-    double time_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
-    std::cout << std::fixed << std::setprecision(3)
-              << "Communication: " << comm_kb << " KB, "
-              << "Time: " << time_ms << " ms" << std::endl;
+    // auto t2 = std::chrono::high_resolution_clock::now();
+    // int bytes_end = io->get_total_bytes_sent();
+    // double comm_kb = double(bytes_end - bytes_start) / 1024.0;
+    // double time_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
+    // std::cout << std::fixed << std::setprecision(3)
+    //           << "Communication: " << comm_kb << " KB, "
+    //           << "Time: " << time_ms << " ms" << std::endl;
 
     return std::make_tuple(x, vec_cx);
 }

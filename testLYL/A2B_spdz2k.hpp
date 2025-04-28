@@ -1,4 +1,4 @@
- #pragma once
+#pragma once
 #include "emp-aby/io/multi-io.hpp"
 #include "emp-aby/io/mp_io_channel.h"
 #include "emp-aby/lvt.h"
@@ -26,14 +26,13 @@ inline vector<TinyMAC<MultiIOBase>::LabeledShare> A2B(
     MultiIO* io,
     ThreadPool* pool,
     const uint64_t& FIELD_SIZE,
-    std::map<std::string, Fr>& P_to_m,
     int l,
     const SPDZ2k<MultiIOBase>::LabeledShare& x_arith // 输入算术份额
 ) {
     vector<TinyMAC<MultiIOBase>::LabeledShare> x_bool(l);
 
-    int bytes_start = io->get_total_bytes_sent();
-    auto t1 = std::chrono::high_resolution_clock::now();
+    // int bytes_start = io->get_total_bytes_sent();
+    // auto t1 = std::chrono::high_resolution_clock::now();
 
     // 1. 生成布尔随机份额 r_bits
     vector<TinyMAC<MultiIOBase>::LabeledShare> r_bits(l);
@@ -44,7 +43,7 @@ inline vector<TinyMAC<MultiIOBase>::LabeledShare> A2B(
 
     // 2. B2A: r_bits -> r_arith
     SPDZ2k<MultiIOBase>::LabeledShare r_arith;
-    r_arith = B2A_spdz2k::B2A_for_A2B(elgl, lvt, tiny, spdz2k, party, num_party, io, pool, FIELD_SIZE, P_to_m, r_bits);
+    r_arith = B2A_spdz2k::B2A_for_A2B(elgl, lvt, tiny, spdz2k, party, num_party, io, pool, FIELD_SIZE, r_bits);
 
     // 3. 算术MPC本地加法 x + r
     SPDZ2k<MultiIOBase>::LabeledShare x_plus_r;
@@ -69,13 +68,13 @@ inline vector<TinyMAC<MultiIOBase>::LabeledShare> A2B(
     // 7. 输出 x_bool = u_bool ⊕ r_bits
     for (int i = 0; i < l; ++i) x_bool[i] = tiny.add(u_bool[i], r_bits[i]);
 
-    auto t2 = std::chrono::high_resolution_clock::now();
-    int bytes_end = io->get_total_bytes_sent();
-    double comm_kb = double(bytes_end - bytes_start) / 1024.0;
-    double time_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
-    std::cout << std::fixed << std::setprecision(3)
-              << "Communication: " << comm_kb << " KB, "
-              << "Time: " << time_ms << " ms" << std::endl;
+    // auto t2 = std::chrono::high_resolution_clock::now();
+    // int bytes_end = io->get_total_bytes_sent();
+    // double comm_kb = double(bytes_end - bytes_start) / 1024.0;
+    // double time_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
+    // std::cout << std::fixed << std::setprecision(3)
+    //           << "Communication: " << comm_kb << " KB, "
+    //           << "Time: " << time_ms << " ms" << std::endl;
 
     return x_bool;
 }

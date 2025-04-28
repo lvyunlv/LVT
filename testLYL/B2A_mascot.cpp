@@ -21,7 +21,7 @@ int party, port;
 const static int threads = 8;
 int num_party;
 const int l = 8; // 比特长度，可根据q调整
-const int num_bits = 12;
+const int num_bits = 28;
 const mcl::Vint FIELD_SIZE = (1ULL << num_bits);
 
 Fr alpha_init(int num) {
@@ -62,10 +62,6 @@ int main(int argc, char** argv) {
     Fr alpha_fr = alpha_init(num);
     LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../build/bin/table.txt", alpha_fr, num);
 
-    std::map<std::string, Fr> P_to_m;
-    size_t tbs = 1ULL << num_bits;
-    build_safe_P_to_m(P_to_m, num_party, tbs);
-
     lvt->DistKeyGen();
     TinyMAC<MultiIOBase> tiny(elgl);
     MASCOT<MultiIOBase> mascot(elgl);
@@ -79,7 +75,22 @@ int main(int argc, char** argv) {
     for (int i = 0; i < l; ++i) x_bits[i] = tiny.distributed_share(bit_dis(gen));
     
     // B2A_mascot output
-    auto shared_x = B2A_mascot::B2A(elgl, lvt, tiny, mascot, party, num_party, io, &pool, FIELD_SIZE, P_to_m, x_bits);
+    double total_time = 0;
+    double total_comm = 0;
+    for (int i = 0; i < 5; ++i) {
+        int bytes_start = io->get_total_bytes_sent();
+        auto t1 = std::chrono::high_resolution_clock::now();
+
+        auto shared_x = B2A_mascot::B2A(elgl, lvt, tiny, mascot, party, num_party, io, &pool, FIELD_SIZE, x_bits);
+        
+        auto t2 = std::chrono::high_resolution_clock::now();
+        int bytes_end = io->get_total_bytes_sent();
+        double comm_kb = double(bytes_end - bytes_start) / 1024.0;
+        double time_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
+        total_time += time_ms;
+        total_comm += comm_kb;
+    }
+    std::cout << "Average time: " << (total_time/5) << "ms && Average communication: " << (total_comm/5) << "KB" << std::endl;
 
     delete elgl;
     delete io;

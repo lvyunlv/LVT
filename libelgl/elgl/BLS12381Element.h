@@ -7,7 +7,7 @@ using namespace mcl::bn;
 class BLS12381Element{
     public:
         // typedef gfp_<2, 4> Scalar;
-    private:
+    
     G1 point;
 
     public:
@@ -50,6 +50,10 @@ class BLS12381Element{
     void output(std::ostream& s, bool human) const;
 
     friend std::ostream& operator<<(std::ostream& s, const BLS12381Element& x);
+
+    static BLS12381Element generator();
+
+    BLS12381Element negate() const;
 };
 
 BLS12381Element operator*(const Fr& a, const BLS12381Element& b);

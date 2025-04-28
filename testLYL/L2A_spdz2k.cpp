@@ -16,7 +16,7 @@ using namespace std;
 int party, port;
 const static int threads = 8;
 int num_party;
-const uint64_t FIELD_SIZE = (1ULL << 12) ;
+const uint64_t FIELD_SIZE = (1ULL << 28) ;
 
 const int num = 12; 
 
@@ -49,9 +49,6 @@ int main(int argc, char** argv) {
     // std::cout << "alpha: " << alpha.get_message().getStr() << std::endl;
     Fr alpha_fr = alpha.get_message();
     LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../build/bin/table.txt", alpha_fr, num);
-    std::map<std::string, Fr> P_to_m;
-    size_t tbs = 1ULL << num;
-    build_safe_P_to_m(P_to_m, num_party, tbs);
 
     lvt->DistKeyGen();
 
@@ -89,9 +86,24 @@ int main(int argc, char** argv) {
         }
     }
 
-    // output 声明
-    auto shared_x = L2A_spdz2k::L2A(elgl, lvt, spdz2k, party, num_party, io, &pool, x, vec_cx, FIELD_SIZE, P_to_m);
-    
+    // 调用L2A
+    double total_time = 0;
+    double total_comm = 0;
+    for (int i = 0; i < 5; ++i) {
+        int bytes_start = io->get_total_bytes_sent();
+        auto t1 = std::chrono::high_resolution_clock::now();
+
+        auto shared_x = L2A_spdz2k::L2A(elgl, lvt, spdz2k, party, num_party, io, &pool, x, vec_cx, FIELD_SIZE);
+
+        auto t2 = std::chrono::high_resolution_clock::now();
+        int bytes_end = io->get_total_bytes_sent();
+        double comm_kb = double(bytes_end - bytes_start) / 1024.0;
+        double time_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
+        total_time += time_ms;
+        total_comm += comm_kb;
+    }
+    std::cout << "Average time: " << (total_time/5) << "ms && Average communication: " << (total_comm/5) << "KB" << std::endl;
+
     // 清理资源
     delete elgl;
     delete io;

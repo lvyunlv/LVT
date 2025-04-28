@@ -15,9 +15,10 @@
 #include "libelgl/elgloffline/Range_Prover.h"
 #include "libelgl/elgloffline/Range_Verifier.h"
 #include "libelgl/elgl/FFT_Para_Optimized.hpp"
+#include "emp-aby/BSGS.hpp"
 // #include "libelgl/elgl/FFT_Para_AccelerateCompatible.hpp"
 
-
+const int thread_num = 8;
 // #include "cmath"
 // #include <poll.h>
 
@@ -42,11 +43,10 @@ void deserializeTable(vector<int64_t>& table, const char* filename, size_t table
 
 template <typename IO>
 class LVT{
-    private:
+    public:
     int num_used = 0;
     ThreadPool* pool;
     std::map<std::string, Fr> P_to_m;
-
 
     ELGL<IO>* elgl;
     MPIOChannel<IO>* io;
@@ -55,12 +55,12 @@ class LVT{
     size_t tb_size;
     // void shuffle(Ciphertext& c, bool* rotation, size_t batch_size, size_t i);
 
-    public:
     ELGL_PK global_pk;
     Plaintext rotation;
     std::vector<ELGL_PK> user_pk;
     vector<Plaintext> lut_share;
     vector<vector<BLS12381Element>> cip_lut;
+    emp::BSGSPrecomputation bsgs;
     
     int num_party;
     int party;
@@ -88,6 +88,8 @@ LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, EL
     this->cr_i.resize(num_party);
     this->lut_share.resize(tb_size);
     BLS12381Element::init();
+    BLS12381Element g = BLS12381Element::generator();
+    bsgs.precompute(g, 1ULL << 32);
 }
 
 void build_safe_P_to_m(std::map<std::string, Fr>& P_to_m, int num_party, size_t tb_size) {
@@ -563,14 +565,21 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         // cal c0^-sk * l
         // time
         start = std::chrono::high_resolution_clock::now();
+        bool flag = 0; 
+        if(tb_size <= 65536) flag = 1;
         for (size_t i = 0; i < tb_size; i++){
-            res.push_back(pool->enqueue([this, &l_alice, &c0_, &L, i, &lut_share](){
+            res.push_back(pool->enqueue([this, &l_alice, &c0_, &L, i, &lut_share, flag](){
                 BLS12381Element Y = l_alice[i] - c0_[i] * elgl->kp.get_sk().get_sk(); 
-                Fr y = P_to_m[Y.getPoint().getStr()];
+                Fr y; 
+                if(flag) {
+                    y = P_to_m[Y.getPoint().getStr()];
+                } else {
+                    y = this->bsgs.solve_parallel_with_pool(Y, pool, thread_num);
+                }
                 mcl::Vint r_;
                 mcl::Vint y_;
                 y_ = y.getMpz();
-                mcl::Vint tbs;
+                mcl::Vint tbs;  
                 tbs.setStr(to_string(tb_size));
                 mcl::gmp::mod(r_, y_, tbs);
                 Fr r;
@@ -780,7 +789,7 @@ void LVT<IO>::DistKeyGen(){
 }
 
 template <typename IO>
-Fr threshold_decrypt(Ciphertext& c, ELGL<IO>* elgl, const ELGL_PK& global_pk, const std::vector<ELGL_PK>& user_pks, MPIOChannel<IO>* io, ThreadPool* pool, int party, int num_party, std::map<std::string, Fr>& P_to_m) {
+Fr threshold_decrypt(Ciphertext& c, ELGL<IO>* elgl, const ELGL_PK& global_pk, const std::vector<ELGL_PK>& user_pks, MPIOChannel<IO>* io, ThreadPool* pool, int party, int num_party, std::map<std::string, Fr>& P_to_m, LVT<IO>* lvt) {
     // 第一部分保持不变
     Plaintext sk(elgl->kp.get_sk().get_sk());
     BLS12381Element ask = c.get_c0() * sk.get_message();
@@ -845,17 +854,23 @@ Fr threshold_decrypt(Ciphertext& c, ELGL<IO>* elgl, const ELGL_PK& global_pk, co
     }
 
     std::string key = pi_ask.getPoint().getStr();
-    auto it = P_to_m.find(key);
-    if (it == P_to_m.end()) {
-        std::cerr << "[Error] pi_ask not found in P_to_m! pi_ask = " << key << std::endl;
-        exit(1);
+    Fr y;
+    if(lvt->tb_size <= 65536) {
+        auto it = P_to_m.find(key);
+        if (it == P_to_m.end()) {
+            std::cerr << "[Error] pi_ask not found in P_to_m! pi_ask = " << key << std::endl;
+            exit(1);
+        }
+        return it->second;
+    } else {
+        y = lvt->bsgs.solve_parallel_with_pool(pi_ask, pool, thread_num);
     }
-    return it->second;
+    return y;
 }
 
 
 template <typename IO>
-Fr threshold_decrypt_easy(Ciphertext& c, ELGL<IO>* elgl, const ELGL_PK& global_pk, const std::vector<ELGL_PK>& user_pks, MPIOChannel<IO>* io, ThreadPool* pool, int party, int num_party, std::map<std::string, Fr>& P_to_m) {
+Fr threshold_decrypt_easy(Ciphertext& c, ELGL<IO>* elgl, const ELGL_PK& global_pk, const std::vector<ELGL_PK>& user_pks, MPIOChannel<IO>* io, ThreadPool* pool, int party, int num_party, std::map<std::string, Fr>& P_to_m, LVT<IO>* lvt) {
     // 第一部分保持不变
     Plaintext sk(elgl->kp.get_sk().get_sk());
     BLS12381Element ask = c.get_c0() * sk.get_message();
@@ -900,12 +915,9 @@ Fr threshold_decrypt_easy(Ciphertext& c, ELGL<IO>* elgl, const ELGL_PK& global_p
     }
 
     std::string key = pi_ask.getPoint().getStr();
-    auto it = P_to_m.find(key);
-    if (it == P_to_m.end()) {
-        std::cerr << "[Error] pi_ask not found in P_to_m! pi_ask = " << key << std::endl;
-        exit(1);
-    }
-    return it->second;
+    Fr y;
+    y = lvt->bsgs.solve_parallel_with_pool(pi_ask, pool, thread_num);
+    return y;
 }
 
 template <typename IO>
@@ -952,7 +964,7 @@ void LVT<IO>::lookup_online(Plaintext& out, Plaintext& x_share, Ciphertext& x_ci
     mcl::gmp::mod(q1, q1, h);
     uu.assign(q1.getStr());
 
-    Fr u = threshold_decrypt(c, elgl, global_pk, user_pk, elgl->io, pool, party, num_party, P_to_m);
+    Fr u = threshold_decrypt(c, elgl, global_pk, user_pk, elgl->io, pool, party, num_party, P_to_m, this);
     // u mod tb_size
     mcl::Vint q2 = u.getMpz(); 
     mcl::gmp::mod(q2, q2, h);
