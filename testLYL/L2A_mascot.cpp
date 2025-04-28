@@ -18,7 +18,7 @@ int party, port;
 const static int threads = 8;
 int num_party;
 // const mcl::Vint FIELD_SIZE("340282366920938463463374607431768211297");
-const mcl::Vint FIELD_SIZE = (1ULL << 28) ;
+const mcl::Vint FIELD_SIZE(to_string(1ULL << 28));
 const int num = 12; 
 
 int main(int argc, char** argv) {

@@ -13,7 +13,7 @@
 #include <mcl/fp.hpp>
 
 // const mcl::Vint field_size("340282366920938463463374607431768211297");
-const mcl::Vint field_size = (1ULL << 28) ;
+const mcl::Vint field_size(to_string(1ULL << 28));
 namespace emp {
 
 template <typename IO>

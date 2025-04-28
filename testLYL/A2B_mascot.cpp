@@ -21,7 +21,7 @@ const static int threads = 8;
 int num_party;
 const int l = 8;
 const int num_bits = 28;
-const mcl::Vint FIELD_SIZE = (1ULL << num_bits);
+const mcl::Vint FIELD_SIZE = (1 << num_bits);
 
 Fr alpha_init(int num) {
     Plaintext alpha;
