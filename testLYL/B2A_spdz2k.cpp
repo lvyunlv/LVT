@@ -80,7 +80,8 @@ int main(int argc, char** argv) {
     // B2A_spdz2k output
     double total_time = 0;
     double total_comm = 0;
-    for (int i = 0; i < 1; ++i) {
+    int times = 1;
+    for (int i = 0; i < times; ++i) {
         int bytes_start = io->get_total_bytes_sent();
         auto t1 = std::chrono::high_resolution_clock::now();
 
@@ -93,7 +94,7 @@ int main(int argc, char** argv) {
         total_time += time_ms;
         total_comm += comm_kb;
     }
-    std::cout << "Average time: " << (total_time/1) << "ms && Average communication: " << (total_comm/1) << "KB" << std::endl;
+    std::cout << "Average time: " << (total_time/times) << "ms && Average communication: " << (total_comm/times) << "KB" << std::endl;
 
     delete elgl;
     delete io;

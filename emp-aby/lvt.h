@@ -97,21 +97,21 @@ LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, EL
 void build_safe_P_to_m(std::map<std::string, Fr>& P_to_m, int num_party, size_t tb_size) {
     size_t max_exponent = 2 * tb_size * num_party;
     
-    // 如果表较小，直接计算
-    if (max_exponent <= 1<<8) {
-        // 测试时间
-        // auto start_time = chrono::high_resolution_clock::now();
-        cout << "开始构建大小为" << max_exponent << "的P_to_m表..." << endl;
-        for (size_t i = 0; i <= max_exponent; ++i) {
-            BLS12381Element g_i(i);
-            P_to_m[g_i.getPoint().getStr()] = Fr(to_string(i));
-        }
-        cout << "P_to_m表构建完成" << endl;
-        // auto end_time = chrono::high_resolution_clock::now();
-        // auto duration = chrono::duration_cast<chrono::milliseconds>(end_time - start_time);
-        // cout << "构建表用时: " << duration.count() << " 毫秒" << endl;
-        return;
-    }
+    // // 如果表较小，直接计算
+    // if (max_exponent <= 1<<8) {
+    //     // 测试时间
+    //     // auto start_time = chrono::high_resolution_clock::now();
+    //     cout << "开始构建大小为" << max_exponent << "的P_to_m表..." << endl;
+    //     for (size_t i = 0; i <= max_exponent; ++i) {
+    //         BLS12381Element g_i(i);
+    //         P_to_m[g_i.getPoint().getStr()] = Fr(to_string(i));
+    //     }
+    //     cout << "P_to_m表构建完成" << endl;
+    //     // auto end_time = chrono::high_resolution_clock::now();
+    //     // auto duration = chrono::duration_cast<chrono::milliseconds>(end_time - start_time);
+    //     // cout << "构建表用时: " << duration.count() << " 毫秒" << endl;
+    //     return;
+    // }
     
     // 如果表较大，尝试读取文件
     // auto start_time = chrono::high_resolution_clock::now();

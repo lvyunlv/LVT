@@ -44,25 +44,25 @@ inline MASCOT<MultiIOBase>::LabeledShare B2A(
     for (int i = 0; i < l; ++i) u_bits[i] = tiny.add(x_bits[i], r_bits[i]);
 
     // 2. B2L查表
-    vector<vector<Ciphertext>> x_lut_ciphers(l, vector<Ciphertext>(num_party)), r_lut_ciphers(l, vector<Ciphertext>(num_party));
-    vector<Ciphertext> x_cipher(l), r_cipher(l);
-    vector<Plaintext> x_plain(l), r_plain(l);
-    for (int i = 0; i < l; ++i) {
-        Plaintext plain_i;
-        plain_i.assign(std::to_string(x_bits[i].value));
-        x_cipher[i] = lvt->global_pk.encrypt(plain_i);
-        lvt->lookup_online(x_plain[i], plain_i, x_cipher[i], x_lut_ciphers[i]);
-        plain_i.assign(std::to_string(r_bits[i].value));
-        r_cipher[i] = lvt->global_pk.encrypt(plain_i);
-        lvt->lookup_online(r_plain[i], plain_i, r_cipher[i], r_lut_ciphers[i]);
-    }
-
-    // 3. L2A
     vector<MASCOT<MultiIOBase>::LabeledShare> shared_r(l);
     shared_x.resize(l);
+
+    vector<Ciphertext> x_cipher(l), r_cipher(l), x_lut_ciphers(num_party), r_lut_ciphers(num_party);
+    vector<Plaintext> x_plain(l), r_plain(l);
+    cout << "l: " << l << endl;
     for (int i = 0; i < l; ++i) {
-        shared_x[i] = L2A_mascot::L2A_for_B2A(elgl, lvt, mascot, party, num_party, io, pool, x_plain[i], x_lut_ciphers[i], FIELD_SIZE);
-        shared_r[i] = L2A_mascot::L2A_for_B2A(elgl, lvt, mascot, party, num_party, io, pool, r_plain[i], r_lut_ciphers[i], FIELD_SIZE);
+        Plaintext plain_i;
+        cout << "number i: " << i << endl;
+
+        plain_i.assign(std::to_string(x_bits[i].value));
+        x_cipher[i] = lvt->global_pk.encrypt(plain_i);
+        lvt->lookup_online(x_plain[i], plain_i, x_cipher[i], x_lut_ciphers);
+        shared_x[i] = L2A_mascot::L2A(elgl, lvt, mascot, party, num_party, io, pool, x_plain[i], x_lut_ciphers, FIELD_SIZE);
+
+        plain_i.assign(std::to_string(r_bits[i].value));
+        r_cipher[i] = lvt->global_pk.encrypt(plain_i);
+        lvt->lookup_online(r_plain[i], plain_i, r_cipher[i], r_lut_ciphers);
+        shared_r[i] = L2A_mascot::L2A(elgl, lvt, mascot, party, num_party, io, pool, r_plain[i], r_lut_ciphers, FIELD_SIZE);
     }
 
     // 4. 校验一致性（可选，出错抛异常）
