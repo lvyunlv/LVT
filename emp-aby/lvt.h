@@ -16,6 +16,7 @@
 #include "libelgl/elgloffline/Range_Verifier.h"
 #include "libelgl/elgl/FFT_Para_Optimized.hpp"
 #include "emp-aby/BSGS.hpp"
+#include "emp-aby/P2M.hpp"
 // #include "libelgl/elgl/FFT_Para_AccelerateCompatible.hpp"
 
 const int thread_num = 8;
@@ -46,7 +47,6 @@ class LVT{
     public:
     int num_used = 0;
     ThreadPool* pool;
-    std::map<std::string, Fr> P_to_m;
 
     ELGL<IO>* elgl;
     MPIOChannel<IO>* io;
@@ -61,6 +61,8 @@ class LVT{
     vector<Plaintext> lut_share;
     vector<vector<BLS12381Element>> cip_lut;
     emp::BSGSPrecomputation bsgs;
+    std::map<std::string, Fr> P_to_m;
+    BLS12381Element g;
     
     int num_party;
     int party;
@@ -94,13 +96,37 @@ LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, EL
 
 void build_safe_P_to_m(std::map<std::string, Fr>& P_to_m, int num_party, size_t tb_size) {
     size_t max_exponent = 2 * tb_size * num_party;
-    // cout << "hahahhahhahah     max_exponent: " << max_exponent << endl;
-    for (size_t i = 0; i <= max_exponent; ++i) {
-        BLS12381Element g_i(i);
-        P_to_m[g_i.getPoint().getStr()] = Fr(i);
+    
+    // 如果表较小，直接计算
+    if (max_exponent <= 1<<17) {
+        // 测试时间
+        // auto start_time = chrono::high_resolution_clock::now();
+        for (size_t i = 0; i <= max_exponent; ++i) {
+            BLS12381Element g_i(i);
+            P_to_m[g_i.getPoint().getStr()] = Fr(to_string(i));
+        }
+        // auto end_time = chrono::high_resolution_clock::now();
+        // auto duration = chrono::duration_cast<chrono::milliseconds>(end_time - start_time);
+        // cout << "构建表用时: " << duration.count() << " 毫秒" << endl;
+        return;
     }
     
-    // std::cout << "[P_to_m] Table built. Covers exponents from 0 to " << max_exponent << "." << std::endl;
+    // 如果表较大，尝试读取文件
+    // auto start_time = chrono::high_resolution_clock::now();
+    const char* filename = "P_to_m_table.bin";
+    deserialize_P_to_m(P_to_m, filename);
+    // auto end_time = chrono::high_resolution_clock::now();
+    // auto duration = chrono::duration_cast<chrono::milliseconds>(end_time - start_time);
+    // cout << "读取表用时: " << duration.count() << " 毫秒" << endl;
+    
+    // 如果文件不存在或读取失败，则计算并保存
+    if (P_to_m.empty()) {
+        for (size_t i = 0; i <= max_exponent; ++i) {
+            BLS12381Element g_i(i);
+            P_to_m[g_i.getPoint().getStr()] = Fr(i);
+        }
+        serialize_P_to_m(P_to_m, filename);
+    }
 }
 
 template <typename IO>
@@ -108,10 +134,31 @@ LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, EL
     : LVT(num_party, party, io, pool, elgl, alpha, table_size) {
     // load table from file
     deserializeTable(table, tableFile.c_str(), tb_size);
-        // everybody calculate their own P_to_m table
-        build_safe_P_to_m(P_to_m, num_party, tb_size);
-}
+    // cout << "table size: " << tb_size << endl;
+    if (tb_size <= 65536) build_safe_P_to_m(P_to_m, num_party, tb_size);
 
+    uint64_t N = 1ULL << 32; // 32-bit空间
+    try {
+        // auto start_time = chrono::high_resolution_clock::now();
+        std::cout << "尝试从文件加载预计算数据..." << std::endl;
+
+        bsgs.deserialize("bsgs_table.bin");
+        
+        // auto end_time = chrono::high_resolution_clock::now();
+        // auto duration = chrono::duration_cast<chrono::milliseconds>(end_time - start_time);
+        // cout << "读取表用时: " << duration.count() << " 毫秒" << endl;
+        // std::cout << "成功加载预计算数据" << std::endl;
+    } catch (const std::exception& e) {
+        // std::cout << "预计算数据不存在或损坏，开始预计算..." << std::endl;
+        // auto start_time = chrono::high_resolution_clock::now();
+        bsgs.precompute(g, N);
+        // auto end_time = chrono::high_resolution_clock::now();
+        // auto duration = chrono::duration_cast<chrono::milliseconds>(end_time - start_time);
+        // cout << "预计算用时: " << duration.count() << " 毫秒" << endl;
+        // std::cout << "预计算完成，保存到文件..." << std::endl;
+        bsgs.serialize("bsgs_table.bin");
+    }
+}
 
 template <typename IO>
 void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation, vector<int64_t> table) {
@@ -566,7 +613,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         // time
         start = std::chrono::high_resolution_clock::now();
         bool flag = 0; 
-        if(tb_size <= 65536) flag = 1;
+        if(tb_size <= 131072) flag = 1;
         for (size_t i = 0; i < tb_size; i++){
             res.push_back(pool->enqueue([this, &l_alice, &c0_, &L, i, &lut_share, flag](){
                 BLS12381Element Y = l_alice[i] - c0_[i] * elgl->kp.get_sk().get_sk(); 
@@ -855,7 +902,7 @@ Fr threshold_decrypt(Ciphertext& c, ELGL<IO>* elgl, const ELGL_PK& global_pk, co
 
     std::string key = pi_ask.getPoint().getStr();
     Fr y;
-    if(lvt->tb_size <= 65536) {
+    if(lvt->tb_size <= 131072) {
         auto it = P_to_m.find(key);
         if (it == P_to_m.end()) {
             std::cerr << "[Error] pi_ask not found in P_to_m! pi_ask = " << key << std::endl;

@@ -9,6 +9,7 @@
 #include <iostream>
 #include <mcl/bn.hpp>
 #include "emp-aby/utils.h"
+#include <fstream>
 
 namespace emp {
 
@@ -29,6 +30,92 @@ struct BSGSPrecomputation {
 
     void precompute(const BLS12381Element& g_in, uint64_t N_in, uint32_t n_threads = 1);
     int64_t solve_parallel_with_pool(const BLS12381Element& y, ThreadPool* pool, uint32_t n_threads = 4) const;
+
+    // 序列化预计算数据
+    void serialize(const char* filename) {
+        std::ofstream outFile(filename, std::ios::binary);
+        if (!outFile) {
+            throw std::runtime_error("Cannot open file for writing");
+        }
+
+        // 写入n和N
+        outFile.write(reinterpret_cast<const char*>(&n), sizeof(n));
+        outFile.write(reinterpret_cast<const char*>(&N), sizeof(N));
+
+        // 写入g和g_inv_n
+        std::stringstream ss_g, ss_g_inv_n;
+        g.pack(ss_g);
+        g_inv_n.pack(ss_g_inv_n);
+        std::string g_str = ss_g.str();
+        std::string g_inv_n_str = ss_g_inv_n.str();
+        
+        size_t g_len = g_str.length();
+        size_t g_inv_n_len = g_inv_n_str.length();
+        outFile.write(reinterpret_cast<const char*>(&g_len), sizeof(g_len));
+        outFile.write(g_str.c_str(), g_len);
+        outFile.write(reinterpret_cast<const char*>(&g_inv_n_len), sizeof(g_inv_n_len));
+        outFile.write(g_inv_n_str.c_str(), g_inv_n_len);
+
+        // 写入baby_table
+        size_t table_size = baby_table.size();
+        outFile.write(reinterpret_cast<const char*>(&table_size), sizeof(table_size));
+        
+        for (const auto& pair : baby_table) {
+            std::stringstream ss;
+            pair.first.pack(ss);
+            std::string key_str = ss.str();
+            size_t key_len = key_str.length();
+            outFile.write(reinterpret_cast<const char*>(&key_len), sizeof(key_len));
+            outFile.write(key_str.c_str(), key_len);
+            outFile.write(reinterpret_cast<const char*>(&pair.second), sizeof(pair.second));
+        }
+    }
+
+    // 反序列化预计算数据
+    void deserialize(const char* filename) {
+        std::ifstream inFile(filename, std::ios::binary);
+        if (!inFile) {
+            throw std::runtime_error("Cannot open file for reading");
+        }
+
+        // 读取n和N
+        inFile.read(reinterpret_cast<char*>(&n), sizeof(n));
+        inFile.read(reinterpret_cast<char*>(&N), sizeof(N));
+
+        // 读取g和g_inv_n
+        size_t g_len, g_inv_n_len;
+        inFile.read(reinterpret_cast<char*>(&g_len), sizeof(g_len));
+        std::string g_str(g_len, '\0');
+        inFile.read(&g_str[0], g_len);
+        std::stringstream ss_g(g_str);
+        g.unpack(ss_g);
+
+        inFile.read(reinterpret_cast<char*>(&g_inv_n_len), sizeof(g_inv_n_len));
+        std::string g_inv_n_str(g_inv_n_len, '\0');
+        inFile.read(&g_inv_n_str[0], g_inv_n_len);
+        std::stringstream ss_g_inv_n(g_inv_n_str);
+        g_inv_n.unpack(ss_g_inv_n);
+
+        // 读取baby_table
+        size_t table_size;
+        inFile.read(reinterpret_cast<char*>(&table_size), sizeof(table_size));
+        baby_table.clear();
+        baby_table.reserve(table_size);
+
+        for (size_t i = 0; i < table_size; ++i) {
+            size_t key_len;
+            inFile.read(reinterpret_cast<char*>(&key_len), sizeof(key_len));
+            std::string key_str(key_len, '\0');
+            inFile.read(&key_str[0], key_len);
+            std::stringstream ss_key(key_str);
+            BLS12381Element key;
+            key.unpack(ss_key);
+            
+            uint64_t value;
+            inFile.read(reinterpret_cast<char*>(&value), sizeof(value));
+            baby_table[key] = value;
+        }
+    }
 };
 
 void BSGSPrecomputation::precompute(const BLS12381Element& g_in, uint64_t N_in, uint32_t n_threads) {
