@@ -148,7 +148,7 @@ inline MASCOT<MultiIOBase>::LabeledShare L2A_for_B2A(
     u_int = mascot.reconstruct(shared_u);
     u_int %= fd; if (u_int < 0) u_int += fd;
 
-    if ((uu % 2) != (u_int % 2)) {
+    if ((uu) != (u_int)) {
         throw std::runtime_error("L2A_mascot check failed: decrypted value != share sum");
     }
 

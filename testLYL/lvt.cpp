@@ -63,7 +63,7 @@ int main(int argc, char** argv) {
     MultiIO* io = new MultiIO(party, num_party, net_config);
     ELGL<MultiIOBase>* elgl = new ELGL<MultiIOBase>(num_party, io, &pool, party);
 
-    int num = 16; int n = 1ULL << num;
+    int num = 1; int n = 1ULL << num;
     Fr alpha_fr = alpha_init(num);
     LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../build/bin/table.txt", alpha_fr, num);
 

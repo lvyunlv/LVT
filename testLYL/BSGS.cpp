@@ -12,21 +12,11 @@ int main() {
     BLS12381Element g = BLS12381Element::generator(); 
     ThreadPool pool(thread_num);
 
-    uint64_t N = 1ULL << 32; // 32-bit空间
+    uint64_t N = 1ULL << 38; // 32-bit空间
     BSGSPrecomputation bsgs;
 
     // 尝试从文件加载预计算数据
-    try {
-    auto start_time = chrono::high_resolution_clock::now();
-        std::cout << "尝试从文件加载预计算数据..." << std::endl;
-
-        bsgs.deserialize("bsgs_table.bin");
-        
-        auto end_time = chrono::high_resolution_clock::now();
-        auto duration = chrono::duration_cast<chrono::milliseconds>(end_time - start_time);
-        cout << "读取表用时: " << duration.count() << " 毫秒" << endl;
-        std::cout << "成功加载预计算数据" << std::endl;
-    } catch (const std::exception& e) {
+     {
         std::cout << "预计算数据不存在或损坏，开始预计算..." << std::endl;
         auto start_time = chrono::high_resolution_clock::now();
         bsgs.precompute(g, N);

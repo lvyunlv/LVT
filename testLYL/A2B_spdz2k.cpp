@@ -20,7 +20,7 @@ int party, port;
 const static int threads = 8;
 int num_party;
 const int l = 8;
-const int num_bits = 28;
+const int num_bits = 32;
 const uint64_t FIELD_SIZE = (1ULL << num_bits);
 
 Fr alpha_init(int num) {
@@ -65,16 +65,14 @@ int main(int argc, char** argv) {
     lvt->generate_shares(lvt->lut_share, lvt->rotation, lvt->table);
 
     // 输入：算术份额
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<uint64_t> arith_dis(0, FIELD_SIZE - 1);
+    uint64_t x_spdz2k = spdz2k.rng() % FIELD_SIZE;
     SPDZ2k<MultiIOBase>::LabeledShare x_arith;
-    x_arith = spdz2k.distributed_share(arith_dis(gen));
+    x_arith = spdz2k.distributed_share(x_spdz2k);
 
     // 调用A2B
     double total_time = 0;
     double total_comm = 0;
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 1; ++i) {
         int bytes_start = io->get_total_bytes_sent();
         auto t1 = std::chrono::high_resolution_clock::now();
         auto x_bool = A2B_spdz2k::A2B(elgl, lvt, tiny, spdz2k, party, num_party, io, &pool, FIELD_SIZE, num_bits, x_arith);
@@ -85,7 +83,7 @@ int main(int argc, char** argv) {
         total_time += time_ms;
         total_comm += comm_kb;
     }
-    std::cout << "Average time: " << (total_time/5) << "ms && Average communication: " << (total_comm/5) << "KB" << std::endl;
+    std::cout << "Average time: " << (total_time/1) << "ms && Average communication: " << (total_comm/1) << "KB" << std::endl;
     
     delete elgl;
     delete io;

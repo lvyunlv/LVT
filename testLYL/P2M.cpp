@@ -38,14 +38,7 @@ int main() {
     
     std::map<std::string, Fr> P_to_m;
     // 判断是否有表，如果有则读取表，否则构建表并保存表
-    if (file_exists("P_to_m_table.bin")) {
-    auto start_time = chrono::high_resolution_clock::now();
-        std::cout << "从文件读取表..." << std::endl; 
-        deserialize_P_to_m(P_to_m, "P_to_m_table.bin");
-        auto end_time = chrono::high_resolution_clock::now();
-        auto duration = chrono::duration_cast<chrono::milliseconds>(end_time - start_time);
-        cout << "读取表用时: " << duration.count() << " 毫秒" << endl;
-    } else {
+   {
         std::cout << "开始构建表，max_exponent = " << max_exponent << std::endl;
         auto P_to_m = test_P_to_m(max_exponent);
         

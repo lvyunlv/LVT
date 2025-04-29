@@ -96,7 +96,6 @@ inline MASCOT<MultiIOBase>::LabeledShare B2A(
     share_x_decimal.field_size_ptr = &FIELD_SIZE;
     for (int i = 0; i < l; ++i) {
         share_x_decimal = share_x_decimal * 2 + shared_x[i];
-        share_x_decimal = share_x_decimal * 2 + shared_x[i];
     }
 
     // auto t2 = std::chrono::high_resolution_clock::now();
@@ -188,7 +187,6 @@ inline MASCOT<MultiIOBase>::LabeledShare B2A_for_A2B(
     share_x_decimal.owner = party;
     share_x_decimal.field_size_ptr = &FIELD_SIZE;
     for (int i = 0; i < l; ++i) {
-        share_x_decimal = share_x_decimal * 2 + shared_x[i];
         share_x_decimal = share_x_decimal * 2 + shared_x[i];
     }
 

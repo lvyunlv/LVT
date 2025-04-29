@@ -1,2 +1,0 @@
-Error: Unable to open file for reading.
-Average time: 99.8593ms && Average communication: 0.763672KB

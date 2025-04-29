@@ -19,9 +19,10 @@ using namespace std;
 int party, port;
 const static int threads = 8;
 int num_party;
-const int l = 8;
-const int num_bits = 28;
-const mcl::Vint FIELD_SIZE = (1 << num_bits);
+const int l = 32;
+const int num_bits = 32;
+// const mcl::Vint FIELD_SIZE = (1 << num_bits);
+const mcl::Vint FIELD_SIZE("4294967296");
 
 Fr alpha_init(int num) {
     Plaintext alpha;
@@ -64,17 +65,17 @@ int main(int argc, char** argv) {
     MASCOT<MultiIOBase> mascot(elgl);
     lvt->generate_shares(lvt->lut_share, lvt->rotation, lvt->table);
 
+    // cout << "开始生成算术份额" << endl;
     // 输入：算术份额
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<int> arith_dis(0, FIELD_SIZE.getLow32bit() - 1);
+    mcl::Vint x_mascot;
+    x_mascot.setRand(FIELD_SIZE); // 128位大素数域足够
     MASCOT<MultiIOBase>::LabeledShare x_arith;
-    x_arith = mascot.distributed_share(arith_dis(gen));
-
+    x_arith = mascot.distributed_share(x_mascot);
+    // cout << "算术份额生成完成" << endl;
     // 调用A2B
     double total_time = 0;
     double total_comm = 0;
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 1; ++i) {
         int bytes_start = io->get_total_bytes_sent();
         auto t1 = std::chrono::high_resolution_clock::now();
 
@@ -87,7 +88,7 @@ int main(int argc, char** argv) {
         total_time += time_ms;
         total_comm += comm_kb;
     }
-    std::cout << "Average time: " << (total_time/5) << "ms && Average communication: " << (total_comm/5) << "KB" << std::endl;
+    std::cout << "Average time: " << (total_time/1) << "ms && Average communication: " << (total_comm/1) << "KB" << std::endl;
 
     delete elgl;
     delete io;

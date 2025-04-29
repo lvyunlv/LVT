@@ -16,9 +16,9 @@ using namespace std;
 int party, port;
 const static int threads = 8;
 int num_party;
-const uint64_t FIELD_SIZE = (1ULL << 28) ;
+const uint64_t FIELD_SIZE = (1ULL << 32) ;
 
-const int num = 12; 
+const int num = 32; 
 
 int main(int argc, char** argv) {
 

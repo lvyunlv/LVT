@@ -21,8 +21,9 @@ int party, port;
 const static int threads = 8;
 int num_party;
 const int l = 8; // 比特长度，可根据q调整
-const int num_bits = 28;
-const mcl::Vint FIELD_SIZE = (1 << num_bits);
+const int num_bits = 32;
+// const mcl::Vint FIELD_SIZE = (1 << num_bits);
+const mcl::Vint FIELD_SIZE("4294967296");
 
 Fr alpha_init(int num) {
     Plaintext alpha;
@@ -68,16 +69,17 @@ int main(int argc, char** argv) {
     lvt->generate_shares(lvt->lut_share, lvt->rotation, lvt->table);
 
     // B2A_mascot input generation
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<int> bit_dis(0, 1);
     vector<TinyMAC<MultiIOBase>::LabeledShare> x_bits(l);
-    for (int i = 0; i < l; ++i) x_bits[i] = tiny.distributed_share(bit_dis(gen));
+    for (int i = 0; i < l; ++i) 
+    {
+        uint8_t bit_dis = tiny.rng() % 2;
+        x_bits[i] = tiny.distributed_share(bit_dis);
+    }
     
     // B2A_mascot output
     double total_time = 0;
     double total_comm = 0;
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 1; ++i) {
         int bytes_start = io->get_total_bytes_sent();
         auto t1 = std::chrono::high_resolution_clock::now();
 
@@ -90,7 +92,7 @@ int main(int argc, char** argv) {
         total_time += time_ms;
         total_comm += comm_kb;
     }
-    std::cout << "Average time: " << (total_time/5) << "ms && Average communication: " << (total_comm/5) << "KB" << std::endl;
+    std::cout << "Average time: " << (total_time/1) << "ms && Average communication: " << (total_comm/1) << "KB" << std::endl;
 
     delete elgl;
     delete io;
