@@ -1,1 +1,1 @@
-Party number: 8\tAverage time: 20413.3ms && Average communication: 299.083KB
+Party number: 8\tAverage time: 20315.3ms && Average communication: 248.003KB

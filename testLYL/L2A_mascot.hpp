@@ -1,7 +1,7 @@
 #pragma once
 #include "emp-aby/io/multi-io.hpp"
 #include "emp-aby/io/mp_io_channel.h"
-#include "emp-aby/lvt.h"
+#include "emp-aby/lvt_fake.h"
 #include "emp-aby/elgl_interface.hpp"
 #include "emp-aby/mascot.hpp"
 #include <vector>
@@ -105,8 +105,8 @@ inline MASCOT<MultiIOBase>::LabeledShare L2A_for_B2A(
 ) {
     MASCOT<MultiIOBase>::LabeledShare shared_x;
 
-    // int bytes_start = io->get_total_bytes_sent();
-    // auto t1 = std::chrono::high_resolution_clock::now();
+    int bytes_start = io->get_total_bytes_sent();
+    auto t1 = std::chrono::high_resolution_clock::now();
 
     // cout << "x_plain: " << x_plain.get_message().getStr() << endl;
 
@@ -159,13 +159,13 @@ inline MASCOT<MultiIOBase>::LabeledShare L2A_for_B2A(
         throw std::runtime_error("L2A_mascot check failed: decrypted value != share sum");
     }
 
-    // auto t2 = std::chrono::high_resolution_clock::now();
-    // int bytes_end = io->get_total_bytes_sent();
-    // double comm_kb = double(bytes_end - bytes_start) / 1024.0;
-    // double time_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
-    // std::cout << std::fixed << std::setprecision(3)
-    //           << "Communication: " << comm_kb << " KB, "
-    //           << "Time: " << time_ms << " ms" << std::endl;
+    auto t2 = std::chrono::high_resolution_clock::now();
+    int bytes_end = io->get_total_bytes_sent();
+    double comm_kb = double(bytes_end - bytes_start) / 1024.0;
+    double time_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
+    std::cout << std::fixed << std::setprecision(3)
+              << "Communication: " << comm_kb << " KB, "
+              << "Time: " << time_ms << " ms" << std::endl;
 
     return shared_x;
 }
