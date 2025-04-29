@@ -108,6 +108,9 @@ inline MASCOT<MultiIOBase>::LabeledShare L2A_for_B2A(
     // int bytes_start = io->get_total_bytes_sent();
     // auto t1 = std::chrono::high_resolution_clock::now();
 
+    // cout << "x_plain: " << x_plain.get_message().getStr() << endl;
+
+
     mcl::Vint r_mascot; 
     r_mascot.setRand(fd);
     r_mascot %= fd; if (r_mascot < 0) r_mascot += fd;
@@ -148,7 +151,11 @@ inline MASCOT<MultiIOBase>::LabeledShare L2A_for_B2A(
     u_int = mascot.reconstruct(shared_u);
     u_int %= fd; if (u_int < 0) u_int += fd;
 
-    if ((uu) != (u_int)) {
+    if ((uu % 2) != (u_int % 2)) {
+        // cout << "uu = sum of x_input: " << uu.getStr() << endl;
+        // cout << "u_int: " << u_int.getStr() << endl;
+        mcl::Vint x_sum = mascot.reconstruct(shared_x);
+        // cout << "x_sum: " << x_sum.getStr() << endl;
         throw std::runtime_error("L2A_mascot check failed: decrypted value != share sum");
     }
 

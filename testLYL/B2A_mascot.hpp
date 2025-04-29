@@ -49,20 +49,24 @@ inline MASCOT<MultiIOBase>::LabeledShare B2A(
 
     vector<Ciphertext> x_cipher(l), r_cipher(l), x_lut_ciphers(num_party), r_lut_ciphers(num_party);
     vector<Plaintext> x_plain(l), r_plain(l);
-    cout << "l: " << l << endl;
+    
     for (int i = 0; i < l; ++i) {
         Plaintext plain_i;
-        cout << "number i: " << i << endl;
+        // cout << "number i: " << i << endl;
+        // cout << "x_plain: " << to_string(x_bits[i].value) << endl;   
+        // cout << "r_plain: " << to_string(r_bits[i].value) << endl;
 
         plain_i.assign(std::to_string(x_bits[i].value));
         x_cipher[i] = lvt->global_pk.encrypt(plain_i);
         lvt->lookup_online(x_plain[i], plain_i, x_cipher[i], x_lut_ciphers);
-        shared_x[i] = L2A_mascot::L2A(elgl, lvt, mascot, party, num_party, io, pool, x_plain[i], x_lut_ciphers, FIELD_SIZE);
+        shared_x[i] = L2A_mascot::L2A_for_B2A(elgl, lvt, mascot, party, num_party, io, pool, x_plain[i], x_lut_ciphers, FIELD_SIZE);
+        if (shared_x[i].value == 0) shared_x[i].value = 0;
 
         plain_i.assign(std::to_string(r_bits[i].value));
         r_cipher[i] = lvt->global_pk.encrypt(plain_i);
         lvt->lookup_online(r_plain[i], plain_i, r_cipher[i], r_lut_ciphers);
-        shared_r[i] = L2A_mascot::L2A(elgl, lvt, mascot, party, num_party, io, pool, r_plain[i], r_lut_ciphers, FIELD_SIZE);
+        shared_r[i] = L2A_mascot::L2A_for_B2A(elgl, lvt, mascot, party, num_party, io, pool, r_plain[i], r_lut_ciphers, FIELD_SIZE);
+        if (shared_r[i].value == 0) shared_r[i].value = 0;
     }
 
     // 4. 校验一致性（可选，出错抛异常）

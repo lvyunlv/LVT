@@ -91,41 +91,47 @@ LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, EL
     this->lut_share.resize(tb_size);
     BLS12381Element::init();
     BLS12381Element g = BLS12381Element::generator();
-    bsgs.precompute(g, 1ULL << 32);
+    // bsgs.precompute(g, 1ULL << 32);
 }
 
 void build_safe_P_to_m(std::map<std::string, Fr>& P_to_m, int num_party, size_t tb_size) {
     size_t max_exponent = 2 * tb_size * num_party;
     
-    // 如果表较小，直接计算
-    if (max_exponent <= 1<<17) {
-        // 测试时间
-        // auto start_time = chrono::high_resolution_clock::now();
-        for (size_t i = 0; i <= max_exponent; ++i) {
-            BLS12381Element g_i(i);
-            P_to_m[g_i.getPoint().getStr()] = Fr(to_string(i));
-        }
-        // auto end_time = chrono::high_resolution_clock::now();
-        // auto duration = chrono::duration_cast<chrono::milliseconds>(end_time - start_time);
-        // cout << "构建表用时: " << duration.count() << " 毫秒" << endl;
-        return;
-    }
+    // // 如果表较小，直接计算
+    // if (max_exponent <= 1<<8) {
+    //     // 测试时间
+    //     // auto start_time = chrono::high_resolution_clock::now();
+    //     cout << "开始构建大小为" << max_exponent << "的P_to_m表..." << endl;
+    //     for (size_t i = 0; i <= max_exponent; ++i) {
+    //         BLS12381Element g_i(i);
+    //         P_to_m[g_i.getPoint().getStr()] = Fr(to_string(i));
+    //     }
+    //     cout << "P_to_m表构建完成" << endl;
+    //     // auto end_time = chrono::high_resolution_clock::now();
+    //     // auto duration = chrono::duration_cast<chrono::milliseconds>(end_time - start_time);
+    //     // cout << "构建表用时: " << duration.count() << " 毫秒" << endl;
+    //     return;
+    // }
     
     // 如果表较大，尝试读取文件
     // auto start_time = chrono::high_resolution_clock::now();
+    cout << "开始读取P_to_m表..." << endl;
     const char* filename = "P_to_m_table.bin";
     deserialize_P_to_m(P_to_m, filename);
+    cout << "P_to_m表读取完成" << endl;
     // auto end_time = chrono::high_resolution_clock::now();
     // auto duration = chrono::duration_cast<chrono::milliseconds>(end_time - start_time);
     // cout << "读取表用时: " << duration.count() << " 毫秒" << endl;
     
     // 如果文件不存在或读取失败，则计算并保存
     if (P_to_m.empty()) {
+        cout << "P_to_m表为空，开始计算..." << endl;
         for (size_t i = 0; i <= max_exponent; ++i) {
             BLS12381Element g_i(i);
             P_to_m[g_i.getPoint().getStr()] = Fr(i);
         }
         serialize_P_to_m(P_to_m, filename);
+        cout << "P_to_m表计算完成" << endl;
     }
 }
 
@@ -137,19 +143,19 @@ LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, EL
     // cout << "table size: " << tb_size << endl;
     if (tb_size <= 65536) build_safe_P_to_m(P_to_m, num_party, tb_size);
 
-    uint64_t N = 1ULL << 32; // 32-bit空间
+    uint64_t N = 1ULL << 38; // 32-bit空间
     try {
         // auto start_time = chrono::high_resolution_clock::now();
-        std::cout << "尝试从文件加载预计算数据..." << std::endl;
-
+        std::cout << "开始加载bsgs表..." << std::endl;
         bsgs.deserialize("bsgs_table.bin");
+        cout << "bsgs表加载完成" << endl;
         
         // auto end_time = chrono::high_resolution_clock::now();
         // auto duration = chrono::duration_cast<chrono::milliseconds>(end_time - start_time);
         // cout << "读取表用时: " << duration.count() << " 毫秒" << endl;
         // std::cout << "成功加载预计算数据" << std::endl;
     } catch (const std::exception& e) {
-        // std::cout << "预计算数据不存在或损坏，开始预计算..." << std::endl;
+        std::cout << "bsgs预计算数据不存在或损坏，开始预计算..." << std::endl;
         // auto start_time = chrono::high_resolution_clock::now();
         bsgs.precompute(g, N);
         // auto end_time = chrono::high_resolution_clock::now();
@@ -157,6 +163,7 @@ LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, EL
         // cout << "预计算用时: " << duration.count() << " 毫秒" << endl;
         // std::cout << "预计算完成，保存到文件..." << std::endl;
         bsgs.serialize("bsgs_table.bin");
+        cout << "bsgs表保存完成" << endl;
     }
 }
 
@@ -470,8 +477,6 @@ void LVT<IO>::lookup_online(Plaintext& out, Plaintext& x_share, Ciphertext& x_ci
     index_mpz.setStr(u_mpz.getStr());
     size_t index = static_cast<size_t>(index_mpz.getLow32bit());
     out = lut_share[index];
-
-    // cout << "lut_share[" << index << "] = " << out.get_message().getStr() << endl;
 
     // cout << endl << "table" << endl;
     // for (size_t i = 0; i < tb_size; i++){
