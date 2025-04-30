@@ -153,6 +153,7 @@ inline MASCOT<MultiIOBase>::LabeledShare B2A_for_A2B(
     std::uniform_int_distribution<int> bit_dis(0, 1);
     for (int i = 0; i < l; ++i) r_bits[i] = tiny.distributed_share(bit_dis(gen));
     for (int i = 0; i < l; ++i) u_bits[i] = tiny.add(x_bits[i], r_bits[i]);
+    cout << "in B2A" << endl;
 
     // 2. B2L查表
     vector<MASCOT<MultiIOBase>::LabeledShare> shared_r(l);
@@ -180,6 +181,8 @@ inline MASCOT<MultiIOBase>::LabeledShare B2A_for_A2B(
         if (shared_r[i].value == 0) shared_r[i].value = 0;
     }
 
+    cout << "in B2A 2" << endl;
+
     // 4. 校验一致性（可选，出错抛异常）
     for (int i = 0; i < l; ++i) {
         auto mascot_u = mascot.add(shared_x[i], shared_r[i]);
@@ -202,6 +205,7 @@ inline MASCOT<MultiIOBase>::LabeledShare B2A_for_A2B(
             throw std::runtime_error("B2A check failed: decrypted value != share sum");
         }
     }
+    cout << "in B2A 3" << endl;
 
     // 计算l比特share_x形成的十进制share_x_decimal
     MASCOT<MultiIOBase>::LabeledShare share_x_decimal;
