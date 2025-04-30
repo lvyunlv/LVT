@@ -40,6 +40,8 @@ inline MASCOT<MultiIOBase>::LabeledShare B2A(
     std::mt19937 gen(rd());
     std::uniform_int_distribution<int> bit_dis(0, 1);
     for (int i = 0; i < l; ++i) r_bits[i] = tiny.distributed_share(bit_dis(gen));
+    cout << "1111111" << endl;
+
 
     // 2. B2L查表
     vector<MASCOT<MultiIOBase>::LabeledShare> shared_r(l);
@@ -53,6 +55,7 @@ inline MASCOT<MultiIOBase>::LabeledShare B2A(
         plain_i.assign(std::to_string(r_bits[i].value));
         r_cipher[i] = lvt->global_pk.encrypt(plain_i);
         lvt->lookup_online_easy(r_plain[i], plain_i, r_cipher[i], r_lut_ciphers);
+        cout << "2222222" << endl;
         shared_r[i] = L2A_mascot::L2A_for_B2A(elgl, lvt, mascot, party, num_party, io, pool, r_plain[i], r_lut_ciphers, FIELD_SIZE);
         if (shared_r[i].value == 0) shared_r[i].value = 0;
     }

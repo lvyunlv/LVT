@@ -100,11 +100,11 @@ LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, EL
 }
 
 void build_safe_P_to_m(std::map<std::string, Fr>& P_to_m, int num_party, size_t tb_size) {
-    // size_t max_exponent = 2 * tb_size * num_party;
-    size_t max_exponent = 128;
+    size_t max_exponent = 2 * tb_size * num_party;
+    // size_t max_exponent = 128;
     
     // // 如果表较小，直接计算
-    // if (max_exponent <= 1<<8) {
+    if (max_exponent <= 1<<8) {
         // 测试时间
         // auto start_time = chrono::high_resolution_clock::now();
         // cout << "开始构建大小为" << max_exponent << "的P_to_m表..." << endl;
@@ -117,28 +117,28 @@ void build_safe_P_to_m(std::map<std::string, Fr>& P_to_m, int num_party, size_t 
         // auto duration = chrono::duration_cast<chrono::milliseconds>(end_time - start_time);
         // cout << "构建表用时: " << duration.count() << " 毫秒" << endl;
         return;
-    // }
+    }
     
-    // // 如果表较大，尝试读取文件
-    // // auto start_time = chrono::high_resolution_clock::now();
-    // cout << "开始读取P_to_m表..." << endl;
-    // const char* filename = "P_to_m_table.bin";
-    // deserialize_P_to_m(P_to_m, filename);
-    // cout << "P_to_m表读取完成" << endl;
-    // // auto end_time = chrono::high_resolution_clock::now();
-    // // auto duration = chrono::duration_cast<chrono::milliseconds>(end_time - start_time);
-    // // cout << "读取表用时: " << duration.count() << " 毫秒" << endl;
+    // 如果表较大，尝试读取文件
+    // auto start_time = chrono::high_resolution_clock::now();
+    cout << "开始读取P_to_m表..." << endl;
+    const char* filename = "P_to_m_table.bin";
+    deserialize_P_to_m(P_to_m, filename);
+    cout << "P_to_m表读取完成" << endl;
+    // auto end_time = chrono::high_resolution_clock::now();
+    // auto duration = chrono::duration_cast<chrono::milliseconds>(end_time - start_time);
+    // cout << "读取表用时: " << duration.count() << " 毫秒" << endl;
     
-    // // 如果文件不存在或读取失败，则计算并保存
-    // if (P_to_m.empty()) {
-    //     cout << "P_to_m表为空，开始计算..." << endl;
-    //     for (size_t i = 0; i <= max_exponent; ++i) {
-    //         BLS12381Element g_i(i);
-    //         P_to_m[g_i.getPoint().getStr()] = Fr(i);
-    //     }
-    //     serialize_P_to_m(P_to_m, filename);
-    //     cout << "P_to_m表计算完成" << endl;
-    // }
+    // 如果文件不存在或读取失败，则计算并保存
+    if (P_to_m.empty()) {
+        cout << "P_to_m表为空，开始计算..." << endl;
+        for (size_t i = 0; i <= max_exponent; ++i) {
+            BLS12381Element g_i(i);
+            P_to_m[g_i.getPoint().getStr()] = Fr(i);
+        }
+        serialize_P_to_m(P_to_m, filename);
+        cout << "P_to_m表计算完成" << endl;
+    }
 }
 
 template <typename IO>
@@ -822,78 +822,56 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
 
 template <typename IO>
 void LVT<IO>::generate_shares_fake(vector<Plaintext>& lut_share, Plaintext& rotation, vector<int64_t> table) {
-    vector<std::future<void>> res;
-    mcl::Vint bound;
-    bound.setStr(to_string(tb_size));
+    mcl::Vint bound(to_string(tb_size));
     lut_share.resize(tb_size);
-    cip_lut.resize(num_party);
-    for (int i = 0; i < num_party; i++) {
+    cip_lut.resize(num_party, vector<BLS12381Element>(tb_size));
+    for (int i = 0; i < num_party; ++i) {
         cip_lut[i].resize(tb_size);
     }
-    // 每个party选取rotation
+
+    // Step 1: rotation 固定为 1
     rotation.set_message(1);
-    Ciphertext my_rot_cipher = global_pk.encrypt(rotation);
-    elgl->serialize_sendall(my_rot_cipher);
-    for (int i = 1; i <= num_party; ++i) {
-        res.emplace_back(pool->enqueue([this, &my_rot_cipher, i]() {
-            if (i == party){
-                this->cr_i[party-1] = my_rot_cipher;
-            }else{
-                Ciphertext other_rot_cipher;
-                elgl->deserialize_recv(other_rot_cipher, i);
-                this->cr_i[i-1] = other_rot_cipher;
-            }
-        }));
-    }
-    for (auto & f : res) f.get();
-    res.clear();
 
+    // Step 2: 计算本地 LUT share 和加密 LUT
     int64_t t1 = table[0];
-    size_t rotate_sum = num_party;
-    // cout << "rotate_sum = " << rotate_sum << endl;
-    cr_i[party-1] = global_pk.encrypt(rotation);
-    elgl->serialize_sendall(cr_i[party-1]);
-    for (size_t i = 0; i < num_party; i++){
-        if (i != (party-1)){
-            Ciphertext other_rot_cipher;
-            elgl->deserialize_recv(other_rot_cipher, i+1);
-            this->cr_i[i] = other_rot_cipher;
-        }
-    }
+    size_t rotate_sum = num_party;  // 所有 party 的 rotation 为 1，求和为 num_party
 
-    for (size_t i = 0; i < tb_size; i++){
-        lut_share[i].set_message(table[(i - rotate_sum) % tb_size]);
-        if (party == 1){
+    if (party == 1) {
+        for (size_t i = 0; i < tb_size; ++i) {
+            lut_share[i].set_message(table[(i - rotate_sum + tb_size) % tb_size]);
             int64_t tmp = (lut_share[i].get_message().getInt64() - ((num_party - 1) * t1)) % tb_size;
+            if (tmp < 0) tmp += tb_size;
             lut_share[i].set_message(tmp);
-            // cout << "lut_share[" << i << "] = " << lut_share[i].get_message().getInt64() << endl;
+            cip_lut[party - 1][i] = g * tmp + global_pk.get_pk() * elgl->kp.get_sk().get_sk();
         }
-        else {
+    } else {
+        for (size_t i = 0; i < tb_size; ++i) {
             lut_share[i].set_message(t1);
-            // cout << "lut_share[" << i << "] = " << lut_share[i].get_message().getInt64() << endl;
+            cip_lut[party - 1][i] = g * t1 + global_pk.get_pk() * elgl->kp.get_sk().get_sk();
         }
-        cip_lut[party-1][i] = g * lut_share[i].get_message().getInt64() + global_pk.get_pk() * elgl->kp.get_sk().get_sk();
     }
 
-    std::stringstream cip_lut_;
-    for (size_t i = 0; i < tb_size; i++){
-        cip_lut[party-1][i].pack(cip_lut_);
+    // Step 3: 广播自己的 cip_lut[party-1]
+    std::stringstream cip_lut_stream;
+    for (size_t i = 0; i < tb_size; ++i) {
+        cip_lut[party - 1][i].pack(cip_lut_stream);
     }
-    std::stringstream cip;
-    std::string cip_raw = cip_lut_.str();
-    cip << base64_encode(cip_raw);
-    elgl->serialize_sendall_(cip);
+    std::string encoded = base64_encode(cip_lut_stream.str());
+    std::stringstream encoded_stream;
+    encoded_stream << encoded;
+    elgl->serialize_sendall_with_tag(encoded_stream, 5000 * party);
 
-    for (size_t i = 1; i <= num_party; i++){
-        if (i != party){
-            std::stringstream cip_;
-            std::string cip_raw_;
-            std::stringstream cip_b64;
-            elgl->deserialize_recv_(cip_, i);
-            cip_raw_ = cip_.str();
-            cip_b64 << base64_decode(cip_raw_);
-            for (size_t j = 0; j < tb_size; j++){
-                cip_lut[i-1][j].unpack(cip_b64);
+    // Step 4: 接收其他 party 的 cip_lut
+    for (int i = 1; i <= num_party; ++i) {
+        if (i != party) {
+            std::stringstream cip_stream;
+            elgl->deserialize_recv_with_tag(cip_stream, i, 5000 * i);
+
+            std::string decoded = base64_decode(cip_stream.str());
+            std::stringstream decoded_stream(decoded);
+
+            for (size_t j = 0; j < tb_size; ++j) {
+                cip_lut[i - 1][j].unpack(decoded_stream);
             }
         }
     }
@@ -1167,7 +1145,7 @@ void LVT<IO>::lookup_online_easy(Plaintext& out, Plaintext& x_share, Ciphertext&
     uu.assign(q1.getStr());
 
     BLS12381Element u = threshold_decrypt_easy(c, elgl, global_pk, user_pk, elgl->io, pool, party, num_party, P_to_m, this);
-    
+
     BLS12381Element tmp(uu.get_message());
     for (int i = 0; i <= num_party * 2; i++){
         if (u == tmp){
@@ -1178,6 +1156,9 @@ void LVT<IO>::lookup_online_easy(Plaintext& out, Plaintext& x_share, Ciphertext&
         tmp += G_tbs;
     }
     cout << "error: in online lookup" << endl;
+    Fr re = threshold_decrypt(c, elgl, global_pk, user_pk, elgl->io, pool, party, num_party, P_to_m, this);
+    cout << "palintext of u = " << re.getStr() << endl;
+    cout << "uu = " << uu.get_message().getStr() << endl;
     exit(1);
 }
 

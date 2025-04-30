@@ -57,16 +57,19 @@ int main(int argc, char** argv) {
     ThreadPool pool(threads);
     MultiIO* io = new MultiIO(party, num_party, net_config);
     ELGL<MultiIOBase>* elgl = new ELGL<MultiIOBase>(num_party, io, &pool, party);
+    cout << "=====" << endl; 
 
     // LUT查表表大小为2，0->0, 1->1
     int num = 1;
     Fr alpha_fr = alpha_init(num);
     LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../build/bin/table.txt", alpha_fr, num);
 
+    cout << "=====" << endl;
     lvt->DistKeyGen();
     TinyMAC<MultiIOBase> tiny(elgl);
     MASCOT<MultiIOBase> mascot(elgl);
     lvt->generate_shares_fake(lvt->lut_share, lvt->rotation, lvt->table);
+    cout << "=====" << endl;
 
     // B2A_mascot input generation
     vector<TinyMAC<MultiIOBase>::LabeledShare> x_bits(l);
