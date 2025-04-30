@@ -1,6 +1,6 @@
 #include "emp-aby/io/multi-io.hpp"
 #include "emp-aby/io/mp_io_channel.h"
-#include "emp-aby/lvt_fake.h"
+#include "emp-aby/lvt.h"
 #include "emp-aby/elgl_interface.hpp"
 #include "emp-aby/tiny.hpp"
 #include <iostream>

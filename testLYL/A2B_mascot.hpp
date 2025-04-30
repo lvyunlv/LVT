@@ -1,7 +1,7 @@
 #pragma once
 #include "emp-aby/io/multi-io.hpp"
 #include "emp-aby/io/mp_io_channel.h"
-#include "emp-aby/lvt_fake.h"
+#include "emp-aby/lvt.h"
 #include "emp-aby/elgl_interface.hpp"
 #include "emp-aby/tiny.hpp"
 #include "emp-aby/mascot.hpp"
@@ -27,12 +27,11 @@ inline vector<TinyMAC<MultiIOBase>::LabeledShare> A2B(
     ThreadPool* pool,
     const mcl::Vint& FIELD_SIZE,
     int l,
-    const MASCOT<MultiIOBase>::LabeledShare& x_arith // 输入算术份额
+    const MASCOT<MultiIOBase>::LabeledShare& x_arith,
+    double& online_time,
+    double& online_comm
 ) {
     vector<TinyMAC<MultiIOBase>::LabeledShare> x_bool(l);
-
-    // int bytes_start = io->get_total_bytes_sent();
-    // auto t1 = std::chrono::high_resolution_clock::now();
 
     // 1. 生成布尔随机份额 r_bits
     vector<TinyMAC<MultiIOBase>::LabeledShare> r_bits(l);
@@ -45,6 +44,8 @@ inline vector<TinyMAC<MultiIOBase>::LabeledShare> A2B(
     MASCOT<MultiIOBase>::LabeledShare r_arith;
     r_arith = B2A_mascot::B2A_for_A2B(elgl, lvt, tiny, mascot, party, num_party, io, pool, FIELD_SIZE, r_bits);
 
+    int bytes_start = io->get_total_bytes_sent();
+    auto t1 = std::chrono::high_resolution_clock::now();
     // 3. 算术MPC本地加法 x + r
     MASCOT<MultiIOBase>::LabeledShare x_plus_r;
     x_plus_r = mascot.add(x_arith, r_arith);
@@ -68,13 +69,16 @@ inline vector<TinyMAC<MultiIOBase>::LabeledShare> A2B(
     // 7. 输出 x_bool = u_bool ⊕ r_bits
     for (int i = 0; i < l; ++i) x_bool[i] = tiny.add(u_bool[i], r_bits[i]);
 
-    // auto t2 = std::chrono::high_resolution_clock::now();
-    // int bytes_end = io->get_total_bytes_sent();
-    // double comm_kb = double(bytes_end - bytes_start) / 1024.0;
-    // double time_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
-    // std::cout << std::fixed << std::setprecision(3)
-    //           << "Communication: " << comm_kb << " KB, "
-    //           << "Time: " << time_ms << " ms" << std::endl;
+    auto t2 = std::chrono::high_resolution_clock::now();
+    int bytes_end = io->get_total_bytes_sent();
+    double comm_kb = double(bytes_end - bytes_start) / 1024.0;
+    double time_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
+    std::cout << std::fixed << std::setprecision(3)
+              << "Communication: " << comm_kb << " KB, "
+              << "Time: " << time_ms << " ms" << std::endl;
+
+    online_time = time_ms;
+    online_comm = comm_kb;
 
     return x_bool;
 }

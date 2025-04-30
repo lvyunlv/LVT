@@ -1,6 +1,6 @@
 #include "emp-aby/io/multi-io.hpp"
 #include "emp-aby/io/mp_io_channel.h"
-#include "emp-aby/lvt_fake.h"
+#include "emp-aby/lvt.h"
 #include "emp-aby/elgl_interface.hpp"
 #include "emp-aby/tiny.hpp"
 #include "emp-aby/spdz2k.hpp"
@@ -65,7 +65,7 @@ int main(int argc, char** argv) {
     lvt->DistKeyGen();
     TinyMAC<MultiIOBase> tiny(elgl);
     SPDZ2k<MultiIOBase> spdz2k(elgl);
-    lvt->generate_shares(lvt->lut_share, lvt->rotation, lvt->table);
+    lvt->generate_shares_fake(lvt->lut_share, lvt->rotation, lvt->table);
 
     // ====================== setup 结束 ==========================
 
@@ -80,19 +80,13 @@ int main(int argc, char** argv) {
     // B2A_spdz2k output
     double total_time = 0;
     double total_comm = 0;
+    double online_time = 0;
+    double online_comm = 0;
     int times = 1;
     for (int i = 0; i < times; ++i) {
-        int bytes_start = io->get_total_bytes_sent();
-        auto t1 = std::chrono::high_resolution_clock::now();
-
-        auto shared_x = B2A_spdz2k::B2A(elgl, lvt, tiny, spdz2k, party, num_party, io, &pool, FIELD_SIZE, x_bits);
-
-        auto t2 = std::chrono::high_resolution_clock::now();
-        int bytes_end = io->get_total_bytes_sent();
-        double comm_kb = double(bytes_end - bytes_start) / 1024.0;
-        double time_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
-        total_time += time_ms;
-        total_comm += comm_kb;
+        auto shared_x = B2A_spdz2k::B2A(elgl, lvt, tiny, spdz2k, party, num_party, io, &pool, FIELD_SIZE, x_bits, online_time, online_comm);
+        total_time += online_time;
+        total_comm += online_comm;
     }
     std::cout << "Average time: " << (total_time/times) << "ms && Average communication: " << (total_comm/times) << "KB" << std::endl;
 

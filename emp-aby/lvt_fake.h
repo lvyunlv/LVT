@@ -73,7 +73,7 @@ class LVT{
     ~LVT();
     void generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation, vector<int64_t> table);
     void lookup_online(Plaintext& out, Plaintext& x_share, Ciphertext& x_cipher, vector<Ciphertext>& x_ciphers);
-    void lookup_online_for_conversion(Plaintext& out, Plaintext& x_share, Ciphertext& x_cipher, vector<Ciphertext>& x_ciphers);
+    void lookup_online_easy(Plaintext& out, Plaintext& x_share, Ciphertext& x_cipher, vector<Ciphertext>& x_ciphers);
 };
 
 template <typename IO>
@@ -491,7 +491,7 @@ void LVT<IO>::lookup_online(Plaintext& out, Plaintext& x_share, Ciphertext& x_ci
 }
 
 template <typename IO>
-void LVT<IO>::lookup_online_for_conversion(Plaintext& out, Plaintext& x_share, Ciphertext& x_cipher, vector<Ciphertext>& x_ciphers){
+void LVT<IO>::lookup_online_easy(Plaintext& out, Plaintext& x_share, Ciphertext& x_cipher, vector<Ciphertext>& x_ciphers){
     // cout << "party: " << party << " x_share = " << x_share.get_message().getStr() << endl;
     vector<std::future<void>> res;
     vector<Plaintext> u_shares;

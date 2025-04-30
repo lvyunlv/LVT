@@ -1,7 +1,7 @@
 #pragma once
 #include "emp-aby/io/multi-io.hpp"
 #include "emp-aby/io/mp_io_channel.h"
-#include "emp-aby/lvt_fake.h"
+#include "emp-aby/lvt.h"
 #include "emp-aby/elgl_interface.hpp"
 #include "emp-aby/tiny.hpp"
 #include "emp-aby/spdz2k.hpp"
@@ -27,13 +27,12 @@ inline SPDZ2k<MultiIOBase>::LabeledShare B2A(
     MultiIO* io,
     ThreadPool* pool,
     const uint64_t& FIELD_SIZE,
-    const vector<TinyMAC<MultiIOBase>::LabeledShare>& x_bits
+    const vector<TinyMAC<MultiIOBase>::LabeledShare>& x_bits,
+    double& online_time,
+    double& online_comm
 ) {
     int l = x_bits.size();
     vector<SPDZ2k<MultiIOBase>::LabeledShare> shared_x(l); 
-
-    // int bytes_start = io->get_total_bytes_sent();
-    // auto t1 = std::chrono::high_resolution_clock::now();
     
     // 1. 随机r_bits
     vector<TinyMAC<MultiIOBase>::LabeledShare> r_bits(l), u_bits(l);
@@ -41,7 +40,6 @@ inline SPDZ2k<MultiIOBase>::LabeledShare B2A(
     std::mt19937 gen(rd());
     std::uniform_int_distribution<int> bit_dis(0, 1);
     for (int i = 0; i < l; ++i) r_bits[i] = tiny.distributed_share(bit_dis(gen));
-    for (int i = 0; i < l; ++i) u_bits[i] = tiny.add(x_bits[i], r_bits[i]);
 
     // 2. B2L查表
     vector<SPDZ2k<MultiIOBase>::LabeledShare> shared_r(l);
@@ -52,22 +50,26 @@ inline SPDZ2k<MultiIOBase>::LabeledShare B2A(
     
     for (int i = 0; i < l; ++i) {
         Plaintext plain_i;
-        // cout << "number i: " << i << endl;
-        // cout << "x_plain: " << to_string(x_bits[i].value) << endl;   
-        // cout << "r_plain: " << to_string(r_bits[i].value) << endl;
-
-        plain_i.assign(std::to_string(x_bits[i].value));
-        x_cipher[i] = lvt->global_pk.encrypt(plain_i);
-        lvt->lookup_online_for_conversion(x_plain[i], plain_i, x_cipher[i], x_lut_ciphers);
-        shared_x[i] = L2A_spdz2k::L2A_for_B2A(elgl, lvt, spdz2k, party, num_party, io, pool, x_plain[i], x_lut_ciphers, FIELD_SIZE);
-        if (shared_x[i].value == 0) shared_x[i].value = 0;
-
         plain_i.assign(std::to_string(r_bits[i].value));
         r_cipher[i] = lvt->global_pk.encrypt(plain_i);
-        lvt->lookup_online_for_conversion(r_plain[i], plain_i, r_cipher[i], r_lut_ciphers);
+        lvt->lookup_online_easy(r_plain[i], plain_i, r_cipher[i], r_lut_ciphers);
         shared_r[i] = L2A_spdz2k::L2A_for_B2A(elgl, lvt, spdz2k, party, num_party, io, pool, r_plain[i], r_lut_ciphers, FIELD_SIZE);
         if (shared_r[i].value == 0) shared_r[i].value = 0;
     }
+
+    int bytes_start = io->get_total_bytes_sent();
+    auto t1 = std::chrono::high_resolution_clock::now();
+
+    for (int i = 0; i < l; ++i) {
+        Plaintext plain_i;
+        plain_i.assign(std::to_string(x_bits[i].value));
+        x_cipher[i] = lvt->global_pk.encrypt(plain_i);
+        lvt->lookup_online_easy(x_plain[i], plain_i, x_cipher[i], x_lut_ciphers);
+        shared_x[i] = L2A_spdz2k::L2A_for_B2A(elgl, lvt, spdz2k, party, num_party, io, pool, x_plain[i], x_lut_ciphers, FIELD_SIZE);
+        if (shared_x[i].value == 0) shared_x[i].value = 0;
+    }
+
+    for (int i = 0; i < l; ++i) u_bits[i] = tiny.add(x_bits[i], r_bits[i]);
 
     // 4. 校验一致性（可选，出错抛异常）
     for (int i = 0; i < l; ++i) {
@@ -102,13 +104,16 @@ inline SPDZ2k<MultiIOBase>::LabeledShare B2A(
         share_x_decimal = share_x_decimal * 2 + shared_x[i];
     }
 
-    // auto t2 = std::chrono::high_resolution_clock::now();
-    // int bytes_end = io->get_total_bytes_sent();
-    // double comm_kb = double(bytes_end - bytes_start) / 1024.0;
-    // double time_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
-    // std::cout << std::fixed << std::setprecision(3)
-    //           << "Communication: " << comm_kb << " KB, "
-    //           << "Time: " << time_ms << " ms" << std::endl;
+    auto t2 = std::chrono::high_resolution_clock::now();
+    int bytes_end = io->get_total_bytes_sent();
+    double comm_kb = double(bytes_end - bytes_start) / 1024.0;
+    double time_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
+    std::cout << std::fixed << std::setprecision(3)
+              << "Communication: " << comm_kb << " KB, "
+              << "Time: " << time_ms << " ms" << std::endl;
+
+    online_time = time_ms;
+    online_comm = comm_kb;
 
     return share_x_decimal; 
 }
@@ -154,13 +159,13 @@ inline SPDZ2k<MultiIOBase>::LabeledShare B2A_for_A2B(
 
         plain_i.assign(std::to_string(x_bits[i].value));
         x_cipher[i] = lvt->global_pk.encrypt(plain_i);
-        lvt->lookup_online_for_conversion(x_plain[i], plain_i, x_cipher[i], x_lut_ciphers);
+        lvt->lookup_online_easy(x_plain[i], plain_i, x_cipher[i], x_lut_ciphers);
         shared_x[i] = L2A_spdz2k::L2A_for_B2A(elgl, lvt, spdz2k, party, num_party, io, pool, x_plain[i], x_lut_ciphers, FIELD_SIZE);
         if (shared_x[i].value == 0) shared_x[i].value = 0;
 
         plain_i.assign(std::to_string(r_bits[i].value));
         r_cipher[i] = lvt->global_pk.encrypt(plain_i);
-        lvt->lookup_online_for_conversion(r_plain[i], plain_i, r_cipher[i], r_lut_ciphers);
+        lvt->lookup_online_easy(r_plain[i], plain_i, r_cipher[i], r_lut_ciphers);
         shared_r[i] = L2A_spdz2k::L2A_for_B2A(elgl, lvt, spdz2k, party, num_party, io, pool, r_plain[i], r_lut_ciphers, FIELD_SIZE);
         if (shared_r[i].value == 0) shared_r[i].value = 0;
     }

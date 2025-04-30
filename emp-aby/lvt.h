@@ -47,6 +47,7 @@ class LVT{
     public:
     int num_used = 0;
     ThreadPool* pool;
+    BLS12381Element G_tbs;
 
     ELGL<IO>* elgl;
     MPIOChannel<IO>* io;
@@ -72,7 +73,9 @@ class LVT{
     void DistKeyGen();
     ~LVT();
     void generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation, vector<int64_t> table);
+    void generate_shares_fake(vector<Plaintext>& lut_share, Plaintext& rotation, vector<int64_t> table);
     void lookup_online(Plaintext& out, Plaintext& x_share, Ciphertext& x_cipher, vector<Ciphertext>& x_ciphers);
+    void lookup_online_easy(Plaintext& out, Plaintext& x_share, Ciphertext& x_cipher, vector<Ciphertext>& x_ciphers);
 };
 
 template <typename IO>
@@ -89,8 +92,10 @@ LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, EL
     this->cip_lut.resize(num_party);
     this->cr_i.resize(num_party);
     this->lut_share.resize(tb_size);
+    this->G_tbs = BLS12381Element(tb_size);
     BLS12381Element::init();
     BLS12381Element g = BLS12381Element::generator();
+
     // bsgs.precompute(g, 1ULL << 32);
 }
 
@@ -815,6 +820,85 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
 }
 
 template <typename IO>
+void LVT<IO>::generate_shares_fake(vector<Plaintext>& lut_share, Plaintext& rotation, vector<int64_t> table) {
+    vector<std::future<void>> res;
+    mcl::Vint bound;
+    bound.setStr(to_string(tb_size));
+    lut_share.resize(tb_size);
+    cip_lut.resize(num_party);
+    for (int i = 0; i < num_party; i++) {
+        cip_lut[i].resize(tb_size);
+    }
+    // 每个party选取rotation
+    rotation.set_message(1);
+    Ciphertext my_rot_cipher = global_pk.encrypt(rotation);
+    elgl->serialize_sendall(my_rot_cipher);
+    for (int i = 1; i <= num_party; ++i) {
+        res.emplace_back(pool->enqueue([this, &my_rot_cipher, i]() {
+            if (i == party){
+                this->cr_i[party-1] = my_rot_cipher;
+            }else{
+                Ciphertext other_rot_cipher;
+                elgl->deserialize_recv(other_rot_cipher, i);
+                this->cr_i[i-1] = other_rot_cipher;
+            }
+        }));
+    }
+    for (auto & f : res) f.get();
+    res.clear();
+
+    int64_t t1 = table[0];
+    size_t rotate_sum = num_party;
+    // cout << "rotate_sum = " << rotate_sum << endl;
+    cr_i[party-1] = global_pk.encrypt(rotation);
+    elgl->serialize_sendall(cr_i[party-1]);
+    for (size_t i = 0; i < num_party; i++){
+        if (i != (party-1)){
+            Ciphertext other_rot_cipher;
+            elgl->deserialize_recv(other_rot_cipher, i+1);
+            this->cr_i[i] = other_rot_cipher;
+        }
+    }
+
+    for (size_t i = 0; i < tb_size; i++){
+        lut_share[i].set_message(table[(i - rotate_sum) % tb_size]);
+        if (party == 1){
+            int64_t tmp = (lut_share[i].get_message().getInt64() - ((num_party - 1) * t1)) % tb_size;
+            lut_share[i].set_message(tmp);
+            // cout << "lut_share[" << i << "] = " << lut_share[i].get_message().getInt64() << endl;
+        }
+        else {
+            lut_share[i].set_message(t1);
+            // cout << "lut_share[" << i << "] = " << lut_share[i].get_message().getInt64() << endl;
+        }
+        cip_lut[party-1][i] = g * lut_share[i].get_message().getInt64() + global_pk.get_pk() * elgl->kp.get_sk().get_sk();
+    }
+
+    std::stringstream cip_lut_;
+    for (size_t i = 0; i < tb_size; i++){
+        cip_lut[party-1][i].pack(cip_lut_);
+    }
+    std::stringstream cip;
+    std::string cip_raw = cip_lut_.str();
+    cip << base64_encode(cip_raw);
+    elgl->serialize_sendall_(cip);
+
+    for (size_t i = 1; i <= num_party; i++){
+        if (i != party){
+            std::stringstream cip_;
+            std::string cip_raw_;
+            std::stringstream cip_b64;
+            elgl->deserialize_recv_(cip_, i);
+            cip_raw_ = cip_.str();
+            cip_b64 << base64_decode(cip_raw_);
+            for (size_t j = 0; j < tb_size; j++){
+                cip_lut[i-1][j].unpack(cip_b64);
+            }
+        }
+    }
+}
+
+template <typename IO>
 void LVT<IO>::DistKeyGen(){
     // first broadcast my own pk
     vector<std::future<void>> tasks;
@@ -924,8 +1008,7 @@ Fr threshold_decrypt(Ciphertext& c, ELGL<IO>* elgl, const ELGL_PK& global_pk, co
 
 
 template <typename IO>
-Fr threshold_decrypt_easy(Ciphertext& c, ELGL<IO>* elgl, const ELGL_PK& global_pk, const std::vector<ELGL_PK>& user_pks, MPIOChannel<IO>* io, ThreadPool* pool, int party, int num_party, std::map<std::string, Fr>& P_to_m, LVT<IO>* lvt) {
-    // 第一部分保持不变
+BLS12381Element threshold_decrypt_easy(Ciphertext& c, ELGL<IO>* elgl, const ELGL_PK& global_pk, const std::vector<ELGL_PK>& user_pks, MPIOChannel<IO>* io, ThreadPool* pool, int party, int num_party, std::map<std::string, Fr>& P_to_m, LVT<IO>* lvt) {
     Plaintext sk(elgl->kp.get_sk().get_sk());
     BLS12381Element ask = c.get_c0() * sk.get_message();
     std::vector<BLS12381Element> ask_parts(num_party);
@@ -940,7 +1023,6 @@ Fr threshold_decrypt_easy(Ciphertext& c, ELGL<IO>* elgl, const ELGL_PK& global_p
     commit_b64 << base64_encode(commit.str());
     elgl->serialize_sendall_(commit_b64);
 
-    // 并行化处理验证过程
     std::vector<std::future<void>> verify_futures;
     for (int i = 1; i <= num_party; ++i) {
         if (i != party) {
@@ -968,10 +1050,7 @@ Fr threshold_decrypt_easy(Ciphertext& c, ELGL<IO>* elgl, const ELGL_PK& global_p
         pi_ask -= ask_i;
     }
 
-    std::string key = pi_ask.getPoint().getStr();
-    Fr y;
-    y = lvt->bsgs.solve_parallel_with_pool(pi_ask, pool, thread_num);
-    return y;
+    return pi_ask;
 }
 
 template <typename IO>
@@ -1031,31 +1110,76 @@ void LVT<IO>::lookup_online(Plaintext& out, Plaintext& x_share, Ciphertext& x_ci
         exit(1);
     }
     
-    // Fr uu_ = uu.get_message();
-    // std::cout << "u = " << u.getStr() << std::endl;
-
-    // u mod table size
     mcl::Vint tbs;
     tbs.setStr(to_string(tb_size));
     mcl::Vint u_mpz = u.getMpz(); 
     mcl::gmp::mod(u_mpz, u_mpz, tbs);
-    // std::cout << "masked lookup index: " << u_mpz.getStr() << std::endl;
 
     mcl::Vint index_mpz;
     index_mpz.setStr(u_mpz.getStr());
     size_t index = static_cast<size_t>(index_mpz.getLow32bit());
     out = lut_share[index];
-
-    // cout << endl << "table" << endl;
-    // for (size_t i = 0; i < tb_size; i++){
-    //     Fr t = lut_share[i].get_message();
-    //     cout << "table[" << i << "] = " << t.getStr() << endl;
-    // }
-    // std::cout << "T[x]_share for party " << party << ": " << out.get_message().getStr() << endl;
-
-    // send done
-    
 }
+
+template <typename IO>
+void LVT<IO>::lookup_online_easy(Plaintext& out, Plaintext& x_share, Ciphertext& x_cipher, vector<Ciphertext>& x_ciphers){
+    // cout << "party: " << party << " x_share = " << x_share.get_message().getStr() << endl;
+    vector<std::future<void>> res;
+    vector<Plaintext> u_shares;
+
+    x_ciphers.resize(num_party);
+    u_shares.resize(num_party);
+
+    x_ciphers[party-1] = x_cipher;
+    u_shares[party-1] = x_share + this->rotation;
+
+    // accept cipher from all party
+    for (size_t i = 1; i <= num_party; i++){
+        res.push_back(pool->enqueue([this, i, &x_ciphers, &u_shares](){
+            if (i != party){
+                Ciphertext x_cip;
+                elgl->deserialize_recv(x_cip, i);
+                Plaintext u_share;
+                elgl->deserialize_recv(u_share, i);
+                x_ciphers[i-1] = x_cip;
+                u_shares[i-1] = u_share;
+            }
+        }));
+    }
+    elgl->serialize_sendall(x_cipher, party);
+    elgl->serialize_sendall(u_shares[party-1], party);
+    for (auto& v : res)
+        v.get();
+    res.clear();
+
+    Ciphertext c = x_ciphers[0] + cr_i[0];
+    Plaintext uu = u_shares[0];
+    for (size_t i=1; i<num_party; i++){
+        c +=  x_ciphers[i] + cr_i[i];
+        uu += u_shares[i];
+    }
+    // uu mod tb_size
+    mcl::Vint h;
+    h.setStr(to_string(tb_size));
+    mcl::Vint q1 = uu.get_message().getMpz();
+    mcl::gmp::mod(q1, q1, h);
+    uu.assign(q1.getStr());
+
+    BLS12381Element u = threshold_decrypt_easy(c, elgl, global_pk, user_pk, elgl->io, pool, party, num_party, P_to_m, this);
+    
+    BLS12381Element tmp(uu.get_message());
+    for (int i = 0; i <= num_party * 2; i++){
+        if (u == tmp){
+            size_t index = static_cast<size_t>(q1.getLow32bit());
+            out = lut_share[index];
+            return;
+        }
+        tmp += G_tbs;
+    }
+    cout << "error: in online lookup" << endl;
+    exit(1);
+}
+
 template <typename IO>
 LVT<IO>::~LVT(){
 }

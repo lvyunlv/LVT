@@ -365,6 +365,11 @@ public:
 
         return LabeledShare(z_value, z_mac, party, &field_size);
     }
+
+    void print_raw_values(const LabeledShare& share) {
+        std::cout << "[LOG] shared_x.value (raw): " << share.value.getStr() << std::endl;
+        std::cout << "[LOG] shared_r.value (raw): " << share.value.getStr() << std::endl;
+    }
 };
 
 } // namespace emp

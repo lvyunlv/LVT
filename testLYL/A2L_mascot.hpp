@@ -1,7 +1,7 @@
 #pragma once
 #include "emp-aby/io/multi-io.hpp"
 #include "emp-aby/io/mp_io_channel.h"
-#include "emp-aby/lvt_fake.h"
+#include "emp-aby/lvt.h"
 #include "emp-aby/elgl_interface.hpp"
 #include "emp-aby/mascot.hpp"
 #include <vector>
@@ -27,78 +27,107 @@ inline tuple<Plaintext, vector<Ciphertext>> A2L(
     MultiIO* io,
     ThreadPool* pool,
     const MASCOT<MultiIOBase>::LabeledShare& shared_x,
-    const mcl::Vint& fd
+    const mcl::Vint& fd,
+    double& online_time,
+    double& online_comm
 ) {
     Plaintext x;
     vector<Ciphertext> vec_cx(num_party);
-
-    // int bytes_start = io->get_total_bytes_sent();
-    // auto t1 = std::chrono::high_resolution_clock::now();
+    Fr fd_fr; 
+    fd_fr.setStr(fd.getStr());
+    BLS12381Element G_fd(fd_fr);
 
     mcl::Vint r_mascot; r_mascot.setRand(fd);
     MASCOT<MultiIOBase>::LabeledShare shared_r = mascot.distributed_share(r_mascot);
 
-    mcl::Vint xval = shared_x.value; xval %= fd; if (xval < 0) xval += fd;
     // cout << "xval: " << xval << endl;
     mcl::Vint rval = shared_r.value; rval %= fd; if (rval < 0) rval += fd;
     // cout << "rval: " << rval << endl;
     Plaintext r;
     // cout << xval.getStr() << endl;
-    x.assign(xval.getStr());
     r.assign(rval.getStr());
     // cout << "x: " << x.get_message().getStr() << endl;
 
     Ciphertext cx, cr, count;
-    cx = lvt->global_pk.encrypt(x);
     cr = lvt->global_pk.encrypt(r);
-    count = cx + cr;
-    vec_cx[party - 1] = cx;
-
-    elgl->serialize_sendall(cx);
     elgl->serialize_sendall(cr);
+    count = cr;
 
     for(int i = 1; i <= num_party; i++) {
         if(i != party) {
-            Ciphertext cx_i, cr_i;
-            elgl->deserialize_recv(cx_i, i);
+            Ciphertext cr_i;
             elgl->deserialize_recv(cr_i, i);
-            count += cx_i + cr_i;
+            count += cr_i;
+        }
+    }
+
+    int bytes_start = io->get_total_bytes_sent();
+    auto t1 = std::chrono::high_resolution_clock::now();
+
+    mcl::Vint xval = shared_x.value; xval %= fd; if (xval < 0) xval += fd;
+    x.assign(xval.getStr());
+    cx = lvt->global_pk.encrypt(x);
+    count = count + cx;
+    vec_cx[party - 1] = cx;
+
+    elgl->serialize_sendall(cx);
+    for(int i = 1; i <= num_party; i++) {
+        if(i != party) {
+            Ciphertext cx_i;
+            elgl->deserialize_recv(cx_i, i);
+            count += cx_i;
             vec_cx[i - 1] = cx_i;
         }
     }
 
-    Fr u = threshold_decrypt_easy<MultiIOBase>(count, elgl, lvt->global_pk, lvt->user_pk, io, pool, party, num_party, lvt->P_to_m, lvt);
-    mcl::Vint uu(u.getStr());
-    uu %= fd; if (uu < 0) uu += fd;
+    BLS12381Element u = threshold_decrypt_easy<MultiIOBase>(count, elgl, lvt->global_pk, lvt->user_pk, io, pool, party, num_party, lvt->P_to_m, lvt);
+    // std::string key = u.getPoint().getStr();
+    // Fr y;
+    // y = lvt->bsgs.solve_parallel_with_pool(u, pool, thread_num);
 
+    // mcl::Vint uu(y.getStr());
+    // uu %= fd; if (uu < 0) uu += fd;
+    
     MASCOT<MultiIOBase>::LabeledShare shared_u = mascot.add(shared_x, shared_r);
     mcl::Vint u_int = mascot.reconstruct(shared_u);
     u_int %= fd; if (u_int < 0) u_int += fd;
 
-    // if (uu != u_int) {
-    //     cout << "解密uu: " << uu << endl;
-    //     cout << "MASCOT 重构 u_int: " << u_int << endl;
-    //     cout << "shared_x: " << xval << endl;
-    //     cout << "x: " << x.get_message() << endl;
+    // if (u_int != uu) {
+    //     throw std::runtime_error("A2L_spdz2k check failed: decrypted value != share sum");
     // }
 
-    if (uu != u_int) {
-        throw std::runtime_error("A2L_spdz2k check failed: decrypted value != share sum");
+    // return std::make_tuple(x, vec_cx);
+
+
+    Fr u_int_fr; 
+    u_int_fr.setStr(u_int.getStr());
+    BLS12381Element uu(u_int_fr);
+    
+    auto t2 = std::chrono::high_resolution_clock::now();
+    int bytes_end = io->get_total_bytes_sent();
+    double comm_kb = double(bytes_end - bytes_start) / 1024.0;
+    double time_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
+    std::cout << std::fixed << std::setprecision(3)
+              << "Communication: " << comm_kb << " KB, "
+              << "Time: " << time_ms << " ms" << std::endl;
+
+    online_time = time_ms;
+    online_comm = comm_kb;
+  
+    // u.getPoint().normalize();
+    // uu.getPoint().normalize();
+    // u1.getPoint().normalize();
+    // u2.getPoint().normalize();
+
+    BLS12381Element tmp = G_fd;
+    for (int i = 0; i <= num_party * 2; i++) {
+        if (uu != tmp) {
+            return std::make_tuple(x, vec_cx);
+        }
+        tmp += G_fd;
     }
-
-    // std::cout << "u: " << u.getStr() << std::endl;
-    // std::cout << "uu: " << uu.getStr() << std::endl;
-    // std::cout << "u_int: " << u_int.getStr() << std::endl;
-
-    // auto t2 = std::chrono::high_resolution_clock::now();
-    // int bytes_end = io->get_total_bytes_sent();
-    // double comm_kb = double(bytes_end - bytes_start) / 1024.0;
-    // double time_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
-    // std::cout << std::fixed << std::setprecision(3)
-    //           << "Communication: " << comm_kb << " KB, "
-    //           << "Time: " << time_ms << " ms" << std::endl;
-
-    return std::make_tuple(x, vec_cx);
+    throw std::runtime_error("A2L_mascot check failed: decrypted value != share sum");
+    // return std::make_tuple(x, vec_cx);
 }
 
 } // namespace A2L_mascot

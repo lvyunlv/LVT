@@ -83,7 +83,7 @@ int main(int argc, char** argv) {
     for (size_t i = 0; i < bitlen; ++i) {
         auto* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../build/bin/table.txt", alpha_fr, table_size);
         lvt->DistKeyGen();
-        lvt->generate_shares(lvt->lut_share, lvt->rotation, lvt->table);
+        lvt->generate_shares_fake(lvt->lut_share, lvt->rotation, lvt->table);
         lvt_list.push_back(lvt);
     }
 
@@ -111,7 +111,7 @@ int main(int argc, char** argv) {
         Ciphertext x_cipher = lvt_list[i]->global_pk.encrypt(x_share);
         vector<Ciphertext> x_ciphers(num_party);
         Plaintext out;
-        lvt_list[i]->lookup_online(out, x_share, x_cipher, x_ciphers);
+        lvt_list[i]->lookup_online_easy(out, x_share, x_cipher, x_ciphers);
         Fr out_fr = out.get_message();
         cout << out_fr.getStr() << " ";
 

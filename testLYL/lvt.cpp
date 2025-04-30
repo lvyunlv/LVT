@@ -1,5 +1,5 @@
 
-#include "emp-aby/lvt_fake.h"
+#include "emp-aby/lvt.h"
 #include "emp-aby/io/multi-io.hpp"
 using namespace emp;
 
@@ -10,13 +10,13 @@ int num_party;
 // === 调用函数入口 ===
 template <typename IO>
 void test_generate_shares(LVT<IO>* lut) {
-    lut->generate_shares(lut->lut_share, lut->rotation, lut->table);
+    lut->generate_shares_fake(lut->lut_share, lut->rotation, lut->table);
 }
 
 template <typename IO>
 void test_lookup_online(LVT<IO>* lut, Plaintext& x_share, Ciphertext& x_cipher, vector<Ciphertext>& x_ciphers) {
     Plaintext out;
-    lut->lookup_online(out, x_share, x_cipher, x_ciphers);
+    lut->lookup_online_easy(out, x_share, x_cipher, x_ciphers);
 }
 
 Fr alpha_init(int num) {
