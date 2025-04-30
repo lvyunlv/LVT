@@ -1,5 +1,5 @@
-Party number: 2\tAverage time: 28.4883ms && Average communication: 0.329688KB
-Party number: 4\tAverage time: 87.3065ms && Average communication: 0.991016KB
-Party number: 8\tAverage time: 346.001ms && Average communication: 2.31094KB
-Party number: 16\tAverage time: 1389.71ms && Average communication: 4.95254KB
-Party number: 32\tAverage time: 5581.54ms && Average communication: 10.2469KB
+Party number: 2\tAverage time: 0.968ms && Average communication: 0.201KB
+Party number: 4\tAverage time: 1.346ms && Average communication: 0.606KB
+Party number: 8\tAverage time: 3.114ms && Average communication: 1.411KB
+Party number: 16\tAverage time: 8.999ms && Average communication: 3.032KB
+Party number: 32\tAverage time: 32.854ms && Average communication: 6.254KB
