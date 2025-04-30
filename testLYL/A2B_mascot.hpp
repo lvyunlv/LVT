@@ -39,7 +39,6 @@ inline vector<TinyMAC<MultiIOBase>::LabeledShare> A2B(
     std::mt19937 gen(rd());
     std::uniform_int_distribution<int> bit_dis(0, 1);
     for (int i = 0; i < l; ++i) r_bits[i] = tiny.distributed_share(bit_dis(gen));
-    cout << "party:" << party << " r_bits[0]:" << r_bits[0].value << endl;
 
     // 2. B2A: r_bits -> r_arith
     MASCOT<MultiIOBase>::LabeledShare r_arith;
@@ -50,12 +49,11 @@ inline vector<TinyMAC<MultiIOBase>::LabeledShare> A2B(
     // 3. 算术MPC本地加法 x + r
     MASCOT<MultiIOBase>::LabeledShare x_plus_r;
     x_plus_r = mascot.add(x_arith, r_arith);
-    cout << "party:" << party << " x_plus_r[0]:" << x_plus_r.value << endl;
 
     // 4. Open得到明文u
     mcl::Vint u;
     u = mascot.reconstruct(x_plus_r);
-    cout << "party:" << party << " u[0]:" << u.getStr() << endl;
+
     // 5. P1计算u的l比特分解
     vector<uint8_t> u_bits(l, 0);
     mcl::Vint tmp = u;
@@ -63,12 +61,10 @@ inline vector<TinyMAC<MultiIOBase>::LabeledShare> A2B(
         u_bits[i] = (tmp & 1).getLow32bit(); // 取最低位
         tmp >>= 1;
     }
-    cout << "party:" << party << " u_bits[0]:" << u_bits[0] << endl;
 
     // 6. 各方分发布尔份额 <u>^b
     vector<TinyMAC<MultiIOBase>::LabeledShare> u_bool(l);
     for (int i = 0; i < l; ++i) u_bool[i] = tiny.distributed_share(u_bits[i]);
-    cout << "party:" << party << " u_bool[0]:" << u_bool[0].value << endl;
 
     // 7. 输出 x_bool = u_bool ⊕ r_bits
     for (int i = 0; i < l; ++i) x_bool[i] = tiny.add(u_bool[i], r_bits[i]);
