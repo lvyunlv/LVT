@@ -828,26 +828,26 @@ void LVT<IO>::generate_shares_fake(vector<Plaintext>& lut_share, Plaintext& rota
     for (int i = 0; i < num_party; ++i) {
         cip_lut[i].resize(tb_size);
     }
-
-    // Step 1: rotation 固定为 1
-    rotation.set_message(1);
+    
+    // Step 1: rotation 固定为 0
+    rotation.set_message(0);
 
     // Step 2: 计算本地 LUT share 和加密 LUT
-    int64_t t1 = table[0];
-    size_t rotate_sum = num_party;  // 所有 party 的 rotation 为 1，求和为 num_party
+    // size_t rotate_sum = num_party;  // 所有 party 的 rotation 为 1，求和为 num_party
 
     if (party == 1) {
         for (size_t i = 0; i < tb_size; ++i) {
-            lut_share[i].set_message(table[(i - rotate_sum + tb_size) % tb_size]);
-            int64_t tmp = (lut_share[i].get_message().getInt64() - ((num_party - 1) * t1)) % tb_size;
+            lut_share[i].set_message(table[i]);
+            int64_t tmp = (tb_size * num_party + lut_share[i].get_message().getInt64() - num_party + 1) % tb_size;
             if (tmp < 0) tmp += tb_size;
             lut_share[i].set_message(tmp);
-            cip_lut[party - 1][i] = g * tmp + global_pk.get_pk() * elgl->kp.get_sk().get_sk();
+            Fr t1(to_string(tmp));
+            cip_lut[party - 1][i] = g * t1 + global_pk.get_pk() * elgl->kp.get_sk().get_sk();
         }
     } else {
         for (size_t i = 0; i < tb_size; ++i) {
-            lut_share[i].set_message(t1);
-            cip_lut[party - 1][i] = g * t1 + global_pk.get_pk() * elgl->kp.get_sk().get_sk();
+            lut_share[i].set_message(1);
+            cip_lut[party - 1][i] = g + global_pk.get_pk() * elgl->kp.get_sk().get_sk();
         }
     }
 
