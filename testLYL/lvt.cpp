@@ -10,13 +10,13 @@ int num_party;
 // === 调用函数入口 ===
 template <typename IO>
 void test_generate_shares(LVT<IO>* lut) {
-    lut->generate_shares_fake(lut->lut_share, lut->rotation, lut->table);
+    lut->generate_shares(lut->lut_share, lut->rotation, lut->table);
 }
 
 template <typename IO>
 void test_lookup_online(LVT<IO>* lut, Plaintext& x_share, Ciphertext& x_cipher, vector<Ciphertext>& x_ciphers) {
     Plaintext out;
-    lut->lookup_online_easy(out, x_share, x_cipher, x_ciphers);
+    lut->lookup_online(out, x_share, x_cipher, x_ciphers);
 }
 
 Fr alpha_init(int num) {
@@ -63,7 +63,7 @@ int main(int argc, char** argv) {
     MultiIO* io = new MultiIO(party, num_party, net_config);
     ELGL<MultiIOBase>* elgl = new ELGL<MultiIOBase>(num_party, io, &pool, party);
 
-    int num = 1; int n = 1ULL << num;
+    int num = 10; int n = 1ULL << num;
     Fr alpha_fr = alpha_init(num);
     LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../build/bin/table.txt", alpha_fr, num);
 

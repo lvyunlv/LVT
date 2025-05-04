@@ -1,7 +1,7 @@
-Party number: 2\tAverage time: 0.538ms && Average communication: 0.103KB
-Party number: 4\tAverage time: 0.790ms && Average communication: 0.308KB
-Party number: 8\tAverage time: 2.580ms && Average communication: 0.721KB
-Party number: 16\tAverage time: 7.299ms && Average communication: 1.550KB
-Party number: 32\tAverage time: 21.774ms && Average communication: 3.203KB
-Party number: 64\tAverage time: 79.885ms && Average communication: 6.435KB
-Party number: 128\tAverage time: 399.528ms && Average communication: 13.047KB
+Party number: 2\tAverage time: 0.327ms && Average communication: 0.103KB
+Party number: 4\tAverage time: 0.502ms && Average communication: 0.309KB
+Party number: 8\tAverage time: 1.250ms && Average communication: 0.719KB
+Party number: 16\tAverage time: 4.588ms && Average communication: 1.547KB
+Party number: 32\tAverage time: 23.602ms && Average communication: 3.203KB
+Party number: 64\tAverage time: 94.347ms && Average communication: 6.485KB
+Party number: 128\tAverage time: 389.598ms && Average communication: 13.072KB

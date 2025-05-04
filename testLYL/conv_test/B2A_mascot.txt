@@ -1,3 +1,4 @@
+# B2A_mascot.txt
 Party number: 2\tAverage time: 48.1059ms && Average communication: 11.7373KB
 Party number: 4\tAverage time: 90.1141ms && Average communication: 35.1035KB
 Party number: 8\tAverage time: 203.372ms && Average communication: 82.0518KB

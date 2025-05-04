@@ -1,3 +1,4 @@
+# B2A_spdz2k.txt
 Party number: 2\tAverage time: 11.7114ms && Average communication: 2.77344KB
 Party number: 4\tAverage time: 18.7196ms && Average communication: 8.34961KB
 Party number: 8\tAverage time: 51.8829ms && Average communication: 19.5029KB
