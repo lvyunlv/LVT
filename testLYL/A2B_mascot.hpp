@@ -53,6 +53,7 @@ inline vector<TinyMAC<MultiIOBase>::LabeledShare> A2B(
     // 4. Open得到明文u
     mcl::Vint u;
     u = mascot.reconstruct(x_plus_r);
+    u = (u + FIELD_SIZE) % FIELD_SIZE;
 
     // 5. P1计算u的l比特分解
     vector<uint8_t> u_bits(l, 0);

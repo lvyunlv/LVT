@@ -24,6 +24,7 @@ const int l = 32; // 比特长度，可根据q调整
 const int num_bits = 32;
 // const mcl::Vint FIELD_SIZE = (1 << num_bits);
 const mcl::Vint FIELD_SIZE("4294967296");
+int m_bits = 32; // bits of message
 
 Fr alpha_init(int num) {
     Plaintext alpha;
@@ -61,7 +62,7 @@ int main(int argc, char** argv) {
     // LUT查表表大小为2，0->0, 1->1
     int num = 1;
     Fr alpha_fr = alpha_init(num);
-    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../build/bin/table.txt", alpha_fr, num);
+    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../build/bin/table.txt", alpha_fr, num, m_bits);
 
     lvt->DistKeyGen();
     TinyMAC<MultiIOBase> tiny(elgl);

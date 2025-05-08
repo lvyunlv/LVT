@@ -95,9 +95,9 @@ inline SPDZ2k<MultiIOBase>::LabeledShare L2A(
     int bytes_end = io->get_total_bytes_sent();
     double comm_kb = double(bytes_end - bytes_start) / 1024.0;
     double time_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
-    std::cout << std::fixed << std::setprecision(3)
-              << "Communication: " << comm_kb << " KB, "
-              << "Time: " << time_ms << " ms" << std::endl;
+    // std::cout << std::fixed << std::setprecision(3)
+    //           << "Communication: " << comm_kb << " KB, "
+    //           << "Time: " << time_ms << " ms" << std::endl;
 
     online_time = time_ms;
     online_comm = comm_kb;

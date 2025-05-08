@@ -34,7 +34,7 @@ int main() {
     // 设置参数
     int num_party = 2;  // 参与方数量
     int table_size = 17;  // 表大小，2^16
-    size_t max_exponent = (1 << table_size);  // 2 * tb_size * num_party
+    size_t max_exponent = (1ULL << table_size);  // 2 * tb_size * num_party
     
     std::map<std::string, Fr> P_to_m;
     // 判断是否有表，如果有则读取表，否则构建表并保存表
@@ -60,6 +60,7 @@ int main() {
     auto it = loaded_P_to_m.find(g.getPoint().getStr());
     if (it == loaded_P_to_m.end()) {
         std::cerr << "[Error] pi_ask not found in P_to_m! pi_ask = " << g.getPoint().getStr() << std::endl;
+        exit(1);
     } else {
         std::cout << "查找成功，值 = " << it->second << std::endl;
     }

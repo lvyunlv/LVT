@@ -6,6 +6,8 @@ using namespace emp;
 int party, port;
 const static int threads = 8;
 int num_party;
+int num = 4; 
+int m_bits = 32; // bits of message
 
 // === 调用函数入口 ===
 template <typename IO>
@@ -62,10 +64,10 @@ int main(int argc, char** argv) {
     ThreadPool pool(threads);
     MultiIO* io = new MultiIO(party, num_party, net_config);
     ELGL<MultiIOBase>* elgl = new ELGL<MultiIOBase>(num_party, io, &pool, party);
-
-    int num = 10; int n = 1ULL << num;
+    
+    int n = 1ULL << num;
     Fr alpha_fr = alpha_init(num);
-    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../build/bin/table.txt", alpha_fr, num);
+    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../build/bin/table.txt", alpha_fr, num, m_bits);
 
     lvt->DistKeyGen();
 

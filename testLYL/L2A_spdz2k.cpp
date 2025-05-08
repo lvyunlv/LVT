@@ -17,7 +17,7 @@ int party, port;
 const static int threads = 8;
 int num_party;
 const uint64_t FIELD_SIZE = (1ULL << 32) ;
-
+int m_bits = 32; // bits of message
 const int num = 32; 
 
 int main(int argc, char** argv) {
@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
     alpha.assign(alpha_vint.getStr());
     // std::cout << "alpha: " << alpha.get_message().getStr() << std::endl;
     Fr alpha_fr = alpha.get_message();
-    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../build/bin/table.txt", alpha_fr, num);
+    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../build/bin/table.txt", alpha_fr, num, m_bits);
 
     lvt->DistKeyGen();
 

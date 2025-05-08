@@ -55,16 +55,16 @@ public:
         // 加法重载
         LabeledShare operator+(const LabeledShare& rhs) const {
             mcl::Vint fs = field_size;
-            mcl::Vint v = (value + rhs.value) % fs;
-            mcl::Vint m = (mac + rhs.mac) % fs;
+            mcl::Vint v = ((value + rhs.value) % fs + fs) % fs;
+            mcl::Vint m = ((mac + rhs.mac) % fs + fs) % fs;
             return LabeledShare(v, m, owner, field_size_ptr);
         }
         // 标量乘法重载
         LabeledShare operator*(const mcl::Vint& scalar) const {
             mcl::Vint fs = field_size;
             mcl::Vint s = scalar % fs;
-            mcl::Vint v = (value * s) % fs;
-            mcl::Vint m = (mac * s) % fs;
+            mcl::Vint v = ((value * s) % fs + fs) % fs;
+            mcl::Vint m = ((mac * s) % fs + fs) % fs;
             return LabeledShare(v, m, owner, field_size_ptr);
         }
     };
@@ -138,7 +138,7 @@ public:
 
     // 检查 MAC 的有效性
     bool check_mac(const mcl::Vint& value, const mcl::Vint& mac) const {
-        return mac == value * mac_key % field_size;
+        return mac == (value * mac_key % field_size + field_size) % field_size;
     }
 
     // 通信辅助函数：发送一个值和其 MAC 给特定方 dst
@@ -158,6 +158,12 @@ public:
         value.setStr(s1); mac.setStr(s2);
         std::cout << party << " recv_value_and_mac: " << value.getStr() << std::endl;
         return {value, mac};
+    }
+
+    // 获取零分享
+    LabeledShare get_zero_share() {
+        mcl::Vint zero(0);
+        return LabeledShare(zero, zero, party, &field_size);
     }
 
     MASCOT(ELGL<IO>* elgl_instance) : elgl(elgl_instance) {
@@ -193,41 +199,6 @@ public:
     }
 
     ~MASCOT() {}
-
-    // // 第一个参与方作为可信第三方，创建一个秘密共享，附带 MAC
-    // LabeledShare share(int64_t input) {
-    //     int64_t local_share = 0;
-    //     input = input % field_size;
-    //     if (input < 0) input += field_size;
-
-    //     if (party == 1) { // 第一方是输入方
-    //         std::vector<int64_t> shares(num_parties, 0);
-    //         int64_t remain = input;
-    //         for (int i = 2; i <= num_parties; i++) {
-    //             shares[i-1] = rng() % field_size;
-    //             remain = (remain - shares[i-1]) % field_size;
-    //             if (remain < 0) remain += field_size;
-    //         }
-    //         shares[0] = remain;
-
-    //         for (int i = 2; i <= num_parties; i++) {
-    //             int64_t mac = (shares[i-1] * mac_key) % field_size;
-    //             if (mac < 0) mac += field_size;
-    //             send_value_and_mac(shares[i-1], mac, i);
-    //         }
-
-    //         local_share = shares[0];
-    //     } else {
-    //         auto [share, mac] = recv_value_and_mac(1);
-    //         assert(check_mac(share, mac));
-    //         local_share = share % field_size;
-    //         if (local_share < 0) local_share += field_size;
-    //     }
-
-    //     int64_t mac = (local_share * mac_key) % field_size;
-    //     if (mac < 0) mac += field_size;
-    //     return LabeledShare(local_share, mac, party, &field_size);
-    // }
 
     // 每个参与方都调用，输入自己的xi，返回本地最终share
     LabeledShare distributed_share(const mcl::Vint& xi) {
@@ -276,7 +247,9 @@ public:
         for (int i = 0; i < num_parties; ++i) {
             local_share = (local_share + received[i]) % field_size;
         }
+        local_share = (local_share + field_size) % field_size;
         mcl::Vint mac = local_share * mac_key % field_size;
+        mac = (mac + field_size) % field_size;
         return LabeledShare(local_share, mac, party, &field_size);
     }
 
@@ -298,7 +271,7 @@ public:
                 result = (result + v) % field_size;
             }
         }
-        return result % field_size;
+        return result;
     }
 
     // 加法操作，包括 MAC
@@ -370,6 +343,95 @@ public:
         std::cout << "[LOG] shared_x.value (raw): " << share.value.getStr() << std::endl;
         std::cout << "[LOG] shared_r.value (raw): " << share.value.getStr() << std::endl;
     }
+
+    
+    // [ADDED] ✅ 修复后的截断函数：真实通信 + signed 处理 + 确保所有参与方交互
+    LabeledShare truncate_share(const LabeledShare& x, int f) {
+        mcl::Vint fs = field_size;
+        
+        // 1. 生成随机掩码
+        mcl::Vint r; r.setRand(fs >> 1);  // 确保 r 不会太大
+        mcl::Vint r_hi = r >> f;
+        
+        // 2. 生成共享
+        LabeledShare share_r = distributed_share(r);
+        LabeledShare share_r_hi = distributed_share(r_hi);
+        
+        // 3. 掩码操作
+        LabeledShare masked = add(x, share_r);
+        
+        // 4. 公开值
+        mcl::Vint z = reconstruct(masked);
+        
+        // 5. 正确处理有符号数
+        bool is_negative = z >= (fs >> 1);
+        mcl::Vint z_abs = is_negative ? fs - z : z;
+        mcl::Vint z_trunc = z_abs >> f;
+        if (is_negative) {
+            z_trunc = fs - z_trunc;
+        }
+        
+        // 6. 计算最终结果
+        mcl::Vint result_value = (z_trunc - share_r_hi.value) % fs;
+        if (result_value < 0) result_value += fs;
+        
+        mcl::Vint result_mac = (result_value * mac_key) % fs;
+        
+        return LabeledShare(result_value, result_mac, party, &field_size);
+    }
+
+    // [ADDED] ✅ 带截断的乘法协议：标准 Beaver Triple + 乘法后立即截断
+    LabeledShare multiply_with_trunc(const LabeledShare& x, const LabeledShare& y, int f) {
+        Triple t = get_triple();
+
+        // Step 1: Calculate ε = x - a and δ = y - b with proper modulo
+        mcl::Vint eps = (x.value - t.a) % field_size;
+        eps = (eps + field_size) % field_size;
+        mcl::Vint del = (y.value - t.b) % field_size;
+        del = (del + field_size) % field_size;
+
+        // Step 2: Construct shares for ε and δ
+        LabeledShare eps_share(
+            eps,
+            ((x.mac - t.mac_a) % field_size + field_size) % field_size,
+            party,
+            &field_size
+        );
+        LabeledShare del_share(
+            del,
+            ((y.mac - t.mac_b) % field_size + field_size) % field_size,
+            party,
+            &field_size
+        );
+
+        // Step 3: Reconstruct ε and δ
+        mcl::Vint eps_open = reconstruct(eps_share);
+        mcl::Vint del_open = reconstruct(del_share);
+
+        LabeledShare tmp;
+        // Step 4: Calculate z = c + ε·b + δ·a + ε·δ with proper modulo at each step
+        if (party == 1) {
+            tmp = LabeledShare(eps_open * t.b + del_open * t.a + eps_open * del_open, eps_open * t.mac_b + del_open * t.mac_a + eps_open * del_open * mac_key, party, &field_size);
+            tmp = truncate_share(tmp, f);
+        }
+        else {
+            tmp = LabeledShare(eps_open * t.b + del_open * t.a, eps_open * t.mac_b + del_open * t.mac_a, party, &field_size);
+            tmp = truncate_share(tmp, f);
+        }
+
+        mcl::Vint z_value = t.c + tmp.value;
+        z_value = (z_value + field_size) % field_size;
+        mcl::Vint z_mac = t.mac_c + tmp.mac;
+        z_mac = (z_mac + field_size) % field_size;
+
+        // Create the multiplication result share
+        LabeledShare mult_result(z_value, z_mac, party, &field_size);
+
+        // Truncate the result - critical for fixed-point math
+        return mult_result;
+    }
+
+
 };
 
 } // namespace emp

@@ -4,8 +4,7 @@
 #include "emp-aby/lvt.h"
 #include "libelgl/elgl/Plaintext.h"
 using namespace std;
-const size_t message_size = 1ULL << 32; // BLS12381Element length
-std::mt19937_64 rng;
+
 int main(int argc, char** argv) {
     if (argc < 2) {
         std::cout << "please input a number" << std::endl;
@@ -18,9 +17,9 @@ int main(int argc, char** argv) {
     table.resize(1<<num);
     Plaintext p;
     for (size_t i = 0; i < table.size(); i++){
-        table[i] = rng() % message_size;
+        table[i] = i;
         // cout << "table[" << i << "] = " << table[i] << endl;
     }
-    serializeTable(table, "table.txt", table.size());
+    serializeTable(table, "table_2.txt", table.size());
     return 0;
 }

@@ -1,123 +1,78 @@
-// FFT_Para_Optimized.hpp
 #pragma once
 #include <vector>
-#include <thread>
-#include <future>
-#include <mutex>
-#include <condition_variable>
-#include <functional>
 #include <cassert>
+#include <future>
 #include "BLS12381Element.h"
 #include <mcl/bn.hpp>
 
-using namespace std;
 using namespace mcl::bn;
 
-// -------------------- 内部线程池 --------------------
-class SimpleThreadPool {
-public:
-    explicit SimpleThreadPool(size_t numThreads) {
-        for (size_t i = 0; i < numThreads; ++i) {
-            workers.emplace_back([this]() {
-                for (;;) {
-                    function<void()> task;
-                    {
-                        unique_lock<mutex> lock(queueMutex);
-                        condition.wait(lock, [this] { return stop || !tasks.empty(); });
-                        if (stop && tasks.empty()) return;
-                        task = move(tasks.front());
-                        tasks.pop();
-                    }
-                    task();
-                }
-            });
-        }
-    }
-
-    ~SimpleThreadPool() {
-        {
-            lock_guard<mutex> lock(queueMutex);
-            stop = true;
-        }
-        condition.notify_all();
-        for (thread &t : workers) t.join();
-    }
-
-    template <class F, class... Args>
-    auto enqueue(F&& f, Args&&... args)
-        -> future<typename result_of<F(Args...)>::type> {
-        using return_type = typename result_of<F(Args...)>::type;
-        auto task = make_shared<packaged_task<return_type()>>(
-            bind(forward<F>(f), forward<Args>(args)...)
-        );
-        future<return_type> res = task->get_future();
-        {
-            lock_guard<mutex> lock(queueMutex);
-            tasks.emplace([task]() { (*task)(); });
-        }
-        condition.notify_one();
-        return res;
-    }
-
-private:
-    vector<thread> workers;
-    queue<function<void()>> tasks;
-    mutex queueMutex;
-    condition_variable condition;
-    bool stop = false;
-};
-
-// -------------------- 原地并行 FFT --------------------
-void fft_inplace_recursive(
-    vector<BLS12381Element>& data,
-    size_t start,
-    size_t stride,
-    size_t n,
+// -------------------- 递归 + 并行 FFT 实现 --------------------
+void FFT_recursive_para(
+    const std::vector<BLS12381Element>& a,
+    std::vector<BLS12381Element>& A,
     const Fr& omega,
-    SimpleThreadPool& pool,
-    int depth
+    size_t n,
+    int depth = 2 // 控制递归并行深度，>0时启用并行
 ) {
-    if (n == 1) return;
+    if (n == 1) {
+        A[0] = a[0];
+        return;
+    }
 
-    size_t half = n / 2;
+    size_t m = n / 2;
+    std::vector<BLS12381Element> a_even(m), a_odd(m);
+    std::vector<BLS12381Element> A_even(m), A_odd(m);
+
+    for (size_t i = 0; i < m; ++i) {
+        a_even[i] = a[2 * i];
+        a_odd[i] = a[2 * i + 1];
+    }
+
     Fr omega_squared = omega * omega;
 
-    future<void> left_future;
     if (depth > 0) {
-        left_future = pool.enqueue([&data, start, stride, half, omega_squared, &pool, depth]() {
-            fft_inplace_recursive(data, start, stride * 2, half, omega_squared, pool, depth - 1);
-        });
-        fft_inplace_recursive(data, start + stride, stride * 2, half, omega_squared, pool, depth - 1);
-        left_future.get();
+        auto fut_even = std::async(std::launch::async, FFT_recursive_para, std::cref(a_even), std::ref(A_even), omega_squared, m, depth - 1);
+        FFT_recursive_para(a_odd, A_odd, omega_squared, m, depth - 1);
+        fut_even.get();
     } else {
-        fft_inplace_recursive(data, start, stride * 2, half, omega_squared, pool, 0);
-        fft_inplace_recursive(data, start + stride, stride * 2, half, omega_squared, pool, 0);
+        FFT_recursive_para(a_even, A_even, omega_squared, m, 0);
+        FFT_recursive_para(a_odd, A_odd, omega_squared, m, 0);
     }
 
     Fr w = 1;
-    for (size_t j = 0; j < half; ++j) {
-        size_t even_idx = start + j * stride * 2;
-        size_t odd_idx  = even_idx + stride;
-        BLS12381Element even = data[even_idx];
-        BLS12381Element odd  = data[odd_idx] * w;
-        data[even_idx] = even + odd;
-        data[odd_idx]  = even - odd;
+    for (size_t j = 0; j < m; ++j) {
+        BLS12381Element t = A_odd[j] * w;
+        A[j] = A_even[j] + t;
+        A[j + m] = A_even[j] - t;
         w *= omega;
     }
 }
 
-// -------------------- FFT_Para 接口（原地 + 多线程）--------------------
 void FFT_Para(
-    const vector<BLS12381Element>& input,
-    vector<BLS12381Element>& output,
+    const std::vector<BLS12381Element>& input,
+    std::vector<BLS12381Element>& output,
     const Fr& omega,
-    size_t N
+    size_t n
 ) {
-    assert((N & (N - 1)) == 0); // N must be power of 2
-    assert(N == input.size());
+    assert((n & (n - 1)) == 0); // n must be power of 2
+    assert(n == input.size());
+    output.resize(n);
+    FFT_recursive_para(input, output, omega, n, 3);
+}
 
-    output = input; // make a copy to allow in-place modification
-
-    static SimpleThreadPool pool(thread::hardware_concurrency());
-    fft_inplace_recursive(output, 0, 1, N, omega, pool, 3);
+void IFFT_Para(
+    const std::vector<BLS12381Element>& input,
+    std::vector<BLS12381Element>& output,
+    const Fr& omega,
+    size_t n
+) {
+    Fr omega_inv;
+    Fr::inv(omega_inv, omega);
+    FFT_Para(input, output, omega_inv, n);
+    Fr inv_n;
+    Fr::inv(inv_n, Fr(n));
+    for (auto& e : output) {
+        e *= inv_n;
+    }
 }

@@ -45,3 +45,4 @@ def main():
 # 运行主函数
 if __name__ == "__main__":
     main()
+    print(pow(2, 24))
