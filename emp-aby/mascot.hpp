@@ -352,7 +352,7 @@ public:
         // 1. 生成随机掩码
         mcl::Vint r; r.setRand(fs >> 1);  // 确保 r 不会太大
         mcl::Vint r_hi = r >> f;
-        
+
         // 2. 生成共享
         LabeledShare share_r = distributed_share(r);
         LabeledShare share_r_hi = distributed_share(r_hi);

@@ -9,7 +9,7 @@ const static int threads = 8;
 int num_party;
 // const uint64_t FIELD_SIZE("340282366920938463463374607431768211297");
 const uint64_t FIELD_SIZE = (1ULL << 63) - 1;
-int m_bits = 32; // bits of message
+int m_bits = 32; // bits of message - 已在 secret_tensor.hpp 中定义
 
 Fr alpha_init(int num) {
     Plaintext alpha;
@@ -56,7 +56,7 @@ int main(int argc, char** argv) {
     std::vector<uint64_t> plain_values = {1, 2, 3, 4};
 
     using ST = SecretTensor<MultiIOBase>;
-    auto tensor = ST::from_plaintext(shape, plain_values, spdz2k, elgl, lvt, io, &pool, party, num_party, FIELD_SIZE);
+    auto tensor = ST::from_plaintext(shape, plain_values, spdz2k, elgl, lvt, static_cast<MPIOChannel<MultiIOBase>*>(io), &pool, party, num_party, FIELD_SIZE);
 
     if (party == ALICE) std::cout << "[*] SPDZ2k init done." << std::endl;
 

@@ -21,3 +21,5 @@ endmacro()
 
 add_test_case_with_run(secret_tensor)
 add_test_case_with_run(FixedPointConverter)
+# add_test_case_with_run(Bert)
+add_test_case_with_run(genTable)

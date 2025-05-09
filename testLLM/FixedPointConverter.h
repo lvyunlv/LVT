@@ -7,14 +7,24 @@
 
 class FixedPointConverter {
 public:
+    static constexpr int FRACTIONAL_BITS = 16;
+    static constexpr double SCALE = 1 << FRACTIONAL_BITS;
+    
+    static uint64_t double_to_fixed(double value) {
+        return static_cast<uint64_t>(std::round(value * SCALE));
+    }
+    
+    static double fixed_to_double(uint64_t value) {
+        return static_cast<double>(value) / SCALE;
+    }
+
     // 使用 Q8.16（24-bit 定点）
-    static constexpr int fractional_bits = 16;
     static constexpr int total_bits = 24;
-    static constexpr int64_t scale = int64_t(1) << fractional_bits;
     static constexpr uint32_t FIELD_SIZE = 1UL << total_bits;  // 2^24 = 16,777,216
+
     // 将 double 编码为 Vint
     static uint64_t encode(double value) {
-        int64_t fixed_val = static_cast<int64_t>(std::round(value * scale));
+        int64_t fixed_val = static_cast<int64_t>(std::round(value * SCALE));
         if (fixed_val < 0) {
             fixed_val += FIELD_SIZE;  // 映射负数到 [2^23, 2^24-1]
         }
@@ -28,7 +38,7 @@ public:
         if (val >= (FIELD_SIZE >> 1)) { // 负数区间
             val = val - FIELD_SIZE;
         }
-        return static_cast<double>(static_cast<int64_t>(val)) / scale;
+        return static_cast<double>(static_cast<int64_t>(val)) / SCALE;
     }
 
     // 定点数乘法，处理缩放
@@ -38,7 +48,7 @@ public:
         int64_t b_signed = (b >= (FIELD_SIZE >> 1)) ? (b - FIELD_SIZE) : b;
         
         // 执行乘法并处理缩放
-        int64_t result = (a_signed * b_signed) >> fractional_bits;
+        int64_t result = (a_signed * b_signed) >> FRACTIONAL_BITS;
         
         // 处理负数
         if (result < 0) {
@@ -74,7 +84,7 @@ public:
         for (int i = total_bits - 1; i >= 0; i--) {
             std::cout << ((fixed >> i) & 1);
             if (i == total_bits - 1) std::cout << " ";  // 符号位
-            if (i == fractional_bits) std::cout << " ";  // 小数点位置
+            if (i == FRACTIONAL_BITS) std::cout << " ";  // 小数点位置
         }
         std::cout << std::endl;
     }
