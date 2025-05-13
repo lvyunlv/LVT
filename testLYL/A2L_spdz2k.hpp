@@ -37,15 +37,17 @@ inline tuple<Plaintext, vector<Ciphertext>> A2L(
     fd_fr.setStr(std::to_string(fd));
     BLS12381Element G_fd(fd_fr);
 
-    uint64_t r_spdz2k; r_spdz2k = spdz2k.rng() % fd;
-    SPDZ2k<MultiIOBase>::LabeledShare shared_r = spdz2k.distributed_share(r_spdz2k);
+    uint64_t r_spdz2k; r_spdz2k = spdz2k.rng() % fd; if(r_spdz2k < 0) r_spdz2k += fd;
+    uint64_t r_spdz2k_mac = mulmod(r_spdz2k, spdz2k.mac_key, spdz2k_field_size);
+    SPDZ2k<MultiIOBase>::LabeledShare shared_r;
+    shared_r.value = r_spdz2k; shared_r.mac = r_spdz2k_mac; shared_r.owner = party; shared_r.field_size_ptr = &spdz2k_field_size;
 
     // cout << "xval: " << xval << endl;
-    uint64_t rval = shared_r.value; rval %= fd; if (rval < 0) rval += fd;
+    // uint64_t rval = shared_r.value; rval %= fd; if (rval < 0) rval += fd;
     // cout << "rval: " << rval << endl;
     Plaintext r;
     // cout << xval.getStr() << endl;
-    r.assign(std::to_string(rval));
+    r.assign(std::to_string(r_spdz2k));
     // cout << "x: " << x.get_message().getStr() << endl;
 
     Ciphertext cx, cr, count;
@@ -80,10 +82,10 @@ inline tuple<Plaintext, vector<Ciphertext>> A2L(
         }
     }
 
-    BLS12381Element u = threshold_decrypt_easy<MultiIOBase>(count, elgl, lvt->global_pk, lvt->user_pk, io, pool, party, num_party, lvt->P_to_m, lvt);
-    // std::string key = u.getPoint().getStr();
-    // Fr y;
-    // y = lvt->bsgs.solve_parallel_with_pool(u, pool, thread_num);
+    // BLS12381Element u = threshold_decrypt_easy<MultiIOBase>(count, elgl, lvt->global_pk, lvt->user_pk, io, pool, party, num_party, lvt->P_to_m, lvt);
+    Fr u = threshold_decrypt<MultiIOBase>(count, elgl, lvt->global_pk, lvt->user_pk, io, pool, party, num_party, lvt->P_to_m, lvt);
+    uint64_t uu = u.getInt64();
+    uu %= fd; if (uu < 0) uu += fd;
 
     // uint64_t uu(y.getStr());
     // uu %= fd; if (uu < 0) uu += fd;
@@ -92,41 +94,47 @@ inline tuple<Plaintext, vector<Ciphertext>> A2L(
     uint64_t u_int = spdz2k.reconstruct(shared_u);
     u_int %= fd; if (u_int < 0) u_int += fd;
 
-    // if (u_int != uu) {
-    //     throw std::runtime_error("A2L_spdz2k check failed: decrypted value != share sum");
-    // }
+    if (u_int != uu) {
+        throw std::runtime_error("A2L_spdz2k check failed: decrypted value != share sum");
+    }
 
-    // return std::make_tuple(x, vec_cx);
-
-
-    Fr u_int_fr; 
-    u_int_fr.setStr(std::to_string(u_int));
-    BLS12381Element uu(u_int_fr);
-    
     auto t2 = std::chrono::high_resolution_clock::now();
     int bytes_end = io->get_total_bytes_sent();
     double comm_kb = double(bytes_end - bytes_start) / 1024.0;
     double time_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
+    online_time = time_ms;
+    online_comm = comm_kb;
+    return std::make_tuple(x, vec_cx);
+
+
+    // Fr u_int_fr; 
+    // u_int_fr.setStr(std::to_string(u_int));
+    // BLS12381Element uu(u_int_fr);
+    
+    // auto t2 = std::chrono::high_resolution_clock::now();
+    // int bytes_end = io->get_total_bytes_sent();
+    // double comm_kb = double(bytes_end - bytes_start) / 1024.0;
+    // double time_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
     // std::cout << std::fixed << std::setprecision(3)
     //           << "Communication: " << comm_kb << " KB, "
     //           << "Time: " << time_ms << " ms" << std::endl;
     
-    online_time = time_ms;
-    online_comm = comm_kb;
+    // online_time = time_ms;
+    // online_comm = comm_kb;
 
     // u.getPoint().normalize();
     // uu.getPoint().normalize();
     // u1.getPoint().normalize();
     // u2.getPoint().normalize();
 
-    BLS12381Element tmp = G_fd;
-    for (int i = 0; i <= num_party * 2; i++) {
-        if (uu != tmp) {
-            return std::make_tuple(x, vec_cx);
-        }
-        tmp += G_fd;
-    }
-    throw std::runtime_error("A2L_spdz2k check failed: decrypted value != share sum");
+    // BLS12381Element tmp = G_fd;
+    // for (int i = - num_party * 2; i <= num_party * 2; i++) {
+    //     if (uu == tmp) {
+    //         return std::make_tuple(x, vec_cx);
+    //     }
+    //     tmp += G_fd;
+    // }
+    // throw std::runtime_error("A2L_spdz2k check failed: decrypted value != share sum");
     // return std::make_tuple(x, vec_cx);
 }
 

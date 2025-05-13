@@ -344,8 +344,6 @@ public:
         std::cout << "[LOG] shared_r.value (raw): " << share.value.getStr() << std::endl;
     }
 
-    
-    // [ADDED] ✅ 修复后的截断函数：真实通信 + signed 处理 + 确保所有参与方交互
     LabeledShare truncate_share(const LabeledShare& x, int f) {
         mcl::Vint fs = field_size;
         

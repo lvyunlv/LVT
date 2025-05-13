@@ -81,8 +81,10 @@ inline MASCOT<MultiIOBase>::LabeledShare L2A(
         }
     }
 
-    BLS12381Element u = threshold_decrypt_easy<MultiIOBase>(count, elgl, lvt->global_pk, lvt->user_pk, io, pool, party, num_party, lvt->P_to_m, lvt);
+    // BLS12381Element u = threshold_decrypt_easy<MultiIOBase>(count, elgl, lvt->global_pk, lvt->user_pk, io, pool, party, num_party, lvt->P_to_m, lvt);
+    Fr u = threshold_decrypt(count, elgl, lvt->global_pk, lvt->user_pk, io, pool, party, num_party, lvt->P_to_m, lvt);
     mcl::Vint u_int;
+    u_int.setStr(u.getStr());
     MASCOT<MultiIOBase>::LabeledShare shared_u;
     shared_u = mascot.add(shared_x, shared_r);
     u_int = mascot.reconstruct(shared_u);

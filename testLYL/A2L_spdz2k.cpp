@@ -15,10 +15,9 @@ using namespace std;
 int party, port;
 const static int threads = 8;
 int num_party;
-const uint64_t FIELD_SIZE = (1ULL << 32);
+const uint64_t FIELD_SIZE = 1ULL << 24;
+const int num = 24; 
 int m_bits = 32; // bits of message
-
-const int num = 32; 
 
 int main(int argc, char** argv) {
 
@@ -66,7 +65,7 @@ int main(int argc, char** argv) {
     // input
     uint64_t x_spdz2k = spdz2k.rng() % FIELD_SIZE;
     SPDZ2k<MultiIOBase>::LabeledShare shared_x;
-    shared_x = spdz2k.distributed_share(x_spdz2k);
+    shared_x.value = x_spdz2k; shared_x.mac = mulmod(x_spdz2k, spdz2k.mac_key, spdz2k_field_size); shared_x.owner = party; shared_x.field_size_ptr = &spdz2k_field_size; 
 
     // 调用A2L
     double total_time = 0;
@@ -76,6 +75,7 @@ int main(int argc, char** argv) {
     int times = 5;
     for (int i = 0; i < times; ++i) {
         auto [x, vec_cx] = A2L_spdz2k::A2L(elgl, lvt, spdz2k, party, num_party, io, &pool, shared_x, FIELD_SIZE, online_time, online_comm);
+        // cout << x.get_message().getStr() << endl;
         total_time += online_time;
         total_comm += online_comm;
     }

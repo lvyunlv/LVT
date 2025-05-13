@@ -19,7 +19,7 @@ const static int threads = 8;
 int num_party;
 // const mcl::Vint FIELD_SIZE("340282366920938463463374607431768211297");
 const mcl::Vint FIELD_SIZE("4294967296");
-const int num = 32; 
+const int num = 24; 
 int m_bits = 32; // bits of message
 
 int main(int argc, char** argv) {

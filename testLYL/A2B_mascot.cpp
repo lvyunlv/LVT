@@ -23,7 +23,7 @@ const int l = 32;
 const int num_bits = 32;
 // const mcl::Vint FIELD_SIZE = (1 << num_bits);
 const mcl::Vint FIELD_SIZE("4294967296");
-int m_bits = 32; // bits of message
+int m_bits = 1; // bits of message
 Fr alpha_init(int num) {
     Plaintext alpha;
     const mcl::Vint p("0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001");
@@ -58,7 +58,7 @@ int main(int argc, char** argv) {
 
     int num = 1;
     Fr alpha_fr = alpha_init(num);
-    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../build/bin/table.txt", alpha_fr, num, m_bits);
+    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../build/bin/table_2.txt", alpha_fr, num, m_bits);
 
     lvt->DistKeyGen();
     TinyMAC<MultiIOBase> tiny(elgl);

@@ -8,14 +8,15 @@ int party, port;
 const static int threads = 8;
 int num_party;
 // const uint64_t FIELD_SIZE("340282366920938463463374607431768211297");
-const uint64_t FIELD_SIZE = (1ULL << 63) - 1;
-int m_bits = 32; // bits of message - 已在 secret_tensor.hpp 中定义
+// const uint64_t FIELD_SIZE = (1ULL << 63) - 1;
+// int m_bits = 32; // bits of message - 已在 secret_tensor.hpp 中定义
+int fixedpoint_bits = 24;
 
-Fr alpha_init(int num) {
+Fr alpha_init(int fixedpoint_bits) {
     Plaintext alpha;
     const mcl::Vint p("0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001");
     const mcl::Vint g("5"); 
-    mcl::Vint n = uint64_t(1) << num;
+    mcl::Vint n = uint64_t(1) << fixedpoint_bits;
     mcl::Vint alpha_vint;
     mcl::gmp::powMod(alpha_vint, g, (p - 1) / n, p);
     alpha.assign(alpha_vint.getStr());
@@ -43,12 +44,9 @@ int main(int argc, char** argv) {
     MultiIO* io = new MultiIO(party, num_party, net_config);
     ELGL<MultiIOBase>* elgl = new ELGL<MultiIOBase>(num_party, io, &pool, party);
 
-    int num = 1;
-    Fr alpha_fr = alpha_init(num);
-    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../build/bin/table.txt", alpha_fr, num, m_bits);
-
+    Fr alpha_fr = alpha_init(fixedpoint_bits);
+    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../build/bin/table.txt", alpha_fr, fixedpoint_bits, fixedpoint_bits);
     lvt->DistKeyGen();
-
     SPDZ2k<MultiIOBase> spdz2k(elgl);
 
     // 测试张量初始化
@@ -56,30 +54,16 @@ int main(int argc, char** argv) {
     std::vector<uint64_t> plain_values = {1, 2, 3, 4};
 
     using ST = SecretTensor<MultiIOBase>;
-    auto tensor = ST::from_plaintext(shape, plain_values, spdz2k, elgl, lvt, static_cast<MPIOChannel<MultiIOBase>*>(io), &pool, party, num_party, FIELD_SIZE);
+    auto tensor = ST::from_plaintext(shape, plain_values, spdz2k, elgl, lvt, static_cast<MPIOChannel<MultiIOBase>*>(io), &pool, party, num_party, fixedpoint_bits);
+    emp::LVTInstances::initialize(num_party, party, io, &pool, elgl, alpha_fr, fixedpoint_bits);
 
-    if (party == ALICE) std::cout << "[*] SPDZ2k init done." << std::endl;
-
-    // 转为 LUT share
     tensor.to_lut();
-    if (party == ALICE) std::cout << "[*] Converted to LUT share." << std::endl;
-
-    // 转回 SPDZ2k
     tensor.to_spdz2k();
-    if (party == ALICE) std::cout << "[*] Converted back to SPDZ2k." << std::endl;
-
-    // Reveal 检查
+    
     std::vector<uint64_t> revealed;
     for (const auto& share : tensor.data_spdz2k) {
         revealed.push_back(spdz2k.reconstruct(share));
     }
-    // if (party == ALICE) {
-    //     std::cout << "Reconstructed values: ";
-    //     for (auto& v : revealed) std::cout << v << " ";
-    //     std::cout << std::endl;
-    // }
-
-    if (party == ALICE) std::cout << "\n[*] Testing add and matmul...\n";
 
     std::vector<uint64_t> A_current_share = {
         FixedPointConverter::encode(1.0),
@@ -95,12 +79,12 @@ int main(int argc, char** argv) {
         FixedPointConverter::encode(-4.5)
     }; // shape: 2x2
 
-    auto A_current = SecretTensor<MultiIOBase>::from_plaintext({2, 2}, A_current_share, spdz2k, elgl, lvt, io, &pool, party, num_party, FIELD_SIZE);
-    auto B_current = SecretTensor<MultiIOBase>::from_plaintext({2, 2}, B_current_share, spdz2k, elgl, lvt, io, &pool, party, num_party, FIELD_SIZE);
+    auto A_current = SecretTensor<MultiIOBase>::from_plaintext({2, 2}, A_current_share, spdz2k, elgl, lvt, io, &pool, party, num_party, fixedpoint_bits);
+    auto B_current = SecretTensor<MultiIOBase>::from_plaintext({2, 2}, B_current_share, spdz2k, elgl, lvt, io, &pool, party, num_party, fixedpoint_bits);
 
     auto C_add = A_current.add(B_current); 
     auto C_mul = A_current.matmul(B_current); 
-    std::cout << "Revealed A + B: ";
+    std::cout << "Revealed A + B: "; //应当为 4 8 -12 -18 
     for (const auto& s : C_add.data_spdz2k){
         uint64_t v = spdz2k.reconstruct(s) % FixedPoint_SIZE;
         // std::cout << v << " ";
@@ -108,18 +92,99 @@ int main(int argc, char** argv) {
     }
     std::cout << "\n";
 
-    std::cout << "Revealed A x B: ";
+    std::cout << "Revealed A x B: "; //应当为 -20 -28 42 57 
     for (const auto& s : C_mul.data_spdz2k){
         uint64_t raw_value = spdz2k.reconstruct(s);
         std::cout << FixedPointConverter::decode(raw_value % FixedPoint_SIZE) << " ";
     }
     std::cout << "\n";
 
-    // cout << "data_spdz2k_a: " << A_current.data_spdz2k[0].value << " " << A_current.data_spdz2k[0].mac << std::endl;
-    // cout << "data_spdz2k_b: " << B_current.data_spdz2k[0].value << " " << B_current.data_spdz2k[0].mac << std::endl;
-    // SPDZ2k<MultiIOBase>::LabeledShare xx = spdz2k.multiply_with_trunc(A_current.data_spdz2k[0], B_current.data_spdz2k[0], 16);
-    // uint64_t raw_value = spdz2k.reconstruct(xx);
-    // std::cout << "Revealed multiply: Raw: " << raw_value << " Decoded: " << FixedPointConverter::decode(raw_value % FixedPoint_SIZE) << std::endl;
+    auto C_sub = A_current.sub(B_current);
+    std::cout << "Revealed A - B: "; //应当为 0 0 0 0
+    for (const auto& s : C_sub.data_spdz2k){
+        uint64_t v = spdz2k.reconstruct(s) % FixedPoint_SIZE;
+        std::cout << FixedPointConverter::decode(v) << " ";
+    }
+    std::cout << "\n";
+
+    auto C_elemul = A_current.mul(B_current);
+    std::cout << "Revealed A .* B: "; //应当为 4 16 36 81
+    for (const auto& s : C_elemul.data_spdz2k){
+        uint64_t v = spdz2k.reconstruct(s) % FixedPoint_SIZE;
+        std::cout << FixedPointConverter::decode(v) << " ";
+    }
+    std::cout << "\n";
+
+    auto C_relu = A_current.relu();
+    std::cout << "Revealed relu(A): ";
+    for (const auto& v : C_relu.data_lut_plain){
+        std::cout << FixedPointConverter::decode(v.get_message().getUint64() % FixedPoint_SIZE) << " ";
+    }
+    std::cout << "\n";
+    
+    auto C_sigmoid = A_current.sigmoid();
+    std::cout << "Revealed sigmoid(A): ";
+    for (const auto& v : C_sigmoid.data_lut_plain){
+        std::cout << FixedPointConverter::decode(v.get_message().getUint64() % FixedPoint_SIZE) << " ";
+    }
+    std::cout << "\n";
+
+
+    auto C_sqrt = A_current.sqrt();
+    std::cout << "Revealed sqrt(A): ";
+    for (const auto& v : C_sqrt.data_lut_plain){
+        std::cout << FixedPointConverter::decode(v.get_message().getUint64() % FixedPoint_SIZE) << " ";
+    }
+    std::cout << "\n";
+
+    auto C_sum = A_current.sum();
+    auto C_mean = A_current.mean();
+    if (C_sum.data_spdz2k.size() > 0) {
+        uint64_t v_sum = spdz2k.reconstruct(C_sum.data_spdz2k[0]) % FixedPoint_SIZE;
+        std::cout << "Revealed sum(A): " << FixedPointConverter::decode(v_sum) << std::endl;
+    }
+    if (C_mean.data_lut_plain.size() > 0) {
+        std::cout << "Revealed mean(A): " << FixedPointConverter::decode(C_mean.data_lut_plain[0].get_message().getUint64() % FixedPoint_SIZE) << std::endl;
+    }
+
+    auto C_reshape = A_current.reshape({4});
+    std::cout << "Revealed reshape(A) to 1D: ";
+    for (const auto& s : C_reshape.data_spdz2k){
+        uint64_t v = spdz2k.reconstruct(s) % FixedPoint_SIZE;
+        std::cout << FixedPointConverter::decode(v) << " ";
+    }
+    std::cout << "\n";
+
+    auto C_slice = A_current.slice({1}, {3});
+    std::cout << "Revealed slice(A)[1:3]: ";
+    for (const auto& s : C_slice.data_spdz2k){
+        uint64_t v = spdz2k.reconstruct(s) % FixedPoint_SIZE;
+        std::cout << FixedPointConverter::decode(v) << " ";
+    }
+    std::cout << "\n";
+
+    auto stacked = SecretTensor<MultiIOBase>::stack({A_current, B_current}, 0);
+    std::cout << "Revealed stack(A, B): ";
+    for (const auto& s : stacked.data_spdz2k){
+        uint64_t v = spdz2k.reconstruct(s) % FixedPoint_SIZE;
+        std::cout << FixedPointConverter::decode(v) << " ";
+    }
+    std::cout << "\n";
+
+    auto concated = SecretTensor<MultiIOBase>::concat({A_current, B_current}, 0);
+    std::cout << "Revealed concat(A, B): ";
+    for (const auto& s : concated.data_spdz2k){
+        uint64_t v = spdz2k.reconstruct(s) % FixedPoint_SIZE;
+        std::cout << FixedPointConverter::decode(v) << " ";
+    }
+    std::cout << "\n";
+
+    auto C_div = A_current.div(B_current);
+    std::cout << "Revealed A / B: ";
+    for (const auto& v : C_div.data_lut_plain){
+        std::cout << FixedPointConverter::decode(v.get_message().getUint64() % FixedPoint_SIZE) << " ";
+    }
+    std::cout << "\n";
 
     delete io;
     return 0;

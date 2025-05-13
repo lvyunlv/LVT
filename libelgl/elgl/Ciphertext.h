@@ -15,6 +15,11 @@ class Ciphertext{
         c1 = c1_;
     };
 
+    void set(const BLS12381Element& c0_, const BLS12381Element& c1_){
+        c0 = c0_;
+        c1 = c1_;
+    }
+
     const BLS12381Element& get_c0() const{return c0;};
     const BLS12381Element& get_c1() const{return c1;};
 

@@ -98,7 +98,7 @@ inline MASCOT<MultiIOBase>::LabeledShare B2A(
         mascot_open = (mascot_open % FIELD_SIZE + FIELD_SIZE) % FIELD_SIZE;
 
         uint8_t tiny_u = tiny.reconstruct(tiny.add(x_bits[i], r_bits[i]));
-        if ((2 + tiny_u % 2) != (2 + mascot_open % 2)) {
+        if (((2 + tiny_u % 2)+2)%2 != ((2 + mascot_open % 2)+2)%2) {
             throw std::runtime_error("B2A check failed: decrypted value != share sum");
         }
     }

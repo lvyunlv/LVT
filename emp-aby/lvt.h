@@ -75,9 +75,67 @@ class LVT{
     ~LVT();
     void generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation, vector<int64_t> table);
     void generate_shares_fake(vector<Plaintext>& lut_share, Plaintext& rotation, vector<int64_t> table);
-    void lookup_online(Plaintext& out, Plaintext& x_share, Ciphertext& x_cipher, vector<Ciphertext>& x_ciphers);
+    tuple<Plaintext, vector<Ciphertext>> lookup_online(Plaintext& x_share, Ciphertext& x_cipher, vector<Ciphertext>& x_ciphers);
     void lookup_online_easy(Plaintext& out, Plaintext& x_share, Ciphertext& x_cipher, vector<Ciphertext>& x_ciphers);
+    void save_to_file(const std::string& filename);
+    void load_from_file(const std::string& filename);
+    LVT(): num_party(0), party(0), io(nullptr), pool(nullptr), elgl(nullptr), alpha(Fr()), tb_size(0), m_size(0) {};
 };
+
+// 保存到二进制文件
+template <typename IO>
+void LVT<IO>::save_to_file(const std::string& filename) {
+    std::ofstream out(filename, std::ios::binary);
+    if (!out) throw std::runtime_error("Failed to open file for writing");
+
+    size_t share_size = lut_share.size();
+    out.write(reinterpret_cast<const char*>(&share_size), sizeof(size_t));
+    for (const auto& pt : lut_share) {
+        std::string msg = pt.get_message().getStr();
+        size_t len = msg.size();
+        out.write(reinterpret_cast<const char*>(&len), sizeof(size_t));
+        out.write(msg.c_str(), len);
+    }
+
+    std::string rot_str = rotation.get_message().getStr();
+    size_t rot_len = rot_str.size();
+    out.write(reinterpret_cast<const char*>(&rot_len), sizeof(size_t));
+    out.write(rot_str.c_str(), rot_len);
+
+    size_t table_size = table.size();
+    out.write(reinterpret_cast<const char*>(&table_size), sizeof(size_t));
+    out.write(reinterpret_cast<const char*>(table.data()), table_size * sizeof(int64_t));
+}
+
+// 从二进制文件加载
+template <typename IO>
+void LVT<IO>::load_from_file(const std::string& filename) {
+    std::ifstream in(filename, std::ios::binary);
+    if (!in) throw std::runtime_error("Failed to open file for reading");
+
+    size_t share_size;
+    in.read(reinterpret_cast<char*>(&share_size), sizeof(size_t));
+    lut_share.resize(share_size);
+
+    for (auto& pt : lut_share) {
+        size_t len;
+        in.read(reinterpret_cast<char*>(&len), sizeof(size_t));
+        std::string msg(len, '\0');
+        in.read(&msg[0], len);
+        pt.set_message(Fr(msg));
+    }
+
+    size_t rot_len;
+    in.read(reinterpret_cast<char*>(&rot_len), sizeof(size_t));
+    std::string rot_str(rot_len, '\0');
+    in.read(&rot_str[0], rot_len);
+    rotation.set_message(Fr(rot_str));
+
+    size_t table_size;
+    in.read(reinterpret_cast<char*>(&table_size), sizeof(size_t));
+    table.resize(table_size);
+    in.read(reinterpret_cast<char*>(table.data()), table_size * sizeof(int64_t));
+}
 
 template <typename IO>
 LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, ELGL<IO>* elgl, Fr& alpha, int table_size, int m_bits){
@@ -97,86 +155,43 @@ LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, EL
     this->G_tbs = BLS12381Element(tb_size);
     BLS12381Element::init();
     BLS12381Element g = BLS12381Element::generator();
-
-    // bsgs.precompute(g, 1ULL << 32);
 }
+
 
 void build_safe_P_to_m(std::map<std::string, Fr>& P_to_m, int num_party, size_t m_size) {
     size_t max_exponent = 2 * m_size * num_party;
-    // cout << "max_exponent: " << max_exponent << endl;
-    // size_t max_exponent = 128;
-    
-    // // 如果表较小，直接计算
     if (max_exponent <= 1<<8) {
-        // 测试时间
-        // auto start_time = chrono::high_resolution_clock::now();
-        // cout << "开始构建大小为" << max_exponent << "的P_to_m表..." << endl;
         for (size_t i = 0; i <= max_exponent; ++i) {
             BLS12381Element g_i(i);
             P_to_m[g_i.getPoint().getStr()] = Fr(to_string(i));
         }
-        // cout << "P_to_m表构建完成" << endl;
-        // auto end_time = chrono::high_resolution_clock::now();
-        // auto duration = chrono::duration_cast<chrono::milliseconds>(end_time - start_time);
-        // cout << "构建表用时: " << duration.count() << " 毫秒" << endl;
         return;
     }
-    
-    // // 如果表较大，尝试读取文件
-    // // auto start_time = chrono::high_resolution_clock::now();
-    // cout << "开始读取P_to_m表..." << endl;
     const char* filename = "P_to_m_table.bin";
-    // deserialize_P_to_m(P_to_m, filename);
-    // cout << "P_to_m表读取完成" << endl;
-    // // auto end_time = chrono::high_resolution_clock::now();
-    // // auto duration = chrono::duration_cast<chrono::milliseconds>(end_time - start_time);
-    // // cout << "读取表用时: " << duration.count() << " 毫秒" << endl;
-    
-    // // 如果文件不存在或读取失败，则计算并保存
-    // if (P_to_m.empty()) {
-        // cout << "P_to_m表为空，开始计算..." << endl;
-        for (size_t i = 0; i <= max_exponent; ++i) {
-            BLS12381Element g_i(i);
-            g_i.getPoint().normalize();
-            P_to_m[g_i.getPoint().getStr()] = Fr(i);
-        }
-        serialize_P_to_m(P_to_m, filename);
-        // cout << "P_to_m表计算完成" << endl;
-    // }
+    for (size_t i = 0; i <= max_exponent; ++i) {
+        BLS12381Element g_i(i);
+        g_i.getPoint().normalize();
+        P_to_m[g_i.getPoint().getStr()] = Fr(i);
+    }
+    serialize_P_to_m(P_to_m, filename);
 }
 
 template <typename IO>
 LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, ELGL<IO>* elgl, string tableFile, Fr& alpha, int table_size, int m_bits)
     : LVT(num_party, party, io, pool, elgl, alpha, table_size, m_bits) {
-    // load table from file
     deserializeTable(table, tableFile.c_str(), tb_size);
-    // cout << "table size: " << tb_size << endl;
     if (m_bits <= 16) {
         build_safe_P_to_m(P_to_m, num_party, m_size);
         return;
     }
-
-    uint64_t N = 1ULL << 38; // 32-bit空间
+    // cout << "m_bits > 16, using BSGS" << endl;
+    uint64_t N = 1ULL << 32; // 38-bit空间
     try {
-        // auto start_time = chrono::high_resolution_clock::now();
-        // std::cout << "开始加载bsgs表..." << std::endl;
         bsgs.deserialize("bsgs_table.bin");
-        // cout << "bsgs表加载完成" << endl;
-        
-        // auto end_time = chrono::high_resolution_clock::now();
-        // auto duration = chrono::duration_cast<chrono::milliseconds>(end_time - start_time);
-        // cout << "读取表用时: " << duration.count() << " 毫秒" << endl;
-        // std::cout << "成功加载预计算数据" << std::endl;
+        cout << "BSGS table loaded successfully." << endl;
     } catch (const std::exception& e) {
-        // std::cout << "bsgs预计算数据不存在或损坏，开始预计算..." << std::endl;
-        // auto start_time = chrono::high_resolution_clock::now();
         bsgs.precompute(g, N);
-        // auto end_time = chrono::high_resolution_clock::now();
-        // auto duration = chrono::duration_cast<chrono::milliseconds>(end_time - start_time);
-        // cout << "预计算用时: " << duration.count() << " 毫秒" << endl;
-        // std::cout << "预计算完成，保存到文件..." << std::endl;
         bsgs.serialize("bsgs_table.bin");
-        // cout << "bsgs表保存完成" << endl;
     }
 }
 
@@ -851,56 +866,77 @@ void LVT<IO>::generate_shares_fake(vector<Plaintext>& lut_share, Plaintext& rota
     for (int i = 0; i < num_party; ++i) {
         cip_lut[i].resize(tb_size);
     }
-    
     // Step 1: rotation 固定为 0
     rotation.set_message(0);
 
     // Step 2: 计算本地 LUT share 和加密 LUT
-    // size_t rotate_sum = num_party;  // 所有 party 的 rotation 为 1，求和为 num_party
-
-    if (party == 1) {
-        for (size_t i = 0; i < tb_size; ++i) {
-            lut_share[i].set_message(table[i]);
-            int64_t tmp = (m_size * num_party + lut_share[i].get_message().getInt64() - num_party + 1) % m_size;
-            if (tmp < 0) tmp += m_size;
-            lut_share[i].set_message(tmp);
-            Fr t1(to_string(tmp));
-            cip_lut[party - 1][i] = g * t1 + global_pk.get_pk() * elgl->kp.get_sk().get_sk();
-        }
-    } else {
-        for (size_t i = 0; i < tb_size; ++i) {
-            lut_share[i].set_message(1);
-            cip_lut[party - 1][i] = g + global_pk.get_pk() * elgl->kp.get_sk().get_sk();
-        }
+    auto time_start = std::chrono::high_resolution_clock::now();
+    vector<future<void>> res;
+    BLS12381Element tmp = global_pk.get_pk() * elgl->kp.get_sk().get_sk();
+    for (size_t i = 0; i < tb_size; ++i) {
+        res.push_back(pool->enqueue([this, &lut_share, &table, i, tmp]() {
+            if (party == 1) {
+                lut_share[i].set_message(table[i]);
+                cip_lut[party - 1][i] = g * lut_share[i].get_message() + tmp;
+            } else {
+                lut_share[i].set_message(0);
+                cip_lut[party - 1][i] =  tmp;
+            }
+        }));
     }
+    for (auto& f : res) {
+        f.get();
+    }
+    res.clear();
+    auto time_end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = time_end - time_start;
+    std::cout << "generate LUT share time: " << elapsed.count() << " seconds" << std::endl;
 
+    // 注意：打包发送比单个传输更快
+    auto time_start_ = std::chrono::high_resolution_clock::now();
     // Step 3: 广播自己的 cip_lut[party-1]
     std::stringstream cip_lut_stream;
     for (size_t i = 0; i < tb_size; ++i) {
         cip_lut[party - 1][i].pack(cip_lut_stream);
+        // elgl->serialize_sendall(cip_lut[party - 1][i]);
     }
     std::string encoded = base64_encode(cip_lut_stream.str());
     std::stringstream encoded_stream;
     encoded_stream << encoded;
-    elgl->serialize_sendall_with_tag(encoded_stream, 5000 * party);
+    elgl->serialize_sendall_(encoded_stream);
 
     // Step 4: 接收其他 party 的 cip_lut
     for (int i = 1; i <= num_party; ++i) {
         if (i != party) {
-            std::stringstream cip_stream;
-            elgl->deserialize_recv_with_tag(cip_stream, i, 5000 * i);
+            // for (size_t j = 0; j < tb_size; ++j) {
+            //     res.push_back(pool->enqueue([this, i, j]() {
+            //         elgl->deserialize_recv(cip_lut[i - 1][j], i);
+            //     }));
+            // }
+            res.push_back(pool->enqueue([this, i]() {
+                std::stringstream cip_stream;
+                elgl->deserialize_recv_(cip_stream, i);
 
-            std::string decoded = base64_decode(cip_stream.str());
-            std::stringstream decoded_stream(decoded);
+                std::string decoded = base64_decode(cip_stream.str());
+                std::stringstream decoded_stream(decoded);
 
-            for (size_t j = 0; j < tb_size; ++j) {
-                cip_lut[i - 1][j].unpack(decoded_stream);
-            }
+                for (size_t j = 0; j < tb_size; ++j) {
+                    cip_lut[i - 1][j].unpack(decoded_stream);
+                }
+            }));
         }
     }
+    for (auto& f : res) {
+        f.get();
+    }
+    res.clear();
+    auto time_end_ = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed_ = time_end_ - time_start_;
+    std::cout << "receive LUT share time: " << elapsed_.count() << " seconds" << std::endl;
+
     // cout << "party: " << party << "生成LUT share结束" << endl;
     // cout << "rotation: " << rotation.get_message().getStr() << endl;
-    // for (size_t i = 0; i < tb_size; i++){
+    // for (size_t i = 0; i < tb_size; i++) {
     //     cout << "lut_share[" << i << "] = " << lut_share[i].get_message().getStr() << endl;
     // }
 }
@@ -1061,8 +1097,11 @@ BLS12381Element threshold_decrypt_easy(Ciphertext& c, ELGL<IO>* elgl, const ELGL
 }
 
 template <typename IO>
-void LVT<IO>::lookup_online(Plaintext& out, Plaintext& x_share, Ciphertext& x_cipher, vector<Ciphertext>& x_ciphers){
+tuple<Plaintext, vector<Ciphertext>> LVT<IO>::lookup_online(Plaintext& x_share, Ciphertext& x_cipher, vector<Ciphertext>& x_ciphers){
     // cout << "party: " << party << " x_share = " << x_share.get_message().getStr() << endl;
+    // cout << "party: " << party << " rotation = " << rotation.get_message().getStr() << endl;
+    Plaintext out;
+    vector<Ciphertext> out_ciphers;
     vector<std::future<void>> res;
     vector<Plaintext> u_shares;
 
@@ -1098,6 +1137,7 @@ void LVT<IO>::lookup_online(Plaintext& out, Plaintext& x_share, Ciphertext& x_ci
         uu += u_shares[i];
     }
     // uu mod tb_size
+    // cout << "party: " << party << " uu = " << uu.get_message().getStr() << endl;
     mcl::Vint h;
     h.setStr(to_string(tb_size));
     mcl::Vint q1 = uu.get_message().getMpz();
@@ -1126,6 +1166,13 @@ void LVT<IO>::lookup_online(Plaintext& out, Plaintext& x_share, Ciphertext& x_ci
     index_mpz.setStr(u_mpz.getStr());
     size_t index = static_cast<size_t>(index_mpz.getLow32bit());
     out = lut_share[index];
+    out_ciphers.resize(num_party);
+    for (size_t i = 0; i < num_party; i++){
+        Ciphertext tmp(user_pk[i].get_pk(),cip_lut[i][index]);
+        out_ciphers[i] = tmp;
+    }
+    // cout << "party: " << party << " out = " << out.get_message().getStr() << endl;
+    return std::make_tuple(out, out_ciphers);
 }
 
 template <typename IO>
@@ -1192,6 +1239,66 @@ void LVT<IO>::lookup_online_easy(Plaintext& out, Plaintext& x_share, Ciphertext&
 
 template <typename IO>
 LVT<IO>::~LVT(){
+}
+
+// 序列化操作符
+template <typename IO>
+std::ostream& operator<<(std::ostream& os, const LVT<IO>& lvt) {
+    // 保存 lut_share
+    size_t share_size = lvt.lut_share.size();
+    os.write(reinterpret_cast<const char*>(&share_size), sizeof(size_t));
+    for (const auto& pt : lvt.lut_share) {
+        std::string msg = pt.get_message().getStr();
+        size_t len = msg.size();
+        os.write(reinterpret_cast<const char*>(&len), sizeof(size_t));
+        os.write(msg.c_str(), len);
+    }
+
+    // 保存 rotation
+    std::string rot_str = lvt.rotation.get_message().getStr();
+    size_t rot_len = rot_str.size();
+    os.write(reinterpret_cast<const char*>(&rot_len), sizeof(size_t));
+    os.write(rot_str.c_str(), rot_len);
+
+    // 保存 table
+    size_t table_size = lvt.table.size();
+    os.write(reinterpret_cast<const char*>(&table_size), sizeof(size_t));
+    os.write(reinterpret_cast<const char*>(lvt.table.data()), table_size * sizeof(int64_t));
+
+    return os;
+}
+
+// 反序列化操作符
+template <typename IO>
+std::istream& operator>>(std::istream& is, LVT<IO>& lvt) {
+    // 加载 lut_share
+    size_t share_size;
+    is.read(reinterpret_cast<char*>(&share_size), sizeof(size_t));
+    lvt.lut_share.resize(share_size);
+    for (auto& pt : lvt.lut_share) {
+        size_t len;
+        is.read(reinterpret_cast<char*>(&len), sizeof(size_t));
+        std::string msg(len, '\0');
+        is.read(&msg[0], len);
+        pt.set_message(Fr(msg));
+    }
+
+    // 加载 rotation
+    size_t rot_len;
+    is.read(reinterpret_cast<char*>(&rot_len), sizeof(size_t));
+    std::string rot_str(rot_len, '\0');
+    is.read(&rot_str[0], rot_len);
+    lvt.rotation.set_message(Fr(rot_str));
+
+    // 加载 table
+    size_t table_size;
+    is.read(reinterpret_cast<char*>(&table_size), sizeof(size_t));
+    lvt.table.resize(table_size);
+    is.read(reinterpret_cast<char*>(lvt.table.data()), table_size * sizeof(int64_t));
+
+    // 如果有其他需要初始化的成员变量，请在这里添加初始化代码
+
+    return is;
 }
 
 }

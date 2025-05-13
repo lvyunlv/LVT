@@ -6,20 +6,8 @@ using namespace emp;
 int party, port;
 const static int threads = 8;
 int num_party;
-int num = 4; 
-int m_bits = 32; // bits of message
-
-// === 调用函数入口 ===
-template <typename IO>
-void test_generate_shares(LVT<IO>* lut) {
-    lut->generate_shares(lut->lut_share, lut->rotation, lut->table);
-}
-
-template <typename IO>
-void test_lookup_online(LVT<IO>* lut, Plaintext& x_share, Ciphertext& x_cipher, vector<Ciphertext>& x_ciphers) {
-    Plaintext out;
-    lut->lookup_online(out, x_share, x_cipher, x_ciphers);
-}
+int num = 18; 
+int m_bits = 24; // bits of message
 
 Fr alpha_init(int num) {
     Plaintext alpha;
@@ -72,7 +60,7 @@ int main(int argc, char** argv) {
     lvt->DistKeyGen();
 
     auto start = clock_start();
-    test_generate_shares(lvt);
+    lvt->generate_shares_fake(lvt->lut_share, lvt->rotation, lvt->table);
     std::cout << "test_generate_shares time: "
               << std::fixed << std::setprecision(3)
               << time_from(start) / 1e3 << " milionseconds" << std::endl;
@@ -83,7 +71,12 @@ int main(int argc, char** argv) {
     x_cipher = lvt->global_pk.encrypt(x_share);
     vector<Ciphertext> x_ciphers(num_party);
     auto start2 = clock_start();
-    test_lookup_online(lvt, x_share, x_cipher, x_ciphers);
+    
+    Plaintext out;
+    vector<Ciphertext> out_ciphers;
+    out_ciphers.resize(num_party);
+    std::make_tuple(out, out_ciphers) = lvt->lookup_online(x_share, x_cipher, x_ciphers);
+
     std::cout << "test_lookup_online time: "
               << std::fixed << std::setprecision(3)
               << time_from(start2) / 1e3 << " milionseconds" << std::endl;

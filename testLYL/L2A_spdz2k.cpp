@@ -16,9 +16,9 @@ using namespace std;
 int party, port;
 const static int threads = 8;
 int num_party;
-const uint64_t FIELD_SIZE = (1ULL << 32) ;
+const uint64_t FIELD_SIZE = 1ULL << 24;
+const int num = 24; 
 int m_bits = 32; // bits of message
-const int num = 32; 
 
 int main(int argc, char** argv) {
 
@@ -67,8 +67,7 @@ int main(int argc, char** argv) {
     }
     
     // input 声明
-    uint64_t fd = 1000;
-    uint64_t x_spdz2k = spdz2k.rng() % fd;
+    uint64_t x_spdz2k = spdz2k.rng() % FIELD_SIZE;
     Plaintext x;
     x.assign(to_string(x_spdz2k));
     Ciphertext cx;

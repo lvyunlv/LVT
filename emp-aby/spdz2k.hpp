@@ -12,7 +12,7 @@
 #include <map>
 
 // SPDZ2k整数域，k=64
-const uint64_t spdz2k_field_size = (1ULL << 63) - 1 ; // 2^63-1，示例用素数
+const uint64_t spdz2k_field_size = (1ULL << 32) - 1 ; // 2^63-1，示例用素数
 
 namespace emp {
 
@@ -152,6 +152,13 @@ public:
         precompute_triples(20);
     }
     ~SPDZ2k() {}
+
+    LabeledShare distributed_share_(uint64_t xi) {
+        uint64_t fs = spdz2k_field_size;
+        uint64_t local_share = xi % fs;
+        uint64_t mac = mulmod(local_share, mac_key, fs);
+        return LabeledShare(local_share, mac, party, &spdz2k_field_size);
+    }
 
     LabeledShare distributed_share(uint64_t xi) {
         uint64_t fs = spdz2k_field_size;

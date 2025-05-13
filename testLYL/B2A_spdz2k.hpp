@@ -98,7 +98,8 @@ inline SPDZ2k<MultiIOBase>::LabeledShare B2A(
         spdz2k_open = (spdz2k_open % FIELD_SIZE + FIELD_SIZE) % FIELD_SIZE;
 
         uint8_t tiny_u = tiny.reconstruct(tiny.add(x_bits[i], r_bits[i]));
-        if ((2 + tiny_u % 2) != (2 + spdz2k_open % 2)) {
+        if (2 + tiny_u % 2 != 2 + spdz2k_open % 2) {
+            cout << "tiny_u: " << to_string(tiny_u) << " spdz2k_open: " << spdz2k_open << endl;
             throw std::runtime_error("B2A check failed: decrypted value != share sum");
         }
     }
@@ -198,6 +199,7 @@ inline SPDZ2k<MultiIOBase>::LabeledShare B2A_for_A2B(
 
         uint8_t tiny_u = tiny.reconstruct(tiny.add(x_bits[i], r_bits[i]));
         if ((2 + tiny_u % 2) != (2 + spdz2k_open % 2)) {
+            cout << "tiny_u: " << tiny_u << " spdz2k_open: " << spdz2k_open << endl;
             throw std::runtime_error("B2A check failed: decrypted value != share sum");
         }
     }
