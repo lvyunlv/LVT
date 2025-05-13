@@ -6,7 +6,7 @@ using namespace emp;
 int party, port;
 const static int threads = 8;
 int num_party;
-int num = 18; 
+int num = 16; 
 int m_bits = 24; // bits of message
 
 Fr alpha_init(int num) {

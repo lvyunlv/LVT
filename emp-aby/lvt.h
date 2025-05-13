@@ -866,6 +866,7 @@ void LVT<IO>::generate_shares_fake(vector<Plaintext>& lut_share, Plaintext& rota
     for (int i = 0; i < num_party; ++i) {
         cip_lut[i].resize(tb_size);
     }
+
     // Step 1: rotation 固定为 0
     rotation.set_message(0);
 
@@ -873,27 +874,36 @@ void LVT<IO>::generate_shares_fake(vector<Plaintext>& lut_share, Plaintext& rota
     auto time_start = std::chrono::high_resolution_clock::now();
     vector<future<void>> res;
     BLS12381Element tmp = global_pk.get_pk() * elgl->kp.get_sk().get_sk();
-    for (size_t i = 0; i < tb_size; ++i) {
-        res.push_back(pool->enqueue([this, &lut_share, &table, i, tmp]() {
-            if (party == 1) {
-                lut_share[i].set_message(table[i]);
-                cip_lut[party - 1][i] = g * lut_share[i].get_message() + tmp;
-            } else {
-                lut_share[i].set_message(0);
-                cip_lut[party - 1][i] =  tmp;
+
+    size_t block_size = (tb_size + thread_num - 1) / thread_num;
+    for (int t = 0; t < thread_num; ++t) {
+        size_t start = t * block_size;
+        size_t end = std::min(tb_size, start + block_size);
+        res.push_back(pool->enqueue([this, &lut_share, &table, tmp, start, end]() {
+            for (size_t i = start; i < end; ++i) {
+                if (party == 1) {
+                    lut_share[i].set_message(table[i]);
+                    cip_lut[party - 1][i] = g * lut_share[i].get_message() + tmp;
+                } else {
+                    lut_share[i].set_message(0);
+                    cip_lut[party - 1][i] = tmp;
+                }
             }
         }));
     }
+
     for (auto& f : res) {
         f.get();
     }
     res.clear();
+
     auto time_end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = time_end - time_start;
     std::cout << "generate LUT share time: " << elapsed.count() << " seconds" << std::endl;
 
     // 注意：打包发送比单个传输更快
     auto time_start_ = std::chrono::high_resolution_clock::now();
+
     // Step 3: 广播自己的 cip_lut[party-1]
     std::stringstream cip_lut_stream;
     for (size_t i = 0; i < tb_size; ++i) {
@@ -908,11 +918,17 @@ void LVT<IO>::generate_shares_fake(vector<Plaintext>& lut_share, Plaintext& rota
     // Step 4: 接收其他 party 的 cip_lut
     for (int i = 1; i <= num_party; ++i) {
         if (i != party) {
-            // for (size_t j = 0; j < tb_size; ++j) {
-            //     res.push_back(pool->enqueue([this, i, j]() {
-            //         elgl->deserialize_recv(cip_lut[i - 1][j], i);
+            // 多线程解包 cip_lut[i - 1][*]
+            // for (int t = 0; t < thread_num; ++t) {
+            //     size_t start = t * block_size;
+            //     size_t end = std::min(tb_size, start + block_size);
+            //     res.push_back(pool->enqueue([this, i, start, end]() {
+            //         for (size_t j = start; j < end; ++j) {
+            //             elgl->deserialize_recv(cip_lut[i - 1][j], i);
+            //         }
             //     }));
             // }
+
             res.push_back(pool->enqueue([this, i]() {
                 std::stringstream cip_stream;
                 elgl->deserialize_recv_(cip_stream, i);
@@ -926,10 +942,12 @@ void LVT<IO>::generate_shares_fake(vector<Plaintext>& lut_share, Plaintext& rota
             }));
         }
     }
+
     for (auto& f : res) {
         f.get();
     }
     res.clear();
+
     auto time_end_ = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed_ = time_end_ - time_start_;
     std::cout << "receive LUT share time: " << elapsed_.count() << " seconds" << std::endl;
@@ -940,6 +958,7 @@ void LVT<IO>::generate_shares_fake(vector<Plaintext>& lut_share, Plaintext& rota
     //     cout << "lut_share[" << i << "] = " << lut_share[i].get_message().getStr() << endl;
     // }
 }
+
 
 template <typename IO>
 void LVT<IO>::DistKeyGen(){
