@@ -16,7 +16,7 @@ class BLS12381Element{
     static std::string type_string() { return "BLS12381"; }
     void print_str() const;
 
-    G1 getPoint() { return point; }
+    G1 getPoint() const { return point; }
 
     static void init();
 

@@ -8,9 +8,9 @@
 class ELGL_PK;
 class Ciphertext;
 class ELGL_SK{
+    public:
     Fr sk;
 
-    public:
     // don't know why it returns 0
     static int size(){return 0;};
 
@@ -92,9 +92,9 @@ class ELGL_PK{
 };
 
 class ELGL_KeyPair{
+    public:
     ELGL_PK pk;
     ELGL_SK sk;
-    public:
     ELGL_KeyPair(){};
     void generate(){
         KeyGen(pk, sk);

@@ -71,71 +71,164 @@ class LVT{
     vector<int64_t> table;
     LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, ELGL<IO>* elgl, Fr& alpha, int table_size, int m_bits);
     LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, ELGL<IO>* elgl, std::string tableFile, Fr& alpha, int table_size, int m_bits);
+    static void initialize(std::string name, std::string table_path, LVT<IO>*& lvt_ptr_ref, std::string instance_file, int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, ELGL<IO>* elgl, Fr& alpha_fr, int table_size, int m_bits);
     void DistKeyGen();
     ~LVT();
     void generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation, vector<int64_t> table);
     void generate_shares_fake(vector<Plaintext>& lut_share, Plaintext& rotation, vector<int64_t> table);
     tuple<Plaintext, vector<Ciphertext>> lookup_online(Plaintext& x_share, Ciphertext& x_cipher, vector<Ciphertext>& x_ciphers);
     void lookup_online_easy(Plaintext& out, Plaintext& x_share, Ciphertext& x_cipher, vector<Ciphertext>& x_ciphers);
-    void save_to_file(const std::string& filename);
-    void load_from_file(const std::string& filename);
+    void save_full_state(const std::string& filename);
+    void load_full_state(const std::string& filename);
+
     LVT(): num_party(0), party(0), io(nullptr), pool(nullptr), elgl(nullptr), alpha(Fr()), tb_size(0), m_size(0) {};
 };
 
-// 保存到二进制文件
 template <typename IO>
-void LVT<IO>::save_to_file(const std::string& filename) {
+void LVT<IO>::save_full_state(const std::string& filename) {
     std::ofstream out(filename, std::ios::binary);
     if (!out) throw std::runtime_error("Failed to open file for writing");
-
-    size_t share_size = lut_share.size();
-    out.write(reinterpret_cast<const char*>(&share_size), sizeof(size_t));
-    for (const auto& pt : lut_share) {
-        std::string msg = pt.get_message().getStr();
-        size_t len = msg.size();
-        out.write(reinterpret_cast<const char*>(&len), sizeof(size_t));
-        out.write(msg.c_str(), len);
+    
+    // Save basic parameters
+    out.write(reinterpret_cast<const char*>(&num_party), sizeof(int));
+    out.write(reinterpret_cast<const char*>(&party), sizeof(int));
+    out.write(reinterpret_cast<const char*>(&tb_size), sizeof(size_t));
+    out.write(reinterpret_cast<const char*>(&m_size), sizeof(size_t));
+    
+    // Save rotation directly as a binary Fr
+    const Fr& rot_fr = rotation.get_message();
+    out.write(reinterpret_cast<const char*>(&rot_fr), sizeof(Fr));
+    
+    // Save lut_share directly - all the Fr values in one batch
+    for (size_t i = 0; i < tb_size; i++) {
+        const Fr& fr = lut_share[i].get_message();
+        out.write(reinterpret_cast<const char*>(&fr), sizeof(Fr));
     }
-
-    std::string rot_str = rotation.get_message().getStr();
-    size_t rot_len = rot_str.size();
-    out.write(reinterpret_cast<const char*>(&rot_len), sizeof(size_t));
-    out.write(rot_str.c_str(), rot_len);
-
+    
+    // Save secret key
+    const Fr& sk_fr = elgl->kp.get_sk().get_sk();
+    out.write(reinterpret_cast<const char*>(&sk_fr), sizeof(Fr));
+    
+    // Save table
     size_t table_size = table.size();
     out.write(reinterpret_cast<const char*>(&table_size), sizeof(size_t));
     out.write(reinterpret_cast<const char*>(table.data()), table_size * sizeof(int64_t));
+    
+    // Save cip_lut efficiently - direct binary format
+    for (int i = 0; i < num_party; ++i) {
+        for (size_t j = 0; j < tb_size; ++j) {
+            // Save each BLS12381Element in binary format
+            const G1& point = cip_lut[i][j].getPoint();
+            out.write(reinterpret_cast<const char*>(&point), sizeof(G1));
+        }
+    }
+    
+    // Save cr_i
+    for (int i = 0; i < num_party; ++i) {
+        // Save each Ciphertext in binary format
+        const G1& c0 = cr_i[i].get_c0().getPoint();
+        const G1& c1 = cr_i[i].get_c1().getPoint();
+        out.write(reinterpret_cast<const char*>(&c0), sizeof(G1));
+        out.write(reinterpret_cast<const char*>(&c1), sizeof(G1));
+    }
+    
+    // Save global_pk
+    const G1& global_point = global_pk.get_pk().getPoint();
+    out.write(reinterpret_cast<const char*>(&global_point), sizeof(G1));
+    
+    // Save user_pk
+    for (int i = 0; i < num_party; ++i) {
+        const G1& user_point = user_pk[i].get_pk().getPoint();
+        out.write(reinterpret_cast<const char*>(&user_point), sizeof(G1));
+    }
+    
+    out.close();
 }
 
-// 从二进制文件加载
 template <typename IO>
-void LVT<IO>::load_from_file(const std::string& filename) {
+void LVT<IO>::load_full_state(const std::string& filename) {
     std::ifstream in(filename, std::ios::binary);
     if (!in) throw std::runtime_error("Failed to open file for reading");
-
-    size_t share_size;
-    in.read(reinterpret_cast<char*>(&share_size), sizeof(size_t));
-    lut_share.resize(share_size);
-
-    for (auto& pt : lut_share) {
-        size_t len;
-        in.read(reinterpret_cast<char*>(&len), sizeof(size_t));
-        std::string msg(len, '\0');
-        in.read(&msg[0], len);
-        pt.set_message(Fr(msg));
+    
+    // Load basic parameters
+    in.read(reinterpret_cast<char*>(&num_party), sizeof(int));
+    in.read(reinterpret_cast<char*>(&party), sizeof(int));
+    in.read(reinterpret_cast<char*>(&tb_size), sizeof(size_t));
+    in.read(reinterpret_cast<char*>(&m_size), sizeof(size_t));
+    
+    // Load rotation directly
+    Fr rot_fr;
+    in.read(reinterpret_cast<char*>(&rot_fr), sizeof(Fr));
+    rotation.set_message(rot_fr);
+    
+    // Load lut_share directly
+    lut_share.resize(tb_size);
+    for (size_t i = 0; i < tb_size; i++) {
+        Fr fr;
+        in.read(reinterpret_cast<char*>(&fr), sizeof(Fr));
+        lut_share[i].set_message(fr);
     }
-
-    size_t rot_len;
-    in.read(reinterpret_cast<char*>(&rot_len), sizeof(size_t));
-    std::string rot_str(rot_len, '\0');
-    in.read(&rot_str[0], rot_len);
-    rotation.set_message(Fr(rot_str));
-
+    
+    // Load secret key
+    Fr sk_fr;
+    in.read(reinterpret_cast<char*>(&sk_fr), sizeof(Fr));
+    ELGL_SK key;
+    key.sk = sk_fr;
+    elgl->kp.sk = key;
+    
+    // Load table
     size_t table_size;
     in.read(reinterpret_cast<char*>(&table_size), sizeof(size_t));
     table.resize(table_size);
     in.read(reinterpret_cast<char*>(table.data()), table_size * sizeof(int64_t));
+    
+    // Load cip_lut efficiently
+    cip_lut.resize(num_party);
+    for (int i = 0; i < num_party; ++i) {
+        cip_lut[i].resize(tb_size);
+        for (size_t j = 0; j < tb_size; ++j) {
+            G1 point;
+            in.read(reinterpret_cast<char*>(&point), sizeof(G1));
+            BLS12381Element elem;
+            elem.point = point;
+            cip_lut[i][j] = elem;
+        }
+    }
+    
+    // Load cr_i
+    cr_i.resize(num_party);
+    for (int i = 0; i < num_party; ++i) {
+        G1 c0, c1;
+        in.read(reinterpret_cast<char*>(&c0), sizeof(G1));
+        in.read(reinterpret_cast<char*>(&c1), sizeof(G1));
+        
+        BLS12381Element e0, e1;
+        e0.point = c0;
+        e1.point = c1;
+        cr_i[i] = Ciphertext(e0, e1);
+    }
+    
+    // Load global_pk
+    G1 global_point;
+    in.read(reinterpret_cast<char*>(&global_point), sizeof(G1));
+    BLS12381Element global_elem;
+    global_elem.point = global_point;
+    global_pk.assign_pk(global_elem);
+    
+    // Load user_pk
+    user_pk.resize(num_party);
+    for (int i = 0; i < num_party; ++i) {
+        G1 user_point;
+        in.read(reinterpret_cast<char*>(&user_point), sizeof(G1));
+        BLS12381Element user_elem;
+        user_elem.point = user_point;
+        user_pk[i].assign_pk(user_elem);
+    }
+    
+    in.close();
 }
+
+
 
 template <typename IO>
 LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, ELGL<IO>* elgl, Fr& alpha, int table_size, int m_bits){
@@ -155,6 +248,31 @@ LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, EL
     this->G_tbs = BLS12381Element(tb_size);
     BLS12381Element::init();
     BLS12381Element g = BLS12381Element::generator();
+}
+
+// 在类外定义initialize函数
+template <typename IO>
+void LVT<IO>::initialize(std::string name, std::string table_path, LVT<IO>*& lvt_ptr_ref, std::string instance_file, int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, ELGL<IO>* elgl, Fr& alpha_fr, int table_size, int m_bits) {
+
+    std::string tablefile = "../../build/bin/table_" + name + ".txt";
+    std::string full_state_path = "../../build/cache/lvt_" + name + "_offline_" + std::to_string(table_size) + "-P" + std::to_string(party) + ".bin";
+    lvt_ptr_ref = new LVT<IO>(num_party, party, io, pool, elgl, tablefile, alpha_fr, table_size, m_bits);
+    cout << "LVT initialized" << endl;
+
+    // 测试时间
+    if (std::filesystem::exists(full_state_path)) {
+        auto start = clock_start();
+        lvt_ptr_ref->load_full_state(full_state_path);
+        std::cout << "Loading offline time: " << std::fixed << std::setprecision(6) << time_from(start) / 1e6 << " seconds" << std::endl;
+    } else {
+        auto start = clock_start();
+        lvt_ptr_ref->DistKeyGen();
+        cout << "DistKeyGen finished" << endl;
+        lvt_ptr_ref->generate_shares_fake(lvt_ptr_ref->lut_share, lvt_ptr_ref->rotation, lvt_ptr_ref->table);
+        cout << "Generate shares finished" << endl;
+        lvt_ptr_ref->save_full_state(full_state_path);
+        std::cout << "Generate offline time: " << std::fixed << std::setprecision(6) << time_from(start) / 1e6 << " seconds" << std::endl;
+    }
 }
 
 
@@ -182,7 +300,7 @@ LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, EL
     deserializeTable(table, tableFile.c_str(), tb_size);
     if (m_bits <= 16) {
         build_safe_P_to_m(P_to_m, num_party, m_size);
-        return;
+        // return;
     }
     // cout << "m_bits > 16, using BSGS" << endl;
     uint64_t N = 1ULL << 32; // 38-bit空间
@@ -305,7 +423,6 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
     //     cout << "u: " << u.getStr() << endl;
     // }
 
-
     vector<BLS12381Element> ak;
     vector<BLS12381Element> bk;
     vector<BLS12381Element> dk;
@@ -336,8 +453,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = end - start;
     // std::cout << "FFT time: " << elapsed.count() << " seconds" << std::endl;
-
-
+    
     if (party == ALICE)
     {
         Plaintext beta;
@@ -673,7 +789,8 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
                         y = it->second;
                     }
                 } else 
-                {
+                {   
+                    cout << "solve_parallel_with_pool: " << i << endl;
                     y = this->bsgs.solve_parallel_with_pool(Y, pool, thread_num);
                 }
                 mcl::Vint r_;
@@ -696,6 +813,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
             // }));
             
         }
+
 
         // for (auto & f : res) {
         //     f.get();
@@ -826,6 +944,8 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
             }
         }
 
+    cout << "8" << endl;
+
         // accept broadcast from alice
         start = std::chrono::high_resolution_clock::now();
         std::stringstream commit_ro, response_ro;
@@ -871,7 +991,6 @@ void LVT<IO>::generate_shares_fake(vector<Plaintext>& lut_share, Plaintext& rota
     rotation.set_message(0);
 
     // Step 2: 计算本地 LUT share 和加密 LUT
-    auto time_start = std::chrono::high_resolution_clock::now();
     vector<future<void>> res;
     BLS12381Element tmp = global_pk.get_pk() * elgl->kp.get_sk().get_sk();
 
@@ -897,13 +1016,7 @@ void LVT<IO>::generate_shares_fake(vector<Plaintext>& lut_share, Plaintext& rota
     }
     res.clear();
 
-    auto time_end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsed = time_end - time_start;
-    std::cout << "generate LUT share time: " << elapsed.count() << " seconds" << std::endl;
-
     // 注意：打包发送比单个传输更快
-    auto time_start_ = std::chrono::high_resolution_clock::now();
-
     // Step 3: 广播自己的 cip_lut[party-1]
     std::stringstream cip_lut_stream;
     for (size_t i = 0; i < tb_size; ++i) {
@@ -947,11 +1060,6 @@ void LVT<IO>::generate_shares_fake(vector<Plaintext>& lut_share, Plaintext& rota
         f.get();
     }
     res.clear();
-
-    auto time_end_ = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsed_ = time_end_ - time_start_;
-    std::cout << "receive LUT share time: " << elapsed_.count() << " seconds" << std::endl;
-
     // cout << "party: " << party << "生成LUT share结束" << endl;
     // cout << "rotation: " << rotation.get_message().getStr() << endl;
     // for (size_t i = 0; i < tb_size; i++) {
@@ -1119,6 +1227,14 @@ template <typename IO>
 tuple<Plaintext, vector<Ciphertext>> LVT<IO>::lookup_online(Plaintext& x_share, Ciphertext& x_cipher, vector<Ciphertext>& x_ciphers){
     // cout << "party: " << party << " x_share = " << x_share.get_message().getStr() << endl;
     // cout << "party: " << party << " rotation = " << rotation.get_message().getStr() << endl;
+    // cout << "party: " << party << "生成LUT的share" << endl;
+    // for (size_t i = 0; i < tb_size; i++) {
+    //     cout << "lut_share[" << i << "] = " << lut_share[i].get_message().getStr() << endl;
+    // }
+
+    auto start = clock_start();
+    int bytes_start = io->get_total_bytes_sent();
+
     Plaintext out;
     vector<Ciphertext> out_ciphers;
     vector<std::future<void>> res;
@@ -1184,13 +1300,20 @@ tuple<Plaintext, vector<Ciphertext>> LVT<IO>::lookup_online(Plaintext& x_share, 
     mcl::Vint index_mpz;
     index_mpz.setStr(u_mpz.getStr());
     size_t index = static_cast<size_t>(index_mpz.getLow32bit());
-    out = lut_share[index];
+
+    out = this->lut_share[index];
+    // cout << "party: " << party << " out = " << out.get_message().getStr() << endl;
     out_ciphers.resize(num_party);
     for (size_t i = 0; i < num_party; i++){
         Ciphertext tmp(user_pk[i].get_pk(),cip_lut[i][index]);
         out_ciphers[i] = tmp;
     }
-    // cout << "party: " << party << " out = " << out.get_message().getStr() << endl;
+    // cout << "party: " << party << " index = " << index << endl;
+
+    int bytes_end = io->get_total_bytes_sent();
+    double comm_kb = double(bytes_end - bytes_start) / 1024.0;
+    std::cout << "Online time: " << std::fixed << std::setprecision(6) << time_from(start) / 1e6 << " seconds, " << std::fixed << std::setprecision(3) << "Online communication: " << comm_kb << " KB" << std::endl;
+
     return std::make_tuple(out, out_ciphers);
 }
 
@@ -1258,66 +1381,6 @@ void LVT<IO>::lookup_online_easy(Plaintext& out, Plaintext& x_share, Ciphertext&
 
 template <typename IO>
 LVT<IO>::~LVT(){
-}
-
-// 序列化操作符
-template <typename IO>
-std::ostream& operator<<(std::ostream& os, const LVT<IO>& lvt) {
-    // 保存 lut_share
-    size_t share_size = lvt.lut_share.size();
-    os.write(reinterpret_cast<const char*>(&share_size), sizeof(size_t));
-    for (const auto& pt : lvt.lut_share) {
-        std::string msg = pt.get_message().getStr();
-        size_t len = msg.size();
-        os.write(reinterpret_cast<const char*>(&len), sizeof(size_t));
-        os.write(msg.c_str(), len);
-    }
-
-    // 保存 rotation
-    std::string rot_str = lvt.rotation.get_message().getStr();
-    size_t rot_len = rot_str.size();
-    os.write(reinterpret_cast<const char*>(&rot_len), sizeof(size_t));
-    os.write(rot_str.c_str(), rot_len);
-
-    // 保存 table
-    size_t table_size = lvt.table.size();
-    os.write(reinterpret_cast<const char*>(&table_size), sizeof(size_t));
-    os.write(reinterpret_cast<const char*>(lvt.table.data()), table_size * sizeof(int64_t));
-
-    return os;
-}
-
-// 反序列化操作符
-template <typename IO>
-std::istream& operator>>(std::istream& is, LVT<IO>& lvt) {
-    // 加载 lut_share
-    size_t share_size;
-    is.read(reinterpret_cast<char*>(&share_size), sizeof(size_t));
-    lvt.lut_share.resize(share_size);
-    for (auto& pt : lvt.lut_share) {
-        size_t len;
-        is.read(reinterpret_cast<char*>(&len), sizeof(size_t));
-        std::string msg(len, '\0');
-        is.read(&msg[0], len);
-        pt.set_message(Fr(msg));
-    }
-
-    // 加载 rotation
-    size_t rot_len;
-    is.read(reinterpret_cast<char*>(&rot_len), sizeof(size_t));
-    std::string rot_str(rot_len, '\0');
-    is.read(&rot_str[0], rot_len);
-    lvt.rotation.set_message(Fr(rot_str));
-
-    // 加载 table
-    size_t table_size;
-    is.read(reinterpret_cast<char*>(&table_size), sizeof(size_t));
-    lvt.table.resize(table_size);
-    is.read(reinterpret_cast<char*>(lvt.table.data()), table_size * sizeof(int64_t));
-
-    // 如果有其他需要初始化的成员变量，请在这里添加初始化代码
-
-    return is;
 }
 
 }
