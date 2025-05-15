@@ -3,8 +3,7 @@
 #include "emp-aby/lvt.h"
 #include "emp-aby/elgl_interface.hpp"
 #include "emp-aby/tiny.hpp"
-#include "emp-aby/mascot.hpp"
-#include "B2A_mascot.hpp"
+#include "L2B.hpp"
 #include <iostream>
 #include <vector>
 #include <thread>
@@ -16,14 +15,12 @@
 using namespace emp;
 using namespace std;
 
-// 参数
 int party, port;
 const static int threads = 8;
 int num_party;
-const int l = 32; // 比特长度，可根据q调整
-const int num_bits = 32;
-// const mcl::Vint FIELD_SIZE = (1 << num_bits);
-const mcl::Vint FIELD_SIZE("4294967296");
+const int num = 1;
+const int num_bits = 24;
+const uint64_t FIELD_SIZE = (1ULL << num_bits);
 int m_bits = 1; // bits of message
 
 Fr alpha_init(int num) {
@@ -34,7 +31,6 @@ Fr alpha_init(int num) {
     mcl::Vint alpha_vint;
     mcl::gmp::powMod(alpha_vint, g, (p - 1) / n, p);
     alpha.assign(alpha_vint.getStr());
-    // std::cout << "alpha: " << alpha.get_message().getStr() << std::endl;
     Fr alpha_fr = alpha.get_message();
     vector<int64_t> lut_table = {0, 1};
     serializeTable(lut_table, "table_2.txt", lut_table.size());
@@ -59,37 +55,30 @@ int main(int argc, char** argv) {
     MultiIO* io = new MultiIO(party, num_party, net_config);
     ELGL<MultiIOBase>* elgl = new ELGL<MultiIOBase>(num_party, io, &pool, party);
 
-    // LUT查表表大小为2，0->0, 1->1
-    int num = 1;
     Fr alpha_fr = alpha_init(num);
     LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../build/bin/table_2.txt", alpha_fr, num, m_bits);
 
     lvt->DistKeyGen();
     TinyMAC<MultiIOBase> tiny(elgl);
-    MASCOT<MultiIOBase> mascot(elgl);
-    lvt->generate_shares_fake(lvt->lut_share, lvt->rotation, lvt->table);
+    lvt->generate_shares(lvt->lut_share, lvt->rotation, lvt->table);
 
-    // B2A_mascot input generation
-    vector<TinyMAC<MultiIOBase>::LabeledShare> x_bits(l);
-    for (int i = 0; i < l; ++i) 
-    {
-        uint8_t bit_dis = tiny.rng() % 2;
-        x_bits[i] = tiny.distributed_share(bit_dis);
+    // 输入：算术份额
+    Plaintext x_arith;
+    x_arith.set_random(FIELD_SIZE);
+    // cout << "arith share: " << x_arith.get_message().getUint64() << endl;
+    vector<Ciphertext> x_cips(num_party);
+    x_cips[party - 1] = elgl->kp.get_pk().encrypt(x_arith);
+    elgl->serialize_sendall(x_cips[party - 1]);
+    for (int i = 0; i < num_party; ++i) {
+        if (i != party - 1) {
+            elgl->deserialize_recv(x_cips[i], i + 1);
+        }
     }
     
-    // B2A_mascot output
-    double total_time = 0;
-    double total_comm = 0;
-    double online_time = 0;
-    double online_comm = 0;
-    int times = 1;
-    for (int i = 0; i < times; ++i) {
-        auto shared_x = B2A_mascot::B2A(elgl, lvt, tiny, mascot, party, num_party, io, &pool, FIELD_SIZE, x_bits, online_time, online_comm);
-        total_time += online_time;
-        total_comm += online_comm;
-    }
-    std::cout << "Average time: " << (total_time/times) << "ms && Average communication: " << (total_comm/times) << "KB" << std::endl;
-
+    // 调用L2B
+    // vector<TinyMAC<MultiIOBase>::LabeledShare> L2B(ELGL<MultiIOBase>* elgl, LVT<MultiIOBase>* lvt, TinyMAC<MultiIOBase>& tiny, int party, int num_party, MultiIO* io, ThreadPool* pool, const uint64_t& FIELD_SIZE, int l, Plaintext& x_arith, vector<Ciphertext>& x_cips);
+    auto x_bool = A2B_spdz2k::L2B(elgl, lvt, tiny, party, num_party, io, &pool, FIELD_SIZE, num_bits, x_arith, x_cips);
+    
     delete elgl;
     delete io;
     delete lvt;

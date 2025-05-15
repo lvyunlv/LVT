@@ -3,8 +3,7 @@
 #include "emp-aby/lvt.h"
 #include "emp-aby/elgl_interface.hpp"
 #include "emp-aby/tiny.hpp"
-#include "emp-aby/mascot.hpp"
-#include "B2A_mascot.hpp"
+#include "B2L.hpp"
 #include <iostream>
 #include <vector>
 #include <thread>
@@ -20,10 +19,8 @@ using namespace std;
 int party, port;
 const static int threads = 8;
 int num_party;
-const int l = 32; // 比特长度，可根据q调整
-const int num_bits = 32;
-// const mcl::Vint FIELD_SIZE = (1 << num_bits);
-const mcl::Vint FIELD_SIZE("4294967296");
+const int l = 24; // 比特长度，可根据q调整
+const int num_bits = 24;
 int m_bits = 1; // bits of message
 
 Fr alpha_init(int num) {
@@ -55,40 +52,41 @@ int main(int argc, char** argv) {
         net_config.emplace_back("127.0.0.1", static_cast<unsigned short>(port + i - 1));
     }
 
+    // 测试时间和通信
+
     ThreadPool pool(threads);
     MultiIO* io = new MultiIO(party, num_party, net_config);
     ELGL<MultiIOBase>* elgl = new ELGL<MultiIOBase>(num_party, io, &pool, party);
+
+    int skip_bytes_start = io->get_total_bytes_sent();
+    auto skip_t1 = std::chrono::high_resolution_clock::now();
 
     // LUT查表表大小为2，0->0, 1->1
     int num = 1;
     Fr alpha_fr = alpha_init(num);
     LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../build/bin/table_2.txt", alpha_fr, num, m_bits);
-
     lvt->DistKeyGen();
-    TinyMAC<MultiIOBase> tiny(elgl);
-    MASCOT<MultiIOBase> mascot(elgl);
-    lvt->generate_shares_fake(lvt->lut_share, lvt->rotation, lvt->table);
+    lvt->generate_shares(lvt->lut_share, lvt->rotation, lvt->table);
 
-    // B2A_mascot input generation
+    TinyMAC<MultiIOBase> tiny(elgl);
+    // input generation
     vector<TinyMAC<MultiIOBase>::LabeledShare> x_bits(l);
-    for (int i = 0; i < l; ++i) 
-    {
-        uint8_t bit_dis = tiny.rng() % 2;
-        x_bits[i] = tiny.distributed_share(bit_dis);
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<int> bit_dis(0, 1);
+    for (int i = 0; i < l; ++i) {
+        x_bits[i] = tiny.distributed_share(bit_dis(gen));
     }
-    
-    // B2A_mascot output
-    double total_time = 0;
-    double total_comm = 0;
-    double online_time = 0;
-    double online_comm = 0;
-    int times = 1;
-    for (int i = 0; i < times; ++i) {
-        auto shared_x = B2A_mascot::B2A(elgl, lvt, tiny, mascot, party, num_party, io, &pool, FIELD_SIZE, x_bits, online_time, online_comm);
-        total_time += online_time;
-        total_comm += online_comm;
-    }
-    std::cout << "Average time: " << (total_time/times) << "ms && Average communication: " << (total_comm/times) << "KB" << std::endl;
+
+    // 调用B2L函数
+    // tuple<Plaintext, vector<Ciphertext>> B2L(ELGL<MultiIOBase>* elgl, LVT<MultiIOBase>* lvt, TinyMAC<MultiIOBase>& tiny, int party, int num_party, MultiIO* io, ThreadPool* pool, const vector<TinyMAC<MultiIOBase>::LabeledShare>& x_bits)
+    auto [shared_x, cips] = B2A_spdz2k::B2L(elgl, lvt, tiny, party, num_party, io, &pool, x_bits);
+
+    int skip_bytes_end = io->get_total_bytes_sent();
+    auto skip_t2 = std::chrono::high_resolution_clock::now();
+    double skip_comm_kb = double(skip_bytes_end - skip_bytes_start) / 1024.0;
+    double skip_time_ms = std::chrono::duration<double, std::milli>(skip_t2 - skip_t1).count();
+    // cout << "time: " << skip_time_ms << " ms, comm: " << skip_comm_kb << " KB" << std::endl;
 
     delete elgl;
     delete io;

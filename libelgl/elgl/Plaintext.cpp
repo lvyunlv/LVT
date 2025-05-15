@@ -88,10 +88,53 @@ bool Plaintext::equals(const Plaintext &other) const{
 
 void Plaintext::pack(std::stringstream& os) const{
     this->message.save(os);
-
 }
 void Plaintext::unpack(std::stringstream& os){
     message.load(os);
+}
+
+uint64_t Plaintext::to_uint64() const {
+    // 将 Fr 的值转换为字符串，然后解析为 uint64_t
+    std::string str = message.getStr(10); // 获取十进制字符串
+    return static_cast<uint64_t>(std::stoull(str));
+}
+
+// 异或操作实现
+void Plaintext::xor_op(Plaintext &z, const Plaintext &x, const Plaintext &y) const {
+    uint64_t x_val = x.to_uint64();
+    uint64_t y_val = y.to_uint64();
+    uint64_t result = x_val ^ y_val; // 逐位异或
+    z.assign(std::to_string(result)); // 将结果转换为字符串并赋值给 z
+}
+
+Plaintext Plaintext::operator^(const Plaintext &other) const {
+    Plaintext result;
+    xor_op(result, *this, other);
+    return result;
+}
+
+Plaintext Plaintext::operator^=(const Plaintext &other) {
+    xor_op(*this, *this, other);
+    return *this;
+}
+
+void Plaintext::mod(Plaintext &z, const Plaintext &x, const Plaintext &modulus) const {
+    mcl::Vint x_vint, mod_vint, result;
+    x_vint.setStr(x.get_message().getStr(10)); 
+    mod_vint.setStr(modulus.get_message().getStr(10));
+    result = x_vint % mod_vint;
+    z.assign(result.getStr(10)); 
+}
+
+Plaintext Plaintext::operator%(const Plaintext &modulus) const {
+    Plaintext result;
+    mod(result, *this, modulus);
+    return result;
+}
+
+Plaintext Plaintext::operator%=(const Plaintext &modulus) {
+    mod(*this, *this, modulus);
+    return *this;
 }
 
 bool Plaintext::DeserializFromFile(std::string filepath, Plaintext& p){

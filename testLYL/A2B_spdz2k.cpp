@@ -19,8 +19,8 @@ using namespace std;
 int party, port;
 const static int threads = 8;
 int num_party;
-const int l = 8;
-const int num_bits = 32;
+const int l = 24;
+const int num_bits = 24;
 const uint64_t FIELD_SIZE = (1ULL << num_bits);
 int m_bits = 1; // bits of message
 
@@ -34,7 +34,7 @@ Fr alpha_init(int num) {
     alpha.assign(alpha_vint.getStr());
     Fr alpha_fr = alpha.get_message();
     vector<int64_t> lut_table = {0, 1};
-    serializeTable(lut_table, "table.txt", lut_table.size());
+    serializeTable(lut_table, "table_2.txt", lut_table.size());
     return alpha_fr;
 }
 

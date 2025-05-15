@@ -1,6 +1,8 @@
 #ifndef _Plaintext
 #define _Plaintext
 #include <mcl/bls12_381.hpp>
+// #include <gmpxx.h>
+
 using namespace mcl::bn;
 class Plaintext{
     Fr message;
@@ -89,6 +91,16 @@ class Plaintext{
 
     static bool DeserializFromFile(std::string filepath, Plaintext& p);
     static bool SerializeToFile(std::string filepath, Plaintext& p);
+
+    uint64_t to_uint64() const;
+    // 如果明文都是0 1比特，增加异或操作
+    void xor_op(Plaintext &z, const Plaintext &x, const Plaintext &y) const;
+    Plaintext operator^(const Plaintext &other) const;
+    Plaintext operator^=(const Plaintext &other);
+
+    void mod(Plaintext &z, const Plaintext &x, const Plaintext &modulus) const;
+    Plaintext operator%(const Plaintext &modulus) const;
+    Plaintext operator%=(const Plaintext &modulus);
 };
 
 #endif

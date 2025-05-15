@@ -255,7 +255,7 @@ template <typename IO>
 void LVT<IO>::initialize(std::string name, std::string table_path, LVT<IO>*& lvt_ptr_ref, std::string instance_file, int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, ELGL<IO>* elgl, Fr& alpha_fr, int table_size, int m_bits) {
 
     std::string tablefile = "../../build/bin/table_" + name + ".txt";
-    std::string full_state_path = "../../build/cache/lvt_" + name + "_offline_" + std::to_string(table_size) + "-P" + std::to_string(party) + ".bin";
+    std::string full_state_path = "../../build/cache/lvt_offline_" + std::to_string(table_size) + "-P" + std::to_string(party) + ".bin";
     lvt_ptr_ref = new LVT<IO>(num_party, party, io, pool, elgl, tablefile, alpha_fr, table_size, m_bits);
     cout << "LVT initialized" << endl;
 
@@ -268,7 +268,7 @@ void LVT<IO>::initialize(std::string name, std::string table_path, LVT<IO>*& lvt
         auto start = clock_start();
         lvt_ptr_ref->DistKeyGen();
         cout << "DistKeyGen finished" << endl;
-        lvt_ptr_ref->generate_shares_fake(lvt_ptr_ref->lut_share, lvt_ptr_ref->rotation, lvt_ptr_ref->table);
+        lvt_ptr_ref->generate_shares(lvt_ptr_ref->lut_share, lvt_ptr_ref->rotation, lvt_ptr_ref->table);
         cout << "Generate shares finished" << endl;
         lvt_ptr_ref->save_full_state(full_state_path);
         std::cout << "Generate offline time: " << std::fixed << std::setprecision(6) << time_from(start) / 1e6 << " seconds" << std::endl;
@@ -300,7 +300,7 @@ LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, EL
     deserializeTable(table, tableFile.c_str(), tb_size);
     if (m_bits <= 16) {
         build_safe_P_to_m(P_to_m, num_party, m_size);
-        // return;
+        if (m_bits == 1) return;
     }
     // cout << "m_bits > 16, using BSGS" << endl;
     uint64_t N = 1ULL << 32; // 38-bit空间
@@ -944,8 +944,6 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
             }
         }
 
-    cout << "8" << endl;
-
         // accept broadcast from alice
         start = std::chrono::high_resolution_clock::now();
         std::stringstream commit_ro, response_ro;
@@ -1312,7 +1310,7 @@ tuple<Plaintext, vector<Ciphertext>> LVT<IO>::lookup_online(Plaintext& x_share, 
 
     int bytes_end = io->get_total_bytes_sent();
     double comm_kb = double(bytes_end - bytes_start) / 1024.0;
-    std::cout << "Online time: " << std::fixed << std::setprecision(6) << time_from(start) / 1e6 << " seconds, " << std::fixed << std::setprecision(3) << "Online communication: " << comm_kb << " KB" << std::endl;
+    // std::cout << "Online time: " << std::fixed << std::setprecision(6) << time_from(start) / 1e6 << " seconds, " << std::fixed << std::setprecision(3) << "Online communication: " << comm_kb << " KB" << std::endl;
 
     return std::make_tuple(out, out_ciphers);
 }
