@@ -20,7 +20,6 @@ int party, port;
 const static int threads = 8;
 int num_party;
 const int l = 24; // 比特长度，可根据q调整
-const int num_bits = 24;
 int m_bits = 1; // bits of message
 
 Fr alpha_init(int num) {
@@ -80,7 +79,7 @@ int main(int argc, char** argv) {
 
     // 调用B2L函数
     // tuple<Plaintext, vector<Ciphertext>> B2L(ELGL<MultiIOBase>* elgl, LVT<MultiIOBase>* lvt, TinyMAC<MultiIOBase>& tiny, int party, int num_party, MultiIO* io, ThreadPool* pool, const vector<TinyMAC<MultiIOBase>::LabeledShare>& x_bits)
-    auto [shared_x, cips] = B2A_spdz2k::B2L(elgl, lvt, tiny, party, num_party, io, &pool, x_bits);
+    auto [shared_x, cips] = B2L::B2L(elgl, lvt, tiny, party, num_party, io, &pool, x_bits, 1ULL << l);
 
     int skip_bytes_end = io->get_total_bytes_sent();
     auto skip_t2 = std::chrono::high_resolution_clock::now();

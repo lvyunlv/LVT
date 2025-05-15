@@ -224,6 +224,22 @@ public:
         assert(check_mac(z_value, z_mac));
         return LabeledShare(z_value, z_mac, party, nullptr);
     }
+
+    void extract_first_12_shares(std::vector<LabeledShare>& out, std::vector<LabeledShare>& input) {
+        if (input.size() != 24) {
+            throw std::invalid_argument("Input vector must have exactly 24 shares.");
+        }
+        out = std::vector<LabeledShare>(input.begin(), input.begin() + 12);
+        return;
+    }
+
+    void extract_last_12_shares(std::vector<LabeledShare>& out, std::vector<LabeledShare>& input) {
+        if (input.size() != 24) {
+            throw std::invalid_argument("Input vector must have exactly 24 shares.");
+        }
+        out = std::vector<LabeledShare>(input.begin() + 12, input.end());
+        return;
+    }
 };
 
 } // namespace emp

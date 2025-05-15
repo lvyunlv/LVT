@@ -10,12 +10,12 @@
 #include <map>
 #include <chrono>
 
-namespace A2B_spdz2k {
+namespace L2B {
 using namespace emp;
 using std::vector;
 
 // 输入：算术份额（SPDZ2k），输出：布尔份额（TinyMAC）
-inline vector<TinyMAC<MultiIOBase>::LabeledShare> L2B(ELGL<MultiIOBase>* elgl, LVT<MultiIOBase>* lvt, TinyMAC<MultiIOBase>& tiny, int party, int num_party, MultiIO* io, ThreadPool* pool, const uint64_t& FIELD_SIZE, int l, Plaintext& x_arith, vector<Ciphertext>& x_cips) {
+inline std::vector<TinyMAC<MultiIOBase>::LabeledShare> L2B(ELGL<MultiIOBase>* elgl, LVT<MultiIOBase>* lvt, TinyMAC<MultiIOBase>& tiny, int party, int num_party, MultiIO* io, ThreadPool* pool, const uint64_t& FIELD_SIZE, int l, Plaintext& x_arith, vector<Ciphertext>& x_cips) {
     int bytes_start = io->get_total_bytes_sent();
     auto t1 = std::chrono::high_resolution_clock::now();
     Plaintext fd(FIELD_SIZE);
@@ -31,7 +31,7 @@ inline vector<TinyMAC<MultiIOBase>::LabeledShare> L2B(ELGL<MultiIOBase>* elgl, L
     }
 
     // 2. B2A: r_bits -> r_arith
-    auto [r_arith, r_cips] = B2A_spdz2k::B2L_for_L2B(elgl, lvt, tiny, party, num_party, io, pool, r_bits);
+    auto [r_arith, r_cips] = B2L::B2L_for_L2B(elgl, lvt, tiny, party, num_party, io, pool, r_bits, FIELD_SIZE);
     // cout << "r_arith = " << r_arith.get_message().getUint64() << std::endl;
 
     auto t2 = std::chrono::high_resolution_clock::now();
@@ -100,7 +100,7 @@ inline vector<TinyMAC<MultiIOBase>::LabeledShare> L2B(ELGL<MultiIOBase>* elgl, L
         
         if (u.get_message().getUint64() != sum) {
             std::cerr << "Party " << party << " error: u_open[" << i << "] = " << u.get_message().getUint64() << ", expected " << sum << std::endl;
-            throw std::runtime_error("B2L output mismatch");
+            throw std::runtime_error("L2B output mismatch");
         }
     }
 

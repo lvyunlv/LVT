@@ -12,7 +12,7 @@
 #include <map>
 
 // SPDZ2k整数域，k=64
-const uint64_t spdz2k_field_size = (1ULL << 24)  ; // 2^63-1，示例用素数
+const uint64_t spdz2k_field_size = (1ULL << 63) - 1; // 2^63-1，示例用素数
 
 namespace emp {
 
@@ -329,6 +329,76 @@ public:
         //              << FixedPointConverter::decode(result.value % FixedPointConverter::FIELD_SIZE) << std::endl;
         // 
         
+        return result;
+    }
+
+    uint64_t invert(uint64_t a, const uint64_t mod = spdz2k_field_size) {
+        int64_t t = 0, new_t = 1;
+        int64_t r = mod, new_r = a;
+        while (new_r != 0) {
+            uint64_t quotient = r / new_r;
+            int64_t temp_t = t;
+            t = new_t;
+            new_t = temp_t - quotient * new_t;
+            int64_t temp_r = r;
+            r = new_r;
+            new_r = temp_r - quotient * new_r;
+        }
+        assert(r == 1);
+        if (t < 0) {
+            t += mod;
+        }
+        return static_cast<uint64_t>(t);
+    }
+
+    // 向量加法
+    std::vector<LabeledShare> vector_add(const std::vector<LabeledShare>& a, const std::vector<LabeledShare>& b) {
+        assert(a.size() == b.size());
+        std::vector<LabeledShare> result(a.size());
+        for (size_t i = 0; i < a.size(); ++i) {
+            result[i] = add(a[i], b[i]);
+        }
+        return result;
+    }
+
+    // 矩阵乘法
+    std::vector<LabeledShare> matrix_multiply(const std::vector<LabeledShare>& a, const std::vector<LabeledShare>& b, size_t m, size_t k, size_t n, int f) {
+        assert(a.size() == m * k);
+        assert(b.size() == k * n);
+
+        std::vector<LabeledShare> result(m * n, get_zero_share());
+
+        for (size_t i = 0; i < m; ++i) {
+            for (size_t j = 0; j < n; ++j) {
+                for (size_t p = 0; p < k; ++p) {
+                    size_t a_idx = i * k + p;
+                    size_t b_idx = p * n + j;
+                    LabeledShare prod = multiply_with_trunc(a[a_idx], b[b_idx], f);
+                    result[i * n + j] = add(result[i * n + j], prod);
+                }
+            }
+        }
+
+        return result;
+    }
+
+    // 张量减法
+    std::vector<LabeledShare> tensor_sub(const std::vector<LabeledShare>& a, const std::vector<LabeledShare>& b) {
+        assert(a.size() == b.size());
+        std::vector<LabeledShare> result(a.size());
+        for (size_t i = 0; i < a.size(); ++i) {
+            result[i] = sub(a[i], b[i]);
+        }
+        return result;
+    }
+
+    // 逐元素乘法
+    std::vector<LabeledShare> elementwise_multiply(const std::vector<LabeledShare>& a, const std::vector<LabeledShare>& b, int f) {
+        assert(a.size() == b.size());
+        std::vector<LabeledShare> result(a.size());
+        for (size_t i = 0; i < a.size(); ++i) {
+            result[i] = multiply_with_trunc(a[i], b[i], f);
+        }
         return result;
     }
 

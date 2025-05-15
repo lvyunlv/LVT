@@ -790,7 +790,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
                     }
                 } else 
                 {   
-                    cout << "solve_parallel_with_pool: " << i << endl;
+                    // cout << "solve_parallel_with_pool: " << i << endl;
                     y = this->bsgs.solve_parallel_with_pool(Y, pool, thread_num);
                 }
                 mcl::Vint r_;
@@ -1397,4 +1397,15 @@ void serializeTable(vector<int64_t>& table, const char* filename, size_t table_s
 
     outFile.write(reinterpret_cast<const char*>(table.data()), table.size() * sizeof(int64_t));
     outFile.close();
+}
+
+Fr alpha_init(int num) {
+    Plaintext alpha;
+    const mcl::Vint p("0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001");
+    const mcl::Vint g("5");
+    mcl::Vint tb_size = mcl::Vint(1) << num;
+    mcl::Vint alpha_vint;
+    mcl::gmp::powMod(alpha_vint, g, (p - 1) / tb_size, p);
+    alpha.assign(alpha_vint.getStr());
+    return alpha.get_message();
 }

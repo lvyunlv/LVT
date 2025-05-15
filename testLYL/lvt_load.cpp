@@ -13,17 +13,6 @@ int num = 12;
 int m_bits = 24; // bits of message
 int tb_size = 1ULL << num;
 
-Fr alpha_init(int num) {
-    Plaintext alpha;
-    const mcl::Vint p("0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001");
-    const mcl::Vint g("5");
-    mcl::Vint tb_size = mcl::Vint(1) << num;
-    mcl::Vint alpha_vint;
-    mcl::gmp::powMod(alpha_vint, g, (p - 1) / tb_size, p);
-    alpha.assign(alpha_vint.getStr());
-    return alpha.get_message();
-}
-
 int main(int argc, char** argv) {
     BLS12381Element::init();
     if (argc < 5) {

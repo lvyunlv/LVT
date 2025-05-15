@@ -13,17 +13,6 @@ int m_bits = 24; // 表值比特数，在B2L和L2B中为1，在非线性函数�
 int num = 12;
 int tb_size = 1ULL << num; // 表的大小
 
-Fr alpha_init(int num) {
-    Plaintext alpha;
-    const mcl::Vint p("0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001");
-    const mcl::Vint g("5");
-    mcl::Vint tb_size = mcl::Vint(1) << num;
-    mcl::Vint alpha_vint;
-    mcl::gmp::powMod(alpha_vint, g, (p - 1) / tb_size, p);
-    alpha.assign(alpha_vint.getStr());
-    return alpha.get_message();
-}
-
 int main(int argc, char** argv) {
     BLS12381Element::init();
     if (argc < 4) {
@@ -55,7 +44,7 @@ int main(int argc, char** argv) {
     MultiIO* io = new MultiIO(party, num_party, net_config);
     ELGL<MultiIOBase>* elgl = new ELGL<MultiIOBase>(num_party, io, &pool, party);
     Fr alpha_fr = alpha_init(num);
-    std::string tablefile = "../../build/bin/table_2.txt";
+    std::string tablefile = "../../build/bin/table.txt";
     emp::LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, tablefile, alpha_fr, num, m_bits);
     lvt->DistKeyGen();
     lvt->generate_shares(lvt->lut_share, lvt->rotation, lvt->table);

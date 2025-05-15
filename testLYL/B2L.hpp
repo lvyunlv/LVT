@@ -13,16 +13,17 @@
 #include <chrono>
 #include <tuple>
 
-namespace B2A_spdz2k {
+namespace B2L {
 using namespace emp;
 using std::vector;
 
-inline tuple<Plaintext, vector<Ciphertext>> B2L(ELGL<MultiIOBase>* elgl, LVT<MultiIOBase>* lvt, TinyMAC<MultiIOBase>& tiny, int party, int num_party, MultiIO* io, ThreadPool* pool, const vector<TinyMAC<MultiIOBase>::LabeledShare>& x_bits) {
+inline tuple<Plaintext, vector<Ciphertext>> B2L(ELGL<MultiIOBase>* elgl, LVT<MultiIOBase>* lvt, TinyMAC<MultiIOBase>& tiny, int party, int num_party, MultiIO* io, ThreadPool* pool, const vector<TinyMAC<MultiIOBase>::LabeledShare>& x_bits, const uint64_t& modulus) {
     int bytes_start = io->get_total_bytes_sent();
     auto t1 = std::chrono::high_resolution_clock::now();
 
     int l = x_bits.size();
     vector<Plaintext> shared_x(l); 
+    Plaintext fd(modulus);
     
     vector<TinyMAC<MultiIOBase>::LabeledShare> r_bits(l);
     std::random_device rd;
@@ -64,7 +65,7 @@ inline tuple<Plaintext, vector<Ciphertext>> B2L(ELGL<MultiIOBase>* elgl, LVT<Mul
     Plaintext x; x.assign("0");
     for (int i = 0; i < l; ++i) {
         out[i] = x_plain[i]^r_plain[i];
-        x = x + x + x_plain[i];
+        x = (x + x + x_plain[i]) % fd;
         elgl->serialize_sendall(out[i]);
         for (int j = 0; j < num_party; ++j) {
             if (j != party - 1) {
@@ -112,10 +113,12 @@ inline tuple<Plaintext, vector<Ciphertext>> B2L_for_L2B(
     int num_party,
     MultiIO* io,
     ThreadPool* pool,
-    const vector<TinyMAC<MultiIOBase>::LabeledShare>& x_bits
+    const vector<TinyMAC<MultiIOBase>::LabeledShare>& x_bits,
+    const uint64_t& modulus
 ) {
     int l = x_bits.size();
     vector<Plaintext> shared_x(l); 
+    Plaintext fd(modulus);
     
     vector<TinyMAC<MultiIOBase>::LabeledShare> r_bits(l);
     std::random_device rd;
@@ -148,7 +151,7 @@ inline tuple<Plaintext, vector<Ciphertext>> B2L_for_L2B(
     Plaintext x; x.assign("0");
     for (int i = 0; i < l; ++i) {
         out[i] = x_plain[i]^r_plain[i];
-        x = x + x + x_plain[i];
+        x = (x + x + x_plain[i]) % fd;
         elgl->serialize_sendall(out[i]);
         for (int j = 0; j < num_party; ++j) {
             if (j != party - 1) {
@@ -164,7 +167,7 @@ inline tuple<Plaintext, vector<Ciphertext>> B2L_for_L2B(
         if (out_ != out[i].get_message().getMpz().getLow32bit()) {
             std::cerr << "Error: B2L output does not match expected value." << std::endl;
             cout << i << " Expected: " << int(out_) << ", Got: " << int(out[i].get_message().getMpz().getLow32bit()) << std::endl;
-            throw std::runtime_error("B2L output mismatch");
+            throw std::runtime_error("B2L output mismatch in B2L_for_L2B");
         }
     }
 
@@ -181,4 +184,18 @@ inline tuple<Plaintext, vector<Ciphertext>> B2L_for_L2B(
     return std::make_tuple(x, x_cip);
 }
 
+}
+
+inline std::vector<uint8_t> get_first_12_bits(const std::vector<uint8_t>& input) {
+    if (input.size() != 24) {
+        throw std::invalid_argument("Input vector must have exactly 24 bits.");
+    }
+    return std::vector<uint8_t>(input.begin(), input.begin() + 12);
+}
+
+inline std::vector<uint8_t> get_last_12_bits(const std::vector<uint8_t>& input) {
+    if (input.size() != 24) {
+        throw std::invalid_argument("Input vector must have exactly 24 bits.");
+    }
+    return std::vector<uint8_t>(input.begin() + 12, input.end());
 }
