@@ -10,7 +10,8 @@ int party, port;
 const static int threads = 8;
 int num_party;
 int m_bits = 24; // 表值比特数，在B2L和L2B中为1，在非线性函数计算调用时为24（表示Q8.16定点整数）
-int num = 12;
+int m_size = 1 << m_bits; // 表值大小
+int num = 8;
 int tb_size = 1ULL << num; // 表的大小
 
 int main(int argc, char** argv) {
@@ -48,6 +49,7 @@ int main(int argc, char** argv) {
     emp::LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, tablefile, alpha_fr, num, m_bits);
     lvt->DistKeyGen();
     lvt->generate_shares(lvt->lut_share, lvt->rotation, lvt->table);
+    mpz_class fd = m_size;
 
     std::vector<Plaintext> x_share;
     std::string input_file = "../../TestLYL/Input/Input-P" + std::to_string(party) + ".txt";
@@ -58,8 +60,9 @@ int main(int argc, char** argv) {
             Plaintext x;
             x.assign(line);
             x_share.push_back(x);
-            if (x.get_message().getUint64() > tb_size - 1) {
+            if (x.get_message().getUint64() > (1ULL << m_bits) - 1) {
                 std::cerr << "Error: input value exceeds table size in Party: " << party << std::endl;
+                cout << "Error value: " << x.get_message().getUint64() << ", tb_size = " << (1ULL << m_bits) << endl;
                 return 1;
             }
         }
@@ -70,6 +73,7 @@ int main(int argc, char** argv) {
     for (int i = 0; i < x_size; ++i) {
         x_cipher[i] = lvt->global_pk.encrypt(x_share[i]);
     }
+    lvt->Reconstruct_interact(x_share[0], x_cipher[0], elgl, lvt->global_pk, lvt->user_pk, io, &pool, party, num_party, fd);
 
     std::vector<Ciphertext> x_ciphers(num_party);
     std::vector<Plaintext> out(x_size);

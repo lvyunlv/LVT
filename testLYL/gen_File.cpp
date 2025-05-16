@@ -21,6 +21,6 @@ int main(int argc, char** argv) {
         table[i] = rng() % message_size;
         // cout << "table[" << i << "] = " << table[i] << endl;
     }
-    serializeTable(table, "table.txt", table.size());
+    serializeTable(table, "table_init.txt", table.size());
     return 0;
 }

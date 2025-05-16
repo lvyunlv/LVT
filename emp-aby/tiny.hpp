@@ -1,5 +1,5 @@
 #pragma once
-
+#include "testLLM/FixedPointConverter.h"
 #include "elgl_interface.hpp"
 #include <vector>
 #include <random>
@@ -240,6 +240,17 @@ public:
         out = std::vector<LabeledShare>(input.begin() + 12, input.end());
         return;
     }
+    // 将二进制比特拼接成十进制数的函数
+    uint64_t bits_to_decimal(const std::vector<LabeledShare>& shares, uint64_t field) {
+        std::string binary_str;
+        for (const auto& share : shares) {
+            // 使用 reconstruct 恢复出每个比特
+            int bit = this->reconstruct(share);
+            binary_str += std::to_string(bit);
+        }
+        return std::bitset<64>(binary_str).to_ullong() % field; // 假设总比特数不超过 64 位
+    }
 };
 
 } // namespace emp
+

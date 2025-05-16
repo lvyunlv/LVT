@@ -20,22 +20,8 @@ int party, port;
 const static int threads = 8;
 int num_party;
 const int l = 24; // 比特长度，可根据q调整
-int m_bits = 1; // bits of message
-
-Fr alpha_init(int num) {
-    Plaintext alpha;
-    const mcl::Vint p("0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001");
-    const mcl::Vint g("5"); 
-    mcl::Vint n = mcl::Vint(1) << num;
-    mcl::Vint alpha_vint;
-    mcl::gmp::powMod(alpha_vint, g, (p - 1) / n, p);
-    alpha.assign(alpha_vint.getStr());
-    // std::cout << "alpha: " << alpha.get_message().getStr() << std::endl;
-    Fr alpha_fr = alpha.get_message();
-    vector<int64_t> lut_table = {0, 1};
-    serializeTable(lut_table, "table_2.txt", lut_table.size());
-    return alpha_fr;
-}
+int m_bits = 24; // bits of message
+int num = 1;
 
 int main(int argc, char** argv) {
     BLS12381Element::init();
@@ -61,7 +47,6 @@ int main(int argc, char** argv) {
     auto skip_t1 = std::chrono::high_resolution_clock::now();
 
     // LUT查表表大小为2，0->0, 1->1
-    int num = 1;
     Fr alpha_fr = alpha_init(num);
     LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../build/bin/table_2.txt", alpha_fr, num, m_bits);
     lvt->DistKeyGen();

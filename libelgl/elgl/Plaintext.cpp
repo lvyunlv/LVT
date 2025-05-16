@@ -126,6 +126,12 @@ void Plaintext::mod(Plaintext &z, const Plaintext &x, const Plaintext &modulus) 
     z.assign(result.getStr(10)); 
 }
 
+void Plaintext::mod2(Plaintext &z, const Plaintext &x) const {
+    uint64_t x_val = x.to_uint64();
+    uint64_t result = x_val & 1; // 取最低位
+    z.assign(std::to_string(result)); // 将结果赋值给 z
+}
+
 Plaintext Plaintext::operator%(const Plaintext &modulus) const {
     Plaintext result;
     mod(result, *this, modulus);
@@ -135,6 +141,27 @@ Plaintext Plaintext::operator%(const Plaintext &modulus) const {
 Plaintext Plaintext::operator%=(const Plaintext &modulus) {
     mod(*this, *this, modulus);
     return *this;
+}
+
+// 重载 % 操作符，支持模2
+Plaintext Plaintext::operator%(int modulus) const {
+    if (modulus == 2) {
+        Plaintext result;
+        mod2(result, *this);
+        return result;
+    } else {
+        throw std::invalid_argument("Only modulus 2 is supported for this operator.");
+    }
+}
+
+// 重载 %= 操作符，支持模2
+Plaintext Plaintext::operator%=(int modulus) {
+    if (modulus == 2) {
+        mod2(*this, *this);
+        return *this;
+    } else {
+        throw std::invalid_argument("Only modulus 2 is supported for this operator.");
+    }
 }
 
 bool Plaintext::DeserializFromFile(std::string filepath, Plaintext& p){

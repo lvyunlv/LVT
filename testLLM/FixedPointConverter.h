@@ -129,3 +129,12 @@ public:
         return fixed;
     }
 };
+
+// 将二进制比特拼接成十进制数的函数，第 0 位会作为二进制字符串的最高位，而最后一位会作为二进制字符串的最低位。
+uint64_t bits_to_decimal(const std::vector<int>& bits, uint32_t field) {
+    std::string binary_str;
+    for (int bit : bits) {
+        binary_str += std::to_string(bit);
+    }
+    return std::bitset<64>(binary_str).to_ullong() % field; // 假设总比特数不超过 64 位
+}

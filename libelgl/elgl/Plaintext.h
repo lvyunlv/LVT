@@ -101,6 +101,10 @@ class Plaintext{
     void mod(Plaintext &z, const Plaintext &x, const Plaintext &modulus) const;
     Plaintext operator%(const Plaintext &modulus) const;
     Plaintext operator%=(const Plaintext &modulus);
+
+    void mod2(Plaintext &z, const Plaintext &x) const;
+    Plaintext operator%(int modulus) const;
+    Plaintext operator%=(int modulus);
 };
 
 #endif

@@ -157,7 +157,7 @@ void ExpVerifier::NIZKPoK(BLS12381Element& g1, BLS12381Element& y1, BLS12381Elem
             // // }
 
             // cout << "错误来自party: " << i << endl; 
-            throw runtime_error("------- invalid exp proof -------");
+            throw runtime_error("invalid exp proof in ExpVerifier");
         }
         });
     future.get();
