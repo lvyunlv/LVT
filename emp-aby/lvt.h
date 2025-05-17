@@ -72,7 +72,7 @@ class LVT{
     LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, ELGL<IO>* elgl, Fr& alpha, int table_size, int m_bits);
     LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, ELGL<IO>* elgl, std::string tableFile, Fr& alpha, int table_size, int m_bits);
     static void initialize(std::string name, LVT<IO>*& lvt_ptr_ref, int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, ELGL<IO>* elgl, Fr& alpha_fr, int table_size, int m_bits);
-    void DistKeyGen();
+    ELGL_PK DistKeyGen();
     ~LVT();
     void generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation, vector<int64_t> table);
     void generate_shares_fake(vector<Plaintext>& lut_share, Plaintext& rotation, vector<int64_t> table);
@@ -275,6 +275,7 @@ LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, EL
     this->G_tbs = BLS12381Element(tb_size);
     BLS12381Element::init();
     BLS12381Element g = BLS12381Element::generator();
+    this->global_pk = DistKeyGen();
 }
 
 // 在类外定义initialize函数
@@ -293,7 +294,7 @@ void LVT<IO>::initialize(std::string func_name, LVT<IO>*& lvt_ptr_ref, int num_p
         std::cout << "Loading offline time: " << std::fixed << std::setprecision(6) << time_from(start) / 1e6 << " seconds" << std::endl;
     } else {
         auto start = clock_start();
-        lvt_ptr_ref->DistKeyGen();
+        // lvt_ptr_ref->DistKeyGen();
         cout << "DistKeyGen finished" << endl;
         lvt_ptr_ref->generate_shares(lvt_ptr_ref->lut_share, lvt_ptr_ref->rotation, lvt_ptr_ref->table);
         cout << "Generate shares finished" << endl;
@@ -333,7 +334,7 @@ LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, EL
     uint64_t N = 1ULL << 32; // 38-bit空间
     try {
         bsgs.deserialize("bsgs_table.bin");
-        cout << "BSGS table loaded successfully." << endl;
+        // cout << "BSGS table loaded successfully." << endl;
     } catch (const std::exception& e) {
         bsgs.precompute(g, N);
         bsgs.serialize("bsgs_table.bin");
@@ -1094,7 +1095,7 @@ void LVT<IO>::generate_shares_fake(vector<Plaintext>& lut_share, Plaintext& rota
 
 
 template <typename IO>
-void LVT<IO>::DistKeyGen(){
+ELGL_PK LVT<IO>::DistKeyGen(){
     // first broadcast my own pk
     vector<std::future<void>> tasks;
     global_pk = elgl->kp.get_pk();
@@ -1119,6 +1120,19 @@ void LVT<IO>::DistKeyGen(){
         global_pk_ += pk.get_pk();
     }
     global_pk.assign_pk(global_pk_);
+    Ciphertext tmp; tmp.set(global_pk.get_pk(), global_pk.get_pk());
+    elgl->serialize_sendall(tmp);
+    for (size_t i = 1; i <= num_party; i++){
+        Ciphertext tmp_; 
+        if (i!= party){
+            elgl->deserialize_recv(tmp_, i);
+            if (tmp != tmp_){
+                std::cerr << "[Error] global_pk_ not equal to sum of other's pk!" << std::endl;
+                exit(1);
+            }
+        }
+    }
+    return global_pk;
 }
 
 template <typename IO>
@@ -1408,6 +1422,7 @@ Plaintext LVT<IO>::Reconstruct(Plaintext input, vector<Ciphertext> input_cips, E
         error("Reconstruct error");
     }
     out.assign(o_);
+    cout << "o_ " << o_ << endl; 
     return out;
 }
 
@@ -1417,14 +1432,18 @@ Plaintext LVT<IO>::Reconstruct_interact(Plaintext input, Ciphertext input_cip, E
     Ciphertext out_cip = input_cip;
 
     elgl->serialize_sendall(input);
-    elgl->serialize_sendall(input_cip);
-
     for (int i = 1; i <= num_party; i++){
         if (party != i) {
             Plaintext tmp;
-            Ciphertext tmp_cip;
             elgl->deserialize_recv(tmp, i);
             out += tmp;
+        }
+    }
+
+    elgl->serialize_sendall(input_cip);
+    for (int i = 1; i <= num_party; i++){
+        if (party != i) {
+            Ciphertext tmp_cip;
             elgl->deserialize_recv(tmp_cip, i);
             out_cip += tmp_cip;
         }

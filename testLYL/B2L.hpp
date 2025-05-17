@@ -75,11 +75,13 @@ inline tuple<Plaintext, vector<Ciphertext>> B2L(ELGL<MultiIOBase>* elgl, LVT<Mul
     for (int i = 0; i < l; ++i) {
         uint8_t h = xx[i] ^ rr[i];
         Plaintext hh; hh.assign(std::to_string(h));
-        uint64_t outt = lvt->Reconstruct_easy(hh, elgl, io, pool, party, num_party, modulus).get_message().getUint64();
+        uint64_t outt = lvt->Reconstruct_easy(hh, elgl, io, pool, party, num_party, 2).get_message().getUint64();
         uint8_t out_ = tiny.reconstruct(tiny.add(x_bits[i],r_bits[i]));
         if (outt != out_) {
             std::cerr << "Error: B2L output does not match expected value." << std::endl;
             cout << " Expected: " << outt << ", Got: " << to_string(out_) << std::endl;
+            cout << "x: " << tiny.bits_to_decimal(x_bits, modulus) << endl;
+            cout << "x: " << lvt->Reconstruct_easy(x, elgl, io, pool, party, num_party, modulus).get_message().getUint64() << endl;
             throw std::runtime_error("B2L output mismatch");
         }
     }    
@@ -168,11 +170,13 @@ inline tuple<Plaintext, vector<Ciphertext>> B2L_for_L2B(
     for (int i = 0; i < l; ++i) {
         uint8_t h = xx[i] ^ rr[i];
         Plaintext hh; hh.assign(std::to_string(h));
-        uint64_t outt = lvt->Reconstruct_easy(hh, elgl, io, pool, party, num_party, modulus).get_message().getUint64();
+        uint64_t outt = lvt->Reconstruct_easy(hh, elgl, io, pool, party, num_party, 2).get_message().getUint64();
         uint8_t out_ = tiny.reconstruct(tiny.add(x_bits[i],r_bits[i]));
         if (outt != out_) {
             std::cerr << "Error in L2B: B2L output does not match expected value." << std::endl;
             cout << " Expected: " << outt << ", Got: " << to_string(out_) << std::endl;
+            cout << "x: " << tiny.bits_to_decimal(x_bits, modulus) << endl;
+            cout << "x: " << lvt->Reconstruct_easy(x, elgl, io, pool, party, num_party, modulus).get_message().getUint64() << endl;
             throw std::runtime_error("B2L output mismatch in L2B");
         }
     }    

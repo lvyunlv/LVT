@@ -44,8 +44,9 @@ int main(int argc, char** argv) {
     ThreadPool pool(threads);
     MultiIO* io = new MultiIO(party, num_party, net_config);
     ELGL<MultiIOBase>* elgl = new ELGL<MultiIOBase>(num_party, io, &pool, party);
+
     Fr alpha_fr = alpha_init(num);
-    std::string tablefile = "../../build/bin/table.txt";
+    std::string tablefile = "../../build/bin/table_init.txt";
     emp::LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, tablefile, alpha_fr, num, m_bits);
     lvt->DistKeyGen();
     lvt->generate_shares(lvt->lut_share, lvt->rotation, lvt->table);
@@ -54,13 +55,18 @@ int main(int argc, char** argv) {
     std::vector<Plaintext> x_share;
     std::string input_file = "../../TestLYL/Input/Input-P" + std::to_string(party) + ".txt";
     {
+        // 判断文件是否存在
+        if (!fs::exists(input_file)) {
+            std::cerr << "Error: input file does not exist: " << input_file << std::endl;
+            return 1;
+        }
         std::ifstream in_file(input_file);
         std::string line;
         while (std::getline(in_file, line)) {
             Plaintext x;
             x.assign(line);
             x_share.push_back(x);
-            if (x.get_message().getUint64() > (1ULL << m_bits) - 1) {
+            if (x.get_message().getUint64() > (1ULL << num) - 1) {
                 std::cerr << "Error: input value exceeds table size in Party: " << party << std::endl;
                 cout << "Error value: " << x.get_message().getUint64() << ", tb_size = " << (1ULL << m_bits) << endl;
                 return 1;
@@ -68,12 +74,57 @@ int main(int argc, char** argv) {
         }
     }
     int x_size = x_share.size();
+    // 每个参与方广播自己的输入个数，判断所有参与方的输入个数是否一致
+    Plaintext x_size_pt; x_size_pt.assign(x_size);
+    elgl->serialize_sendall(x_size_pt);
+    for (int i = 1; i <= num_party; i++) {
+        if (i != party) {
+            Plaintext x_size_pt_recv;
+            elgl->deserialize_recv(x_size_pt_recv, i);
+            if (int(x_size_pt_recv.get_message().getUint64()) != x_size) {
+                std::cerr << "Error: input size does not match in Party: " << party << std::endl;
+                return 1;
+            }
+        }
+    }
+    // 计算当前party自己x的share的密文，共同恢复x明文
+    Plaintext tb_field = Plaintext(tb_size);
+    Plaintext value_field = Plaintext(m_size);
+
+    for (int i = 0; i < x_size; ++i) {
+        Plaintext x_sum = x_share[i];
+        elgl->serialize_sendall(x_sum);
+        for (int i = 1; i <= num_party; i++) {
+            if (i != party) {
+                Plaintext x_recv;
+                elgl->deserialize_recv(x_recv, i);
+                x_sum += x_recv;
+                x_sum = x_sum % tb_field;
+            }
+        }
+        uint64_t table_x = lvt->table[x_sum.get_message().getUint64()];
+        std::cout << "x: " << x_sum.get_message().getUint64() << ", lut[x]: " << table_x << endl;
+        Plaintext table_pt = Plaintext(table_x);
+        elgl->serialize_sendall(table_pt);
+        for (int i = 1; i <= num_party; i++) {
+            if (i != party) {
+                Plaintext table_pt_recv;
+                elgl->deserialize_recv(table_pt_recv, i);
+                if (table_pt_recv.get_message().getUint64() != table_x) {
+                    std::cerr << "Error x_sum: " << party << std::endl;
+                    return 1;
+                }
+                cout << "party: " << party << " table_pt = " << table_pt_recv.get_message().getStr() << endl;
+            }
+        }
+    }
     
+    //  ************* ************* 正式测试内容 ************* ************* 
     std::vector<Ciphertext> x_cipher(x_size);
     for (int i = 0; i < x_size; ++i) {
         x_cipher[i] = lvt->global_pk.encrypt(x_share[i]);
     }
-    lvt->Reconstruct_interact(x_share[0], x_cipher[0], elgl, lvt->global_pk, lvt->user_pk, io, &pool, party, num_party, fd);
+    // lvt->Reconstruct_interact(x_share[0], x_cipher[0], elgl, lvt->global_pk, lvt->user_pk, io, &pool, party, num_party, fd);
 
     std::vector<Ciphertext> x_ciphers(num_party);
     std::vector<Plaintext> out(x_size);
@@ -83,6 +134,33 @@ int main(int argc, char** argv) {
         out[i] = output1;
         // cout << "party: " << party << " out = " << out[i].get_message().getStr() << endl;
         out_ciphers[i] = output2;
+    } 
+    //  ************* ************* 测试内容结束 ************* ************* 
+
+    // 根据查表share结果恢复总体查表结果
+    for (int i = 0; i < x_size; ++i) {
+        Plaintext out_sum = out[i];
+        elgl->serialize_sendall(out_sum);
+        for (int i = 1; i <= num_party; i++) {
+            if (i != party) {
+                Plaintext out_recv;
+                elgl->deserialize_recv(out_recv, i);
+                out_sum += out_recv;
+                out_sum = out_sum % value_field;
+            }
+        }
+        elgl->serialize_sendall(out_sum);
+        for (int i = 1; i <= num_party; i++) {
+            if (i != party) {
+                Plaintext out_sum_recv;
+                elgl->deserialize_recv(out_sum_recv, i);
+                if (out_sum_recv.get_message().getUint64() != out_sum.get_message().getUint64()) {
+                    std::cerr << "Error output" << std::endl;
+                    return 1;
+                }
+                cout << "party: " << party << " out_sum = " << out_sum.get_message().getStr() << endl;
+            }
+        }
     }
 
     std::string output_file = "../../TestLYL/Output/Output-P" + std::to_string(party) + ".txt";

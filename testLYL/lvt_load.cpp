@@ -25,7 +25,7 @@ int main(int argc, char** argv) {
 
     std::vector<std::pair<std::string, unsigned short>> net_config;
     if (argc == 6) {
-        const char* file = argv[4];
+        const char* file = argv[5];
         FILE* f = fopen(file, "r");
         for (int i = 0; i < num_party; ++i) {
             char* c = (char*)malloc(15 * sizeof(char));
@@ -54,15 +54,38 @@ int main(int argc, char** argv) {
     std::vector<Plaintext> x_share;
     std::string input_file = "../../TestLYL/Input/Input-P" + std::to_string(party) + ".txt";
     {
+        // 判断文件是否存在
+        if (!fs::exists(input_file)) {
+            std::cerr << "Error: input file does not exist: " << input_file << std::endl;
+            return 1;
+        }
         std::ifstream in_file(input_file);
         std::string line;
         while (std::getline(in_file, line)) {
             Plaintext x;
             x.assign(line);
             x_share.push_back(x);
+            if (x.get_message().getUint64() > (1ULL << m_bits) - 1) {
+                std::cerr << "Error: input value exceeds table size in Party: " << party << std::endl;
+                cout << "Error value: " << x.get_message().getUint64() << ", tb_size = " << (1ULL << m_bits) << endl;
+                return 1;
+            }
         }
     }
     int x_size = x_share.size();
+    // 每个参与方广播自己的输入个数，判断所有参与方的输入个数是否一致
+    Plaintext x_size_pt; x_size_pt.assign(x_size);
+    elgl->serialize_sendall(x_size_pt);
+    for (int i = 1; i <= num_party; i++) {
+        if (i != party) {
+            Plaintext x_size_pt_recv;
+            elgl->deserialize_recv(x_size_pt_recv, i);
+            if (x_size_pt_recv.get_message().getUint64() != x_size) {
+                std::cerr << "Error: input size does not match in Party: " << party << std::endl;
+                return 1;
+            }
+        }
+    }
 
     std::vector<Ciphertext> x_cipher(x_size);
     for (int i = 0; i < x_size; ++i) {
