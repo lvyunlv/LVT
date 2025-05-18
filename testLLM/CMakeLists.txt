@@ -20,6 +20,7 @@ macro (add_test_case_with_run _name)
 endmacro()
 
 # add_test_case_with_run(secret_tensor)
-# add_test_case_with_run(FixedPointConverter)
+add_test_case_with_run(FixedPointConverter)
 # add_test_case_with_run(genTable)
 add_test_case_with_run(515test)
+add_test_case_with_run(517test)

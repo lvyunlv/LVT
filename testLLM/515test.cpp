@@ -184,14 +184,21 @@ int main(int argc, char** argv) {
         auto [out3, out4] = lvtB->lookup_online(X_H[i], X_H_cips[i][party-1], X_H_cips[i]);
         A_share[i] = out1; B_share[i] = out3;
         A_cips[i] = out2; B_cips[i] = out4;
+        cout << "out1: " << out1.get_message().getUint64() << endl;
+        cout << "out2: " << out2[party-1].get_c1().getPoint().getStr() << endl;
+        cout << "out3: " << out3.get_message().getUint64() << endl;
+        cout << "out4: " << out4[party-1].get_c1().getPoint().getStr() << endl;
     }
+    cout << "===" <<endl;
 
     // 计算插值
     std::vector<double> interpolated_result(x_size);
     for (int i = 0; i < x_size; ++i) {
         // 从A_share和B_share恢复出他们的和A_和B_
-        Plaintext A_ = lvtA->Reconstruct(A_share[i], A_cips[i], elgl.get(), lvtA->global_pk, lvtA->user_pk, io.get(), &pool, party, num_party, modulo);
-        Plaintext B_ = lvtB->Reconstruct(B_share[i], B_cips[i], elgl.get(), lvtB->global_pk, lvtB->user_pk, io.get(), &pool, party, num_party, modulo);
+        Ciphertext tmp = lvtA->global_pk.encrypt(A_share[i]);
+        
+        Plaintext A_ = lvtA->Reconstruct_interact(A_share[i], A_cips[i][party-1], elgl.get(), lvtA->global_pk, lvtA->user_pk, io.get(), &pool, party, num_party, modulo);
+        Plaintext B_ = lvtB->Reconstruct_interact(B_share[i], B_cips[i][party-1], elgl.get(), lvtB->global_pk, lvtB->user_pk, io.get(), &pool, party, num_party, modulo);
 
         // 解码A_和B_，得到A_val和B_val，然后计算插值结果
         double A_val = FixedPointConverter::decode(A_.get_message().getUint64());
@@ -201,6 +208,7 @@ int main(int argc, char** argv) {
         interpolated_result[i] = A_val + B_val * x_l_real[i];
 
         cout << "[INTERPOLATED] f(x_" << i << ") = " << interpolated_result[i] << endl;
+    cout << "===" <<endl;
     }
 
     // 进行误差测试

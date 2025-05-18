@@ -77,6 +77,7 @@ class LVT{
     void generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation, vector<int64_t> table);
     void generate_shares_fake(vector<Plaintext>& lut_share, Plaintext& rotation, vector<int64_t> table);
     tuple<Plaintext, vector<Ciphertext>> lookup_online(Plaintext& x_share, Ciphertext& x_cipher, vector<Ciphertext>& x_ciphers);
+    tuple<Plaintext, vector<Ciphertext>> lookup_online_fake(Plaintext& x_share, Ciphertext& x_cipher, vector<Ciphertext>& x_ciphers);
     Plaintext lookup_online_easy(Plaintext& x_share);
     void save_full_state(const std::string& filename);
     void load_full_state(const std::string& filename);
@@ -285,18 +286,18 @@ void LVT<IO>::initialize(std::string func_name, LVT<IO>*& lvt_ptr_ref, int num_p
     std::string tablefile = "../../build/bin/table_" + func_name + ".txt";
     std::string full_state_path = "../../build/cache/lvt_offline_" + func_name + "_size" + std::to_string(table_size) + "-P" + std::to_string(party) + ".bin";
     lvt_ptr_ref = new LVT<IO>(num_party, party, io, pool, elgl, tablefile, alpha_fr, table_size, m_bits);
-    cout << "LVT initialized" << endl;
+    // cout << "LVT initialized" << endl;
 
     // 测试时间
     if (std::filesystem::exists(full_state_path)) {
         auto start = clock_start();
         lvt_ptr_ref->load_full_state(full_state_path);
-        std::cout << "Loading offline time: " << std::fixed << std::setprecision(6) << time_from(start) / 1e6 << " seconds" << std::endl;
+        // std::cout << "Loading offline time: " << std::fixed << std::setprecision(6) << time_from(start) / 1e6 << " seconds" << std::endl;
     } else {
         auto start = clock_start();
         // lvt_ptr_ref->DistKeyGen();
         cout << "DistKeyGen finished" << endl;
-        lvt_ptr_ref->generate_shares(lvt_ptr_ref->lut_share, lvt_ptr_ref->rotation, lvt_ptr_ref->table);
+        lvt_ptr_ref->generate_shares_fake(lvt_ptr_ref->lut_share, lvt_ptr_ref->rotation, lvt_ptr_ref->table);
         cout << "Generate shares finished" << endl;
         lvt_ptr_ref->save_full_state(full_state_path);
         std::cout << "Generate offline time: " << std::fixed << std::setprecision(6) << time_from(start) / 1e6 << " seconds" << std::endl;
@@ -997,6 +998,19 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
         // std::cout << "receive and decode time: " << elapsed.count() << " seconds" << std::endl;
     }
 
+// cout << "begin" << endl;
+//     mcl::Vint fd(to_string(m_size)); 
+//     for (size_t j = 0; j < tb_size; j++){
+//         vector<Ciphertext> tmp;
+//         for (int i = 0; i < num_party; i++){
+//             Ciphertext tmp_;
+//             tmp_.set(user_pk[i].get_pk(), cip_lut[i][j]);
+//             tmp.push_back(tmp_);
+//         }
+//         this->Reconstruct(lut_share[j], tmp, elgl, this->global_pk, this->user_pk, this->io, this->pool, this->party, this->num_party, fd);
+//     }
+// cout << "end" << endl;
+
     // // print rotation and party id
     // std::cout << "party: " << party << ";  rotation: " << rotation.get_message().getStr() << std::endl;
     // // print lut_share
@@ -1015,6 +1029,7 @@ void LVT<IO>::generate_shares_fake(vector<Plaintext>& lut_share, Plaintext& rota
 
     // Step 1: rotation 固定为 0
     rotation.set_message(0);
+    cr_i[party-1] = global_pk.encrypt(rotation);
 
     // Step 2: 计算本地 LUT share 和加密 LUT
     vector<future<void>> res;
@@ -1045,6 +1060,7 @@ void LVT<IO>::generate_shares_fake(vector<Plaintext>& lut_share, Plaintext& rota
     // 注意：打包发送比单个传输更快
     // Step 3: 广播自己的 cip_lut[party-1]
     std::stringstream cip_lut_stream;
+    cr_i[party-1].pack(cip_lut_stream);
     for (size_t i = 0; i < tb_size; ++i) {
         cip_lut[party - 1][i].pack(cip_lut_stream);
         // elgl->serialize_sendall(cip_lut[party - 1][i]);
@@ -1074,6 +1090,7 @@ void LVT<IO>::generate_shares_fake(vector<Plaintext>& lut_share, Plaintext& rota
 
                 std::string decoded = base64_decode(cip_stream.str());
                 std::stringstream decoded_stream(decoded);
+                cr_i[i-1].unpack(decoded_stream);
 
                 for (size_t j = 0; j < tb_size; ++j) {
                     cip_lut[i - 1][j].unpack(decoded_stream);
@@ -1086,6 +1103,19 @@ void LVT<IO>::generate_shares_fake(vector<Plaintext>& lut_share, Plaintext& rota
         f.get();
     }
     res.clear();
+
+    // mcl::Vint fd(to_string(m_size)); 
+    // for (size_t j = 0; j < tb_size; j++){
+    //     vector<Ciphertext> tmp;
+    //     for (int i = 0; i < num_party; i++){
+    //         Ciphertext tmp_;
+    //         tmp_.set(user_pk[i].get_pk(), cip_lut[i][j]);
+    //         tmp.push_back(tmp_);
+    //     }
+    //     this->Reconstruct_easy(lut_share[j], elgl, this->io, this->pool, this->party, this->num_party, fd);
+    // }
+
+
     // cout << "party: " << party << "生成LUT share结束" << endl;
     // cout << "rotation: " << rotation.get_message().getStr() << endl;
     // for (size_t i = 0; i < tb_size; i++) {
@@ -1149,7 +1179,7 @@ Fr threshold_decrypt(Ciphertext& c, ELGL<IO>* elgl, const ELGL_PK& global_pk, co
 
     std::stringstream commit, response;
     BLS12381Element g1 = c.get_c0();
-    BLS12381Element y1 = elgl->kp.get_pk().get_pk();
+    BLS12381Element y1 = user_pks[party-1].get_pk();
     exp_prover.NIZKPoK(exp_proof, commit, response, g1, y1, ask, sk, party, pool);
 
     std::stringstream commit_b64, response_b64;
@@ -1344,7 +1374,7 @@ tuple<Plaintext, vector<Ciphertext>> LVT<IO>::lookup_online(Plaintext& x_share, 
     // cout << "party: " << party << " out = " << out.get_message().getStr() << endl;
     out_ciphers.resize(num_party);
     for (size_t i = 0; i < num_party; i++){
-        Ciphertext tmp(user_pk[i].get_pk(),cip_lut[i][index]);
+        Ciphertext tmp(user_pk[i].get_pk(), cip_lut[i][index]);
         out_ciphers[i] = tmp;
     }
     // cout << "party: " << party << " index = " << index << endl;
@@ -1410,7 +1440,6 @@ Plaintext LVT<IO>::Reconstruct(Plaintext input, vector<Ciphertext> input_cips, E
             out_cip += input_cips[i-1];
         }
     }
-
     Fr out_ = threshold_decrypt(out_cip, elgl, global_pk, user_pks, io, pool, party, num_party, P_to_m, this); 
     mcl::Vint o = out_.getMpz();
     o %= modulo;
@@ -1419,10 +1448,12 @@ Plaintext LVT<IO>::Reconstruct(Plaintext input, vector<Ciphertext> input_cips, E
     o_ %= modulo;
     
     if (o_ != o) {
+        cout << "o_: " << o_ << endl; 
+        cout << "o: " << o << endl;
         error("Reconstruct error");
     }
     out.assign(o_);
-    cout << "o_ " << o_ << endl; 
+    // cout << "o_ " << o_ << endl; 
     return out;
 }
 

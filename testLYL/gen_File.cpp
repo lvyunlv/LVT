@@ -18,7 +18,8 @@ int main(int argc, char** argv) {
     table.resize(1<<num);
     Plaintext p;
     for (size_t i = 0; i < table.size(); i++){
-        table[i] = rng() % message_size;
+        // table[i] = rng() % message_size;
+        table[i] = i;
         // cout << "table[" << i << "] = " << table[i] << endl;
     }
     serializeTable(table, "table_init.txt", table.size());
