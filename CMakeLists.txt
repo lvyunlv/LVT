@@ -13,11 +13,13 @@ set(CMAKE_OSX_SYSROOT /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk)
 set(EMP_TOOL_DIR ${CMAKE_SOURCE_DIR}/emp-tool)
 include_directories(${EMP_TOOL_DIR})
 
-# mac 设置 OpenSSL 路径
-# include_directories(/opt/homebrew/opt/openssl/include)
-
-# 服务器 设置 OpenSSL 的相对路径
-include_directories(${CMAKE_SOURCE_DIR}/external/openssl/include)
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
+    # On macOS
+    include_directories(/opt/homebrew/opt/openssl/include)
+else()
+    # On Linux
+    include_directories(${CMAKE_SOURCE_DIR}/external/openssl/include)
+endif()
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     message(STATUS "Enabling AddressSanitizer")
@@ -57,8 +59,14 @@ include_directories(${OpenFHE_INCLUDE}/pke)
 link_directories(${OpenFHE_LIBDIR})
 link_directories(${OPENMP_LIBRARIES})
 
-# 添加 stdc++fs 库
-link_libraries(stdc++fs)
+# Handle filesystem library based on OS
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
+    # On macOS, filesystem is part of the standard library
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
+else()
+    # On Linux, we need to link against stdc++fs
+    link_libraries(stdc++fs)
+endif()
 
 if(BUILD_STATIC)
     set(CMAKE_EXE_LINKER_FLAGS "${OpenFHE_EXE_LINKER_FLAGS} -static")

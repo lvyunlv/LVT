@@ -18,7 +18,15 @@
 #include "emp-aby/BSGS.hpp"
 #include "emp-aby/P2M.hpp"
 // #include "libelgl/elgl/FFT_Para_AccelerateCompatible.hpp"
-#include <experimental/filesystem>
+
+#if defined(__APPLE__) || defined(__MACH__)
+    #include <filesystem>
+    namespace fs = std::filesystem;
+#else
+    #include <experimental/filesystem>
+    namespace fs = std::experimental::filesystem;
+#endif
+
 const int thread_num = 8;
 // #include "cmath"
 // #include <poll.h>
@@ -315,12 +323,12 @@ void LVT<IO>::initialize(std::string func_name, LVT<IO>*& lvt_ptr_ref, int num_p
     std::string full_state_path = "../../build/cache/lvt_" + func_name + "_size" + std::to_string(table_size) + "-P" + std::to_string(party) + ".bin";
     
     // 创建缓存目录
-    std::experimental::filesystem::create_directories("../../build/cache");
+    fs::create_directories("../../build/cache");
     
     lvt_ptr_ref = new LVT<IO>(num_party, party, io, pool, elgl, func_name, alpha_fr, table_size, m_bits);
 
     // 检查缓存文件是否存在
-    if (std::experimental::filesystem::exists(full_state_path)) {
+    if (fs::exists(full_state_path)) {
         auto start = clock_start();
         lvt_ptr_ref->load_full_state(full_state_path);
         std::cout << "Loading cached state time: " << std::fixed << std::setprecision(6) << time_from(start) / 1e6 << " seconds" << std::endl;
@@ -340,12 +348,12 @@ void LVT<IO>::initialize_fake(std::string func_name, LVT<IO>*& lvt_ptr_ref, int 
     std::string full_state_path = "../../build/cache/lvt_fake_" + func_name + "_size" + std::to_string(table_size) + "-P" + std::to_string(party) + ".bin";
     
     // 创建缓存目录
-    std::experimental::filesystem::create_directories("../../build/cache");
+    fs::create_directories("../../build/cache");
     
     lvt_ptr_ref = new LVT<IO>(num_party, party, io, pool, elgl, func_name, alpha_fr, table_size, m_bits);
 
     // 检查缓存文件是否存在
-    if (std::experimental::filesystem::exists(full_state_path)) {
+    if (fs::exists(full_state_path)) {
         auto start = clock_start();
         lvt_ptr_ref->load_full_state(full_state_path);
         std::cout << "Loading cached state time: " << std::fixed << std::setprecision(6) << time_from(start) / 1e6 << " seconds" << std::endl;
@@ -382,7 +390,7 @@ LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, EL
     : LVT(num_party, party, io, pool, elgl, alpha, table_size, m_bits) {
     
     // 创建缓存目录
-    std::experimental::filesystem::create_directories("../../build/cache");
+    fs::create_directories("../../build/cache");
     std::string tableFile = "../../build/bin/table_" + func_name + ".txt";
     
     // 缓存文件路径
@@ -391,7 +399,7 @@ LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, EL
     std::string bsgs_cache = "../../build/cache/bsgs_" + std::to_string(table_size) + "_" + std::to_string(m_bits) + ".bin";
     
     // 1. 处理 table 数据
-    if (std::experimental::filesystem::exists(table_cache)) {
+    if (fs::exists(table_cache)) {
         // 从缓存加载 table
         std::ifstream in(table_cache, std::ios::binary);
         if (!in) throw std::runtime_error("Failed to open table cache");
@@ -417,7 +425,7 @@ LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, EL
     
     // 2. 处理 P_to_m 数据
     if (m_bits <= 16) {
-        if (std::experimental::filesystem::exists(p_to_m_cache)) {
+        if (fs::exists(p_to_m_cache)) {
             // 从缓存加载 P_to_m
             std::ifstream in(p_to_m_cache, std::ios::binary);
             if (!in) throw std::runtime_error("Failed to open P_to_m cache");
@@ -460,7 +468,7 @@ LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, EL
     
     // 3. 处理 BSGS 表
     uint64_t N = 1ULL << 32;
-    if (std::experimental::filesystem::exists(bsgs_cache)) {
+    if (fs::exists(bsgs_cache)) {
         try {
             bsgs.deserialize(bsgs_cache.c_str());
         } catch (const std::exception& e) {

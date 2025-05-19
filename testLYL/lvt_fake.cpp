@@ -2,10 +2,8 @@
 #include "emp-aby/io/multi-io.hpp"
 #include "testLLM/FixedPointConverter.h"
 #include <memory>
-#include <experimental/filesystem>
 
 using namespace emp;
-namespace fs = std::experimental::filesystem;
 
 int party, port;
 const static int threads = 8;
