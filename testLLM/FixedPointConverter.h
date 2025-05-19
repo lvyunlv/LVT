@@ -4,6 +4,8 @@
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
+#include <vector>
+#include <bitset>
 
 class FixedPointConverter {
 public:

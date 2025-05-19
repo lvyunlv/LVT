@@ -2,10 +2,10 @@
 #include "emp-aby/io/multi-io.hpp"
 #include "testLLM/FixedPointConverter.h"
 #include <memory>
-#include <filesystem>
+#include <experimental/filesystem>
 
 using namespace emp;
-namespace fs = std::filesystem;
+namespace fs = std::experimental::filesystem;
 
 int party, port;
 const static int threads = 8;
@@ -50,13 +50,13 @@ int main(int argc, char** argv) {
     std::unique_ptr<LVT<MultiIOBase>> lvt;
     LVT<MultiIOBase>* lvt_raw = nullptr;
 
-    LVT<MultiIOBase>::initialize(func_name, lvt_raw, num_party, party, io.get(), &pool, elgl.get(), alpha_fr, num, m_bits);
+    LVT<MultiIOBase>::initialize_fake(func_name, lvt_raw, num_party, party, io.get(), &pool, elgl.get(), alpha_fr, num, m_bits);
     lvt.reset(lvt_raw);
 
     mpz_class fd = m_size;
 
     std::vector<Plaintext> x_share;
-    std::string input_file = "../../TestLYL/Input/Input-P.txt";
+    std::string input_file = "../../build/Input/Input-P.txt";
     {
         // 判断文件是否存在
         if (!fs::exists(input_file)) {
@@ -191,7 +191,7 @@ int main(int argc, char** argv) {
     }
 
     if (party == 1) {
-        std::string output_file = "../../TestLYL/Output/Output.txt";
+        std::string output_file = "../../build/Output/Output.txt";
         {
             std::ofstream out_file(output_file, std::ios::trunc);
             for (int i = 0; i < x_size; ++i) {

@@ -21,7 +21,7 @@ endmacro()
 
 add_test_case_with_run(gen_File)
 # add_test_case_with_run(gen_table2)
-# add_test_case_with_run(lvt_load)
+add_test_case_with_run(lvt_load)
 add_test_case_with_run(lvt)
 add_test_case_with_run(lvt_fake)
 # add_test_case_with_run(lvt2)

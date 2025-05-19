@@ -4,7 +4,7 @@
 #include <cmath>
 #include <functional>
 #include <string>
-#include <filesystem>
+#include <experimental/filesystem>
 
 using namespace std;
 
@@ -37,7 +37,7 @@ void generate_table(const std::string& name, const ActivationFn& func) {
 }
 
 int main() {
-    std::filesystem::create_directories(OUTPUT_DIR);
+    std::experimental::filesystem::create_directories(OUTPUT_DIR);
 
     generate_table("relu", [](double x) -> double {
         return std::max(0.0, x);

@@ -18,7 +18,7 @@
 #include "emp-aby/BSGS.hpp"
 #include "emp-aby/P2M.hpp"
 // #include "libelgl/elgl/FFT_Para_AccelerateCompatible.hpp"
-
+#include <experimental/filesystem>
 const int thread_num = 8;
 // #include "cmath"
 // #include <poll.h>
@@ -72,6 +72,7 @@ class LVT{
     LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, ELGL<IO>* elgl, Fr& alpha, int table_size, int m_bits);
     LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, ELGL<IO>* elgl, std::string tableFile, Fr& alpha, int table_size, int m_bits);
     static void initialize(std::string name, LVT<IO>*& lvt_ptr_ref, int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, ELGL<IO>* elgl, Fr& alpha_fr, int table_size, int m_bits);
+    static void initialize_fake(std::string name, LVT<IO>*& lvt_ptr_ref, int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, ELGL<IO>* elgl, Fr& alpha_fr, int table_size, int m_bits);
     ELGL_PK DistKeyGen();
     ~LVT();
     void generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation, vector<int64_t> table);
@@ -93,70 +94,89 @@ void LVT<IO>::save_full_state(const std::string& filename) {
     std::ofstream out(filename, std::ios::binary);
     if (!out) throw std::runtime_error("Failed to open file for writing");
     
-    // Save basic parameters
-    out.write(reinterpret_cast<const char*>(&num_party), sizeof(int));
-    out.write(reinterpret_cast<const char*>(&party), sizeof(int));
-    out.write(reinterpret_cast<const char*>(&tb_size), sizeof(size_t));
-    out.write(reinterpret_cast<const char*>(&m_size), sizeof(size_t));
+    // 使用内存映射写入数据
+    size_t total_size = sizeof(int) * 2 +  // num_party, party
+                       sizeof(size_t) * 2 +  // tb_size, m_size
+                       sizeof(Fr) +         // rotation
+                       tb_size * sizeof(Fr) + // lut_share
+                       sizeof(Fr) +         // secret key
+                       sizeof(size_t) +     // table size
+                       table.size() * sizeof(int64_t) + // table data
+                       num_party * tb_size * sizeof(G1) + // cip_lut
+                       num_party * 2 * sizeof(G1) +    // cr_i
+                       sizeof(G1) +         // global_pk
+                       num_party * sizeof(G1) + // user_pk
+                       sizeof(Fr) +         // alpha
+                       sizeof(G1) * 2;      // G_tbs and g
+
+    // 预分配内存
+    std::vector<char> buffer(total_size);
+    char* ptr = buffer.data();
     
-    // Save rotation directly as a binary Fr
+    // 写入基本参数
+    memcpy(ptr, &num_party, sizeof(int)); ptr += sizeof(int);
+    memcpy(ptr, &party, sizeof(int)); ptr += sizeof(int);
+    memcpy(ptr, &tb_size, sizeof(size_t)); ptr += sizeof(size_t);
+    memcpy(ptr, &m_size, sizeof(size_t)); ptr += sizeof(size_t);
+    
+    // 写入 rotation
     const Fr& rot_fr = rotation.get_message();
-    out.write(reinterpret_cast<const char*>(&rot_fr), sizeof(Fr));
+    memcpy(ptr, &rot_fr, sizeof(Fr)); ptr += sizeof(Fr);
     
-    // Save lut_share directly - all the Fr values in one batch
+    // 写入 lut_share
     for (size_t i = 0; i < tb_size; i++) {
         const Fr& fr = lut_share[i].get_message();
-        out.write(reinterpret_cast<const char*>(&fr), sizeof(Fr));
+        memcpy(ptr, &fr, sizeof(Fr)); ptr += sizeof(Fr);
     }
     
-    // Save secret key
+    // 写入 secret key
     const Fr& sk_fr = elgl->kp.get_sk().get_sk();
-    out.write(reinterpret_cast<const char*>(&sk_fr), sizeof(Fr));
+    memcpy(ptr, &sk_fr, sizeof(Fr)); ptr += sizeof(Fr);
     
-    // Save table
+    // 写入 table
     size_t table_size = table.size();
-    out.write(reinterpret_cast<const char*>(&table_size), sizeof(size_t));
-    out.write(reinterpret_cast<const char*>(table.data()), table_size * sizeof(int64_t));
+    memcpy(ptr, &table_size, sizeof(size_t)); ptr += sizeof(size_t);
+    memcpy(ptr, table.data(), table_size * sizeof(int64_t)); ptr += table_size * sizeof(int64_t);
     
-    // Save cip_lut efficiently - direct binary format
+    // 写入 cip_lut
     for (int i = 0; i < num_party; ++i) {
         for (size_t j = 0; j < tb_size; ++j) {
-            // Save each BLS12381Element in binary format
             const G1& point = cip_lut[i][j].getPoint();
-            out.write(reinterpret_cast<const char*>(&point), sizeof(G1));
+            memcpy(ptr, &point, sizeof(G1)); ptr += sizeof(G1);
         }
     }
     
-    // Save cr_i
+    // 写入 cr_i
     for (int i = 0; i < num_party; ++i) {
-        // Save each Ciphertext in binary format
         const G1& c0 = cr_i[i].get_c0().getPoint();
         const G1& c1 = cr_i[i].get_c1().getPoint();
-        out.write(reinterpret_cast<const char*>(&c0), sizeof(G1));
-        out.write(reinterpret_cast<const char*>(&c1), sizeof(G1));
+        memcpy(ptr, &c0, sizeof(G1)); ptr += sizeof(G1);
+        memcpy(ptr, &c1, sizeof(G1)); ptr += sizeof(G1);
     }
     
-    // Save global_pk
+    // 写入 global_pk
     const G1& global_point = global_pk.get_pk().getPoint();
-    out.write(reinterpret_cast<const char*>(&global_point), sizeof(G1));
+    memcpy(ptr, &global_point, sizeof(G1)); ptr += sizeof(G1);
     
-    // Save user_pk
+    // 写入 user_pk
     for (int i = 0; i < num_party; ++i) {
         const G1& user_point = user_pk[i].get_pk().getPoint();
-        out.write(reinterpret_cast<const char*>(&user_point), sizeof(G1));
+        memcpy(ptr, &user_point, sizeof(G1)); ptr += sizeof(G1);
     }
 
-    // 保存 alpha
-    out.write(reinterpret_cast<const char*>(&alpha), sizeof(Fr));
+    // 写入 alpha
+    memcpy(ptr, &alpha, sizeof(Fr)); ptr += sizeof(Fr);
 
-    // 保存 G_tbs
+    // 写入 G_tbs
     const G1& g_tbs_point = G_tbs.getPoint();
-    out.write(reinterpret_cast<const char*>(&g_tbs_point), sizeof(G1));
+    memcpy(ptr, &g_tbs_point, sizeof(G1)); ptr += sizeof(G1);
 
-    // 保存 g
+    // 写入 g
     const G1& g_point = g.getPoint();
-    out.write(reinterpret_cast<const char*>(&g_point), sizeof(G1));
+    memcpy(ptr, &g_point, sizeof(G1));
     
+    // 一次性写入所有数据
+    out.write(buffer.data(), total_size);
     out.close();
 }
 
@@ -165,57 +185,67 @@ void LVT<IO>::load_full_state(const std::string& filename) {
     std::ifstream in(filename, std::ios::binary);
     if (!in) throw std::runtime_error("Failed to open file for reading");
     
-    // Load basic parameters
-    in.read(reinterpret_cast<char*>(&num_party), sizeof(int));
-    in.read(reinterpret_cast<char*>(&party), sizeof(int));
-    in.read(reinterpret_cast<char*>(&tb_size), sizeof(size_t));
-    in.read(reinterpret_cast<char*>(&m_size), sizeof(size_t));
+    // 获取文件大小
+    in.seekg(0, std::ios::end);
+    size_t file_size = in.tellg();
+    in.seekg(0, std::ios::beg);
     
-    // Load rotation directly
+    // 一次性读取所有数据
+    std::vector<char> buffer(file_size);
+    in.read(buffer.data(), file_size);
+    const char* ptr = buffer.data();
+    
+    // 读取基本参数
+    memcpy(&num_party, ptr, sizeof(int)); ptr += sizeof(int);
+    memcpy(&party, ptr, sizeof(int)); ptr += sizeof(int);
+    memcpy(&tb_size, ptr, sizeof(size_t)); ptr += sizeof(size_t);
+    memcpy(&m_size, ptr, sizeof(size_t)); ptr += sizeof(size_t);
+    
+    // 读取 rotation
     Fr rot_fr;
-    in.read(reinterpret_cast<char*>(&rot_fr), sizeof(Fr));
+    memcpy(&rot_fr, ptr, sizeof(Fr)); ptr += sizeof(Fr);
     rotation.set_message(rot_fr);
     
-    // Load lut_share directly
+    // 读取 lut_share
     lut_share.resize(tb_size);
     for (size_t i = 0; i < tb_size; i++) {
         Fr fr;
-        in.read(reinterpret_cast<char*>(&fr), sizeof(Fr));
+        memcpy(&fr, ptr, sizeof(Fr)); ptr += sizeof(Fr);
         lut_share[i].set_message(fr);
     }
     
-    // Load secret key
+    // 读取 secret key
     Fr sk_fr;
-    in.read(reinterpret_cast<char*>(&sk_fr), sizeof(Fr));
+    memcpy(&sk_fr, ptr, sizeof(Fr)); ptr += sizeof(Fr);
     ELGL_SK key;
     key.sk = sk_fr;
     elgl->kp.sk = key;
     
-    // Load table
+    // 读取 table
     size_t table_size;
-    in.read(reinterpret_cast<char*>(&table_size), sizeof(size_t));
+    memcpy(&table_size, ptr, sizeof(size_t)); ptr += sizeof(size_t);
     table.resize(table_size);
-    in.read(reinterpret_cast<char*>(table.data()), table_size * sizeof(int64_t));
+    memcpy(table.data(), ptr, table_size * sizeof(int64_t)); ptr += table_size * sizeof(int64_t);
     
-    // Load cip_lut efficiently
+    // 读取 cip_lut
     cip_lut.resize(num_party);
     for (int i = 0; i < num_party; ++i) {
         cip_lut[i].resize(tb_size);
         for (size_t j = 0; j < tb_size; ++j) {
             G1 point;
-            in.read(reinterpret_cast<char*>(&point), sizeof(G1));
+            memcpy(&point, ptr, sizeof(G1)); ptr += sizeof(G1);
             BLS12381Element elem;
             elem.point = point;
             cip_lut[i][j] = elem;
         }
     }
     
-    // Load cr_i
+    // 读取 cr_i
     cr_i.resize(num_party);
     for (int i = 0; i < num_party; ++i) {
         G1 c0, c1;
-        in.read(reinterpret_cast<char*>(&c0), sizeof(G1));
-        in.read(reinterpret_cast<char*>(&c1), sizeof(G1));
+        memcpy(&c0, ptr, sizeof(G1)); ptr += sizeof(G1);
+        memcpy(&c1, ptr, sizeof(G1)); ptr += sizeof(G1);
         
         BLS12381Element e0, e1;
         e0.point = c0;
@@ -223,34 +253,34 @@ void LVT<IO>::load_full_state(const std::string& filename) {
         cr_i[i] = Ciphertext(e0, e1);
     }
     
-    // Load global_pk
+    // 读取 global_pk
     G1 global_point;
-    in.read(reinterpret_cast<char*>(&global_point), sizeof(G1));
+    memcpy(&global_point, ptr, sizeof(G1)); ptr += sizeof(G1);
     BLS12381Element global_elem;
     global_elem.point = global_point;
     global_pk.assign_pk(global_elem);
     
-    // Load user_pk
+    // 读取 user_pk
     user_pk.resize(num_party);
     for (int i = 0; i < num_party; ++i) {
         G1 user_point;
-        in.read(reinterpret_cast<char*>(&user_point), sizeof(G1));
+        memcpy(&user_point, ptr, sizeof(G1)); ptr += sizeof(G1);
         BLS12381Element user_elem;
         user_elem.point = user_point;
         user_pk[i].assign_pk(user_elem);
     }
 
-    // 加载 alpha
-    in.read(reinterpret_cast<char*>(&alpha), sizeof(Fr));
+    // 读取 alpha
+    memcpy(&alpha, ptr, sizeof(Fr)); ptr += sizeof(Fr);
 
-    // 加载 G_tbs
+    // 读取 G_tbs
     G1 g_tbs_point;
-    in.read(reinterpret_cast<char*>(&g_tbs_point), sizeof(G1));
+    memcpy(&g_tbs_point, ptr, sizeof(G1)); ptr += sizeof(G1);
     G_tbs.point = g_tbs_point;
 
-    // 加载 G_tbs
+    // 读取 g
     G1 g_point;
-    in.read(reinterpret_cast<char*>(&g_point), sizeof(G1));
+    memcpy(&g_point, ptr, sizeof(G1));
     g.point = g_point;
 
     in.close();
@@ -282,28 +312,52 @@ LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, EL
 // 在类外定义initialize函数
 template <typename IO>
 void LVT<IO>::initialize(std::string func_name, LVT<IO>*& lvt_ptr_ref, int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, ELGL<IO>* elgl, Fr& alpha_fr, int table_size, int m_bits) {
+    std::string full_state_path = "../../build/cache/lvt_" + func_name + "_size" + std::to_string(table_size) + "-P" + std::to_string(party) + ".bin";
+    
+    // 创建缓存目录
+    std::experimental::filesystem::create_directories("../../build/cache");
+    
+    lvt_ptr_ref = new LVT<IO>(num_party, party, io, pool, elgl, func_name, alpha_fr, table_size, m_bits);
 
-    std::string tablefile = "../../build/bin/table_" + func_name + ".txt";
-    std::string full_state_path = "../../build/cache/lvt_offline_" + func_name + "_size" + std::to_string(table_size) + "-P" + std::to_string(party) + ".bin";
-    lvt_ptr_ref = new LVT<IO>(num_party, party, io, pool, elgl, tablefile, alpha_fr, table_size, m_bits);
-    // cout << "LVT initialized" << endl;
-
-    // 测试时间
-    if (std::filesystem::exists(full_state_path)) {
+    // 检查缓存文件是否存在
+    if (std::experimental::filesystem::exists(full_state_path)) {
         auto start = clock_start();
         lvt_ptr_ref->load_full_state(full_state_path);
-        // std::cout << "Loading offline time: " << std::fixed << std::setprecision(6) << time_from(start) / 1e6 << " seconds" << std::endl;
+        std::cout << "Loading cached state time: " << std::fixed << std::setprecision(6) << time_from(start) / 1e6 << " seconds" << std::endl;
     } else {
         auto start = clock_start();
-        // lvt_ptr_ref->DistKeyGen();
-        cout << "DistKeyGen finished" << endl;
-        lvt_ptr_ref->generate_shares_fake(lvt_ptr_ref->lut_share, lvt_ptr_ref->rotation, lvt_ptr_ref->table);
+        cout << "Generating new state..." << endl;
+        lvt_ptr_ref->generate_shares(lvt_ptr_ref->lut_share, lvt_ptr_ref->rotation, lvt_ptr_ref->table);
         cout << "Generate shares finished" << endl;
         lvt_ptr_ref->save_full_state(full_state_path);
-        std::cout << "Generate offline time: " << std::fixed << std::setprecision(6) << time_from(start) / 1e6 << " seconds" << std::endl;
+        std::cout << "Generate and cache state time: " << std::fixed << std::setprecision(6) << time_from(start) / 1e6 << " seconds" << std::endl;
     }
 }
 
+// 在类外定义initialize函数
+template <typename IO>
+void LVT<IO>::initialize_fake(std::string func_name, LVT<IO>*& lvt_ptr_ref, int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, ELGL<IO>* elgl, Fr& alpha_fr, int table_size, int m_bits) {
+    std::string full_state_path = "../../build/cache/lvt_fake_" + func_name + "_size" + std::to_string(table_size) + "-P" + std::to_string(party) + ".bin";
+    
+    // 创建缓存目录
+    std::experimental::filesystem::create_directories("../../build/cache");
+    
+    lvt_ptr_ref = new LVT<IO>(num_party, party, io, pool, elgl, func_name, alpha_fr, table_size, m_bits);
+
+    // 检查缓存文件是否存在
+    if (std::experimental::filesystem::exists(full_state_path)) {
+        auto start = clock_start();
+        lvt_ptr_ref->load_full_state(full_state_path);
+        std::cout << "Loading cached state time: " << std::fixed << std::setprecision(6) << time_from(start) / 1e6 << " seconds" << std::endl;
+    } else {
+        auto start = clock_start();
+        cout << "Generating new state..." << endl;
+        lvt_ptr_ref->generate_shares_fake(lvt_ptr_ref->lut_share, lvt_ptr_ref->rotation, lvt_ptr_ref->table);
+        cout << "Generate shares finished" << endl;
+        lvt_ptr_ref->save_full_state(full_state_path);
+        std::cout << "Generate and cache state time: " << std::fixed << std::setprecision(6) << time_from(start) / 1e6 << " seconds" << std::endl;
+    }
+}
 
 void build_safe_P_to_m(std::map<std::string, Fr>& P_to_m, int num_party, size_t m_size) {
     size_t max_exponent = 2 * m_size * num_party;
@@ -324,21 +378,99 @@ void build_safe_P_to_m(std::map<std::string, Fr>& P_to_m, int num_party, size_t 
 }
 
 template <typename IO>
-LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, ELGL<IO>* elgl, string tableFile, Fr& alpha, int table_size, int m_bits)
+LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, ELGL<IO>* elgl, string func_name, Fr& alpha, int table_size, int m_bits)
     : LVT(num_party, party, io, pool, elgl, alpha, table_size, m_bits) {
-    deserializeTable(table, tableFile.c_str(), tb_size);
-    if (m_bits <= 16) {
-        build_safe_P_to_m(P_to_m, num_party, m_size);
-        // if (m_bits == 1) return;
+    
+    // 创建缓存目录
+    std::experimental::filesystem::create_directories("../../build/cache");
+    std::string tableFile = "../../build/bin/table_" + func_name + ".txt";
+    
+    // 缓存文件路径
+    std::string table_cache = "../../build/cache/table_" + func_name + "_" + std::to_string(table_size) + ".bin";
+    std::string p_to_m_cache = "../../build/cache/p_to_m_" + std::to_string(m_bits) + ".bin";
+    std::string bsgs_cache = "../../build/cache/bsgs_" + std::to_string(table_size) + "_" + std::to_string(m_bits) + ".bin";
+    
+    // 1. 处理 table 数据
+    if (std::experimental::filesystem::exists(table_cache)) {
+        // 从缓存加载 table
+        std::ifstream in(table_cache, std::ios::binary);
+        if (!in) throw std::runtime_error("Failed to open table cache");
+        
+        size_t size;
+        in.read(reinterpret_cast<char*>(&size), sizeof(size_t));
+        table.resize(size);
+        in.read(reinterpret_cast<char*>(table.data()), size * sizeof(int64_t));
+        in.close();
+    } else {
+        // 生成新的 table 数据
+        deserializeTable(table, tableFile.c_str(), tb_size);
+        
+        // 保存到缓存
+        std::ofstream out(table_cache, std::ios::binary);
+        if (!out) throw std::runtime_error("Failed to create table cache");
+        
+        size_t size = table.size();
+        out.write(reinterpret_cast<const char*>(&size), sizeof(size_t));
+        out.write(reinterpret_cast<const char*>(table.data()), size * sizeof(int64_t));
+        out.close();
     }
-    // cout << "m_bits > 16, using BSGS" << endl;
-    uint64_t N = 1ULL << 32; // 38-bit空间
-    try {
-        bsgs.deserialize("bsgs_table.bin");
-        // cout << "BSGS table loaded successfully." << endl;
-    } catch (const std::exception& e) {
+    
+    // 2. 处理 P_to_m 数据
+    if (m_bits <= 16) {
+        if (std::experimental::filesystem::exists(p_to_m_cache)) {
+            // 从缓存加载 P_to_m
+            std::ifstream in(p_to_m_cache, std::ios::binary);
+            if (!in) throw std::runtime_error("Failed to open P_to_m cache");
+            
+            size_t size;
+            in.read(reinterpret_cast<char*>(&size), sizeof(size_t));
+            P_to_m.clear();
+            
+            for (size_t i = 0; i < size; ++i) {
+                size_t key_len;
+                in.read(reinterpret_cast<char*>(&key_len), sizeof(size_t));
+                std::string key(key_len, '\0');
+                in.read(&key[0], key_len);
+                
+                Fr value;
+                in.read(reinterpret_cast<char*>(&value), sizeof(Fr));
+                P_to_m[key] = value;
+            }
+            in.close();
+        } else {
+            // 生成新的 P_to_m 数据
+            build_safe_P_to_m(P_to_m, num_party, m_size);
+            
+            // 保存到缓存
+            std::ofstream out(p_to_m_cache, std::ios::binary);
+            if (!out) throw std::runtime_error("Failed to create P_to_m cache");
+            
+            size_t size = P_to_m.size();
+            out.write(reinterpret_cast<const char*>(&size), sizeof(size_t));
+            
+            for (const auto& pair : P_to_m) {
+                size_t key_len = pair.first.length();
+                out.write(reinterpret_cast<const char*>(&key_len), sizeof(size_t));
+                out.write(pair.first.c_str(), key_len);
+                out.write(reinterpret_cast<const char*>(&pair.second), sizeof(Fr));
+            }
+            out.close();
+        }
+    }
+    
+    // 3. 处理 BSGS 表
+    uint64_t N = 1ULL << 32;
+    if (std::experimental::filesystem::exists(bsgs_cache)) {
+        try {
+            bsgs.deserialize(bsgs_cache.c_str());
+        } catch (const std::exception& e) {
+            // 如果反序列化失败，重新生成
+            bsgs.precompute(g, N);
+            bsgs.serialize(bsgs_cache.c_str());
+        }
+    } else {
         bsgs.precompute(g, N);
-        bsgs.serialize("bsgs_table.bin");
+        bsgs.serialize(bsgs_cache.c_str());
     }
 }
 
