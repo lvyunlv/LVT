@@ -56,6 +56,8 @@ int main(int argc, char** argv) {
 
     LVT<MultiIOBase>::initialize_fake(func_name, lvt_raw, num_party, party, io.get(), &pool, elgl.get(), alpha_fr, num, m_bits);
     lvt.reset(lvt_raw);
+    Plaintext tb_field = Plaintext(tb_size);
+    Plaintext value_field = Plaintext(m_size);
 
     int bytes_end = io->get_total_bytes_sent();
     auto t2 = std::chrono::high_resolution_clock::now();
@@ -122,56 +124,46 @@ int main(int argc, char** argv) {
             }
         }
     }
-    // 计算当前party自己x的share的密文，共同恢复x明文
-    Plaintext tb_field = Plaintext(tb_size);
-    Plaintext value_field = Plaintext(m_size);
+    // // 计算当前party自己x的share的密文，共同恢复x明文
 
-    for (int i = 0; i < x_size; ++i) {
-        Plaintext x_sum = x_share[i];
-        elgl.get()->serialize_sendall(x_sum);
-        for (int i = 1; i <= num_party; i++) {
-            if (i != party) {
-                Plaintext x_recv;
-                elgl.get()->deserialize_recv(x_recv, i);
-                x_sum += x_recv;
-                x_sum = x_sum % tb_field;
-            }
-        }
-        uint64_t table_x = lvt->table[x_sum.get_message().getUint64()];
-        // std::cout << "x: " << x_sum.get_message().getUint64() << ", lut[x]: " << table_x << endl;
-        // cout << "table_x = " << FixedPointConverter::decode(table_x) << endl;
-        Plaintext table_pt = Plaintext(table_x);
-        elgl.get()->serialize_sendall(table_pt);
-        for (int i = 1; i <= num_party; i++) {
-            if (i != party) {
-                Plaintext table_pt_recv;
-                elgl.get()->deserialize_recv(table_pt_recv, i);
-                if (table_pt_recv.get_message().getUint64() != table_x) {
-                    std::cerr << "Error x_sum: " << party << std::endl;
-                    return 1;
-                }
-            }
-        }
-    }
+    // for (int i = 0; i < x_size; ++i) {
+    //     Plaintext x_sum = x_share[i];
+    //     elgl.get()->serialize_sendall(x_sum);
+    //     for (int i = 1; i <= num_party; i++) {
+    //         if (i != party) {
+    //             Plaintext x_recv;
+    //             elgl.get()->deserialize_recv(x_recv, i);
+    //             x_sum += x_recv;
+    //             x_sum = x_sum % tb_field;
+    //         }
+    //     }
+    //     uint64_t table_x = lvt->table[x_sum.get_message().getUint64()];
+    //     // std::cout << "x: " << x_sum.get_message().getUint64() << ", lut[x]: " << table_x << endl;
+    //     // cout << "table_x = " << FixedPointConverter::decode(table_x) << endl;
+    //     Plaintext table_pt = Plaintext(table_x);
+    //     elgl.get()->serialize_sendall(table_pt);
+    //     for (int i = 1; i <= num_party; i++) {
+    //         if (i != party) {
+    //             Plaintext table_pt_recv;
+    //             elgl.get()->deserialize_recv(table_pt_recv, i);
+    //             if (table_pt_recv.get_message().getUint64() != table_x) {
+    //                 std::cerr << "Error x_sum: " << party << std::endl;
+    //                 return 1;
+    //             }
+    //         }
+    //     }
+    // }
     //  ************* ************* 正式测试内容 ************* ************* 
     std::vector<Ciphertext> x_cipher(x_size);
     for (int i = 0; i < x_size; ++i) {
         x_cipher[i] = lvt->global_pk.encrypt(x_share[i]);
-        lvt->Reconstruct_easy(x_share[i], elgl.get(), io.get(), &pool, party, num_party, fd);
+        // lvt->Reconstruct_easy(x_share[i], elgl.get(), io.get(), &pool, party, num_party, fd);
     }
 
     int bytes_start1 = io->get_total_bytes_sent();
     auto t3 = std::chrono::high_resolution_clock::now();
 
-    std::vector<Ciphertext> x_ciphers(num_party);
-    std::vector<Plaintext> out(x_size);
-    std::vector<std::vector<Ciphertext>> out_ciphers(x_size, std::vector<Ciphertext>(num_party));
-    for (int i = 0; i < x_size; ++i) {
-        auto [output1, output2] = lvt->lookup_online_fake(x_share[i], x_cipher[i], x_ciphers);
-        out[i] = output1;
-        // cout << "party: " << party << " out = " << out[i].get_message().getStr() << endl;
-        out_ciphers[i] = output2;
-    } 
+    auto [out, out_ciphers] = lvt->lookup_online_fake(x_share, x_cipher);
     //  ************* ************* 测试内容结束 ************* ************* 
 
     int bytes_end1 = io->get_total_bytes_sent();
@@ -208,7 +200,7 @@ int main(int argc, char** argv) {
         // cout << out_sum.get_message().getStr() << endl;
 
         out_sum_double[i] = FixedPointConverter::decode(out_sum.get_message().getUint64());
-        cout << "party: " << party << " out_sum_double = " << out_sum_double[i] << endl;
+        // cout << "party: " << party << " out_sum_double = " << out_sum_double[i] << endl;
     }
 
     if (party == 1) {

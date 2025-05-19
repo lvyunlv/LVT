@@ -86,7 +86,7 @@ class LVT{
     void generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation, vector<int64_t> table);
     void generate_shares_fake(vector<Plaintext>& lut_share, Plaintext& rotation, vector<int64_t> table);
     tuple<Plaintext, vector<Ciphertext>> lookup_online(Plaintext& x_share, Ciphertext& x_cipher, vector<Ciphertext>& x_ciphers);
-    tuple<Plaintext, vector<Ciphertext>> lookup_online_fake(Plaintext& x_share, Ciphertext& x_cipher, vector<Ciphertext>& x_ciphers);
+    tuple<vector<Plaintext>, vector<vector<Ciphertext>>> lookup_online_fake(vector<Plaintext>& x_share, vector<Ciphertext>& x_cipher);
     Plaintext lookup_online_easy(Plaintext& x_share);
     void save_full_state(const std::string& filename);
     void load_full_state(const std::string& filename);
@@ -1527,95 +1527,112 @@ tuple<Plaintext, vector<Ciphertext>> LVT<IO>::lookup_online(Plaintext& x_share, 
 }
 
 template <typename IO>
-tuple<Plaintext, vector<Ciphertext>> LVT<IO>::lookup_online_fake(Plaintext& x_share, Ciphertext& x_cipher, vector<Ciphertext>& x_ciphers){
-    // cout << "party: " << party << " x_share = " << x_share.get_message().getStr() << endl;
-    // cout << "party: " << party << " rotation = " << rotation.get_message().getStr() << endl;
-    // cout << "party: " << party << "生成LUT的share" << endl;
-    // for (size_t i = 0; i < tb_size; i++) {
-    //     cout << "lut_share[" << i << "] = " << lut_share[i].get_message().getStr() << endl;
-    // }
-
+tuple<vector<Plaintext>, vector<vector<Ciphertext>>> LVT<IO>::lookup_online_fake(vector<Plaintext>& x_share, vector<Ciphertext>& x_cipher){
     auto start = clock_start();
     int bytes_start = io->get_total_bytes_sent();
 
-    Plaintext out;
-    vector<Ciphertext> out_ciphers;
+    int x_size = x_share.size();
     vector<std::future<void>> res;
-    vector<Plaintext> u_shares;
+    vector<vector<Plaintext>> u_shares(x_size, vector<Plaintext>(num_party));
+    vector<vector<Ciphertext>> x_ciphers(x_size, vector<Ciphertext>(num_party));
 
-    x_ciphers.resize(num_party);
-    u_shares.resize(num_party);
-
-    x_ciphers[party-1] = x_cipher;
-    u_shares[party-1] = x_share + this->rotation;
-
-    // accept cipher from all party
-    for (size_t i = 1; i <= num_party; i++){
-        res.push_back(pool->enqueue([this, i, &x_ciphers, &u_shares](){
-            if (i != party){
-                Ciphertext x_cip;
-                elgl->deserialize_recv(x_cip, i);
-                Plaintext u_share;
-                elgl->deserialize_recv(u_share, i);
-                x_ciphers[i-1] = x_cip;
-                u_shares[i-1] = u_share;
-            }
+    for (size_t i = 0; i < x_size; i++) {
+        res.push_back(pool->enqueue([this, i, &x_share, &u_shares](){
+            u_shares[i][party-1] = x_share[i] + this->rotation;
         }));
     }
-    elgl->serialize_sendall(x_cipher, party);
-    elgl->serialize_sendall(u_shares[party-1], party);
     for (auto& v : res)
         v.get();
     res.clear();
 
-    Ciphertext c = x_ciphers[0] + cr_i[0];
-    Plaintext uu = u_shares[0];
-    for (size_t i=1; i<num_party; i++){
-        c +=  x_ciphers[i] + cr_i[i];
-        uu += u_shares[i];
+    for (size_t i = 0; i < x_size; i++) {
+        for (size_t j = 1; j <= num_party; j++){
+            res.push_back(pool->enqueue([this, i, j, &u_shares](){
+                if (j != party){
+                    Plaintext u_share;
+                    elgl->deserialize_recv(u_share, j);
+                    u_shares[i][j-1] = u_share;
+                }
+            }));
+        }
     }
-    // uu mod tb_size
-    // cout << "party: " << party << " uu = " << uu.get_message().getStr() << endl;
-    mcl::Vint h;
-    h.setStr(to_string(tb_size));
-    mcl::Vint q1 = uu.get_message().getMpz();
-    mcl::gmp::mod(q1, q1, h);
-    uu.assign(q1.getStr());
+    for (size_t i = 0; i < x_size; i++) {
+        elgl->serialize_sendall(u_shares[i][party-1]);
+    }
+    for (auto& v : res)
+        v.get();
+    res.clear();
 
-    // Fr u = threshold_decrypt(c, elgl, global_pk, user_pk, elgl->io, pool, party, num_party, P_to_m, this);
-    // // u mod tb_size
-    // mcl::Vint q2 = u.getMpz(); 
-    // mcl::gmp::mod(q2, q2, h);
-    // u.setStr(q2.getStr());
-    
-    // if (u != uu.get_message()){
-    //     // cout << "u = " << u.getStr() << endl;
-    //     // cout << "uu = " << uu.get_message().getStr() << endl;
-    //     cout << "error: in online lookup" << endl;
-    //     exit(1);
-    // }
-    
+    for (size_t i = 0; i < x_size; i++) {
+        for (size_t j = 1; j <= num_party; j++){
+            res.push_back(pool->enqueue([this, i, j, &x_ciphers](){
+                if (j != party){
+                    Ciphertext x_cip;
+                    elgl->deserialize_recv(x_cip, j);
+                    x_ciphers[i][j-1] = x_cip;
+                }
+            }));
+        }
+    }
+    for (size_t i = 0; i < x_size; i++) {
+        elgl->serialize_sendall(x_cipher[i]);
+    }
+    for (auto& v : res)
+        v.get();
+    res.clear();
+
+    vector<Ciphertext> c(x_size);
+    vector<Plaintext> uu(x_size);
+    for (size_t i = 0; i < x_size; i++) {
+        res.push_back(pool->enqueue([this, i, &x_ciphers, &u_shares, &c, &uu](){
+            c[i] = x_ciphers[i][0] + this->cr_i[party-1];  // 修改这里，使用cr_i[party-1]而不是cr_i[i]
+            uu[i] = u_shares[i][0];
+        }));
+    }
+    for (auto& v : res)
+        v.get();
+    res.clear();
+
+    for (size_t j = 0; j < x_size; j++) {
+        res.push_back(pool->enqueue([this, j, &x_ciphers, &u_shares, &c, &uu](){
+            for (size_t i=1; i<num_party; i++){
+                c[j] +=  x_ciphers[j][i] + this->cr_i[i-1];  // 这里也需要修改，使用cr_i[i-1]
+                uu[j] += u_shares[j][i];
+            }
+        }));
+    }
+    for (auto& v : res)
+        v.get();
+    res.clear();
+
+    vector<Plaintext> out(x_size);
+    vector<vector<Ciphertext>> out_ciphers(x_size, vector<Ciphertext>(num_party));
+
     mcl::Vint tbs;
     tbs.setStr(to_string(tb_size));
-    mcl::Vint u_mpz = uu.get_message().getMpz(); 
-    mcl::gmp::mod(u_mpz, u_mpz, tbs);
+    for (size_t i = 0; i < x_size; i++) {
+        res.push_back(pool->enqueue([this, i, &uu, &out, &out_ciphers, &tbs](){
+            mcl::Vint u_mpz = uu[i].get_message().getMpz(); 
+            mcl::gmp::mod(u_mpz, u_mpz, tbs);
 
-    mcl::Vint index_mpz;
-    index_mpz.setStr(u_mpz.getStr());
-    size_t index = static_cast<size_t>(index_mpz.getLow32bit());
+            mcl::Vint index_mpz;
+            index_mpz.setStr(u_mpz.getStr());
+            size_t index = static_cast<size_t>(index_mpz.getLow32bit());
 
-    out = this->lut_share[index];
-    // cout << "party: " << party << " out = " << out.get_message().getStr() << endl;
-    out_ciphers.resize(num_party);
-    for (size_t i = 0; i < num_party; i++){
-        Ciphertext tmp(user_pk[i].get_pk(), cip_lut[i][index]);
-        out_ciphers[i] = tmp;
+            out[i] = this->lut_share[index];
+            out_ciphers[i].resize(num_party);
+            for (size_t j = 0; j < num_party; j++){
+                Ciphertext tmp(this->user_pk[j].get_pk(), this->cip_lut[j][index]);
+                out_ciphers[i][j] = tmp;
+            }
+        }));
     }
-    // cout << "party: " << party << " index = " << index << endl;
+    for (auto& v : res)
+        v.get();
+    res.clear();
 
     int bytes_end = io->get_total_bytes_sent();
     double comm_kb = double(bytes_end - bytes_start) / 1024.0;
-    // std::cout << "Online time: " << std::fixed << std::setprecision(6) << time_from(start) / 1e6 << " seconds, " << std::fixed << std::setprecision(3) << "Online communication: " << comm_kb << " KB" << std::endl;
 
     return std::make_tuple(out, out_ciphers);
 }
