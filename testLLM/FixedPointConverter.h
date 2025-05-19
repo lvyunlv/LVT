@@ -9,7 +9,7 @@
 
 class FixedPointConverter {
 public:
-    static constexpr int FRACTIONAL_BITS = 10;
+    static constexpr int FRACTIONAL_BITS = 12;
     static constexpr double SCALE = 1 << FRACTIONAL_BITS;
     
     static uint64_t double_to_fixed(double value) {
@@ -21,7 +21,7 @@ public:
     }
 
     // 使用 Q8.16（24-bit 定点）
-    static constexpr int total_bits = 16;
+    static constexpr int total_bits = 20;
     static constexpr uint32_t FIELD_SIZE = 1UL << total_bits;  // 2^24 = 16,777,216
 
     // 将 double 编码为 Vint

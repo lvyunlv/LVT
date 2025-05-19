@@ -6,11 +6,11 @@
 using namespace emp;
 
 int party, port;
-const static int threads = 8;
+const static int threads = 32;
 int num_party;
-int m_bits = 16; // 表值比特数，在B2L和L2B中为1，在非线性函数计算调用时为24（表示Q8.16定点整数）
+int m_bits = 20; // 表值比特数，在B2L和L2B中为1，在非线性函数计算调用时为24（表示Q8.16定点整数）
 int m_size = 1 << m_bits; // 表值大小
-int num = 16;
+int num = 20;
 int tb_size = 1ULL << num; // 表的大小
 
 int main(int argc, char** argv) {
@@ -41,9 +41,15 @@ int main(int argc, char** argv) {
         }
     }
 
+
     ThreadPool pool(threads);
     auto io = std::make_unique<MultiIO>(party, num_party, net_config);
     auto elgl = std::make_unique<ELGL<MultiIOBase>>(num_party, io.get(), &pool, party);
+
+    // 测试时间和通信
+    int bytes_start = io.get()->get_total_bytes_sent();
+    auto t1 = std::chrono::high_resolution_clock::now();
+
     Fr alpha_fr = alpha_init(num);
     std::unique_ptr<LVT<MultiIOBase>> lvt;
     LVT<MultiIOBase>* lvt_raw = nullptr;
@@ -51,8 +57,14 @@ int main(int argc, char** argv) {
     LVT<MultiIOBase>::initialize_fake(func_name, lvt_raw, num_party, party, io.get(), &pool, elgl.get(), alpha_fr, num, m_bits);
     lvt.reset(lvt_raw);
 
-    mpz_class fd = m_size;
+    int bytes_end = io->get_total_bytes_sent();
+    auto t2 = std::chrono::high_resolution_clock::now();
+    double comm_kb = double(bytes_end - bytes_start) / 1024.0;
+    double time_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
+    cout << "Offline time: " << time_ms << " ms, comm: " << comm_kb << " KB" << std::endl;
 
+
+    mpz_class fd = m_size;
     std::vector<Plaintext> x_share;
     std::string input_file = "../../build/Input/Input-P.txt";
     {
@@ -148,16 +160,25 @@ int main(int argc, char** argv) {
         lvt->Reconstruct_easy(x_share[i], elgl.get(), io.get(), &pool, party, num_party, fd);
     }
 
+    int bytes_start1 = io->get_total_bytes_sent();
+    auto t3 = std::chrono::high_resolution_clock::now();
+
     std::vector<Ciphertext> x_ciphers(num_party);
     std::vector<Plaintext> out(x_size);
     std::vector<std::vector<Ciphertext>> out_ciphers(x_size, std::vector<Ciphertext>(num_party));
     for (int i = 0; i < x_size; ++i) {
-        auto [output1, output2] = lvt->lookup_online(x_share[i], x_cipher[i], x_ciphers);
+        auto [output1, output2] = lvt->lookup_online_fake(x_share[i], x_cipher[i], x_ciphers);
         out[i] = output1;
         // cout << "party: " << party << " out = " << out[i].get_message().getStr() << endl;
         out_ciphers[i] = output2;
     } 
     //  ************* ************* 测试内容结束 ************* ************* 
+
+    int bytes_end1 = io->get_total_bytes_sent();
+    auto t4 = std::chrono::high_resolution_clock::now();
+    double comm_kb1 = double(bytes_end1 - bytes_start1) / 1024.0;
+    double time_ms1 = std::chrono::duration<double, std::milli>(t4 - t3).count();
+    cout << "Online time: " << time_ms1 << " ms, comm: " << comm_kb1 << " KB" << std::endl;
 
     // 根据查表share结果恢复总体查表结果
     vector<double> out_sum_double(x_size);
@@ -184,6 +205,8 @@ int main(int argc, char** argv) {
                 // cout << "party: " << party << " out_sum = " << out_sum.get_message().getStr() << endl;
             }
         }
+        // cout << out_sum.get_message().getStr() << endl;
+
         out_sum_double[i] = FixedPointConverter::decode(out_sum.get_message().getUint64());
         cout << "party: " << party << " out_sum_double = " << out_sum_double[i] << endl;
     }

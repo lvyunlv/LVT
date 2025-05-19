@@ -5,9 +5,9 @@
 using namespace emp;
 
 int party, port;
-const static int threads = 8;
+const static int threads = 32;
 int num_party;
-int m_bits = 24; // 表值比特数，在B2L和L2B中为1，在非线性函数计算调用时为24（表示Q8.16定点整数）
+int m_bits = 22; // 表值比特数，在B2L和L2B中为1，在非线性函数计算调用时为24（表示Q8.16定点整数）
 int m_size = 1 << m_bits; // 表值大小
 int num = 8;
 int tb_size = 1ULL << num; // 表的大小

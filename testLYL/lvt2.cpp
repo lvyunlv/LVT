@@ -7,7 +7,7 @@ using namespace emp;
 namespace fs = std::experimental::filesystem;
 
 int party, port;
-const static int threads = 8;
+const static int threads = 32;
 int num_party;
 int m_bits = 1; // 表值比特数，在B2L和L2B中为1，在非线性函数计算调用时为24（表示Q8.16定点整数）
 int num = 1;
