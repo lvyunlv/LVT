@@ -1529,111 +1529,188 @@ tuple<Plaintext, vector<Ciphertext>> LVT<IO>::lookup_online(Plaintext& x_share, 
 template <typename IO>
 tuple<vector<Plaintext>, vector<vector<Ciphertext>>> LVT<IO>::lookup_online_fake(vector<Plaintext>& x_share, vector<Ciphertext>& x_cipher){
     auto start = clock_start();
-    int bytes_start = io->get_total_bytes_sent();
-
-    int x_size = x_share.size();
-    vector<std::future<void>> res;
-    vector<vector<Plaintext>> u_shares(x_size, vector<Plaintext>(num_party));
-    vector<vector<Ciphertext>> x_ciphers(x_size, vector<Ciphertext>(num_party));
-
-    for (size_t i = 0; i < x_size; i++) {
-        res.push_back(pool->enqueue([this, i, &x_share, &u_shares](){
-            u_shares[i][party-1] = x_share[i] + this->rotation;
-        }));
-    }
-    for (auto& v : res)
-        v.get();
-    res.clear();
-
-    for (size_t i = 0; i < x_size; i++) {
-        for (size_t j = 1; j <= num_party; j++){
-            res.push_back(pool->enqueue([this, i, j, &u_shares](){
-                if (j != party){
-                    Plaintext u_share;
-                    elgl->deserialize_recv(u_share, j);
-                    u_shares[i][j-1] = u_share;
-                }
-            }));
-        }
-    }
-    for (size_t i = 0; i < x_size; i++) {
-        elgl->serialize_sendall(u_shares[i][party-1]);
-    }
-    for (auto& v : res)
-        v.get();
-    res.clear();
-
-    for (size_t i = 0; i < x_size; i++) {
-        for (size_t j = 1; j <= num_party; j++){
-            res.push_back(pool->enqueue([this, i, j, &x_ciphers](){
-                if (j != party){
-                    Ciphertext x_cip;
-                    elgl->deserialize_recv(x_cip, j);
-                    x_ciphers[i][j-1] = x_cip;
-                }
-            }));
-        }
-    }
-    for (size_t i = 0; i < x_size; i++) {
-        elgl->serialize_sendall(x_cipher[i]);
-    }
-    for (auto& v : res)
-        v.get();
-    res.clear();
-
-    vector<Ciphertext> c(x_size);
-    vector<Plaintext> uu(x_size);
-    for (size_t i = 0; i < x_size; i++) {
-        res.push_back(pool->enqueue([this, i, &x_ciphers, &u_shares, &c, &uu](){
-            c[i] = x_ciphers[i][0] + this->cr_i[party-1];  // 修改这里，使用cr_i[party-1]而不是cr_i[i]
-            uu[i] = u_shares[i][0];
-        }));
-    }
-    for (auto& v : res)
-        v.get();
-    res.clear();
-
-    for (size_t j = 0; j < x_size; j++) {
-        res.push_back(pool->enqueue([this, j, &x_ciphers, &u_shares, &c, &uu](){
-            for (size_t i=1; i<num_party; i++){
-                c[j] +=  x_ciphers[j][i] + this->cr_i[i-1];  // 这里也需要修改，使用cr_i[i-1]
-                uu[j] += u_shares[j][i];
-            }
-        }));
-    }
-    for (auto& v : res)
-        v.get();
-    res.clear();
-
+    
+    // 获取输入大小
+    size_t x_size = x_share.size();
+    
+    // 预分配所有结果内存
     vector<Plaintext> out(x_size);
     vector<vector<Ciphertext>> out_ciphers(x_size, vector<Ciphertext>(num_party));
+    
+    // 添加本地share到uu，并准备直接发送内部数据
+    vector<Plaintext> uu(x_size);
+    vector<Fr> all_local_shares(x_size);
 
+    // 单次处理，避免多次获取共享数据
+    for (size_t i = 0; i < x_size; i++) {
+        uu[i] = x_share[i] + this->rotation;
+        all_local_shares[i] = uu[i].get_message();
+    }
+
+    // 直接发送Fr原始数据，避免序列化开销
+    size_t total_data_size = sizeof(Fr) * x_size;
+    char* shares_data = reinterpret_cast<char*>(all_local_shares.data());
+    
+    // 并行发送给所有其他方
+    vector<std::future<void>> futures;
+    for (int p = 1; p <= num_party; p++) {
+        if (p != party) {
+            futures.push_back(pool->enqueue([this, p, shares_data, total_data_size]() {
+                io->send_data(p, shares_data, total_data_size);
+            }));
+        }
+    }
+    
+    // 等待所有发送完成
+    for (auto& fut : futures) fut.get();
+    futures.clear();
+    
+    // 准备密文数据
+    vector<G1> c0_points(x_size);
+    vector<G1> c1_points(x_size);
+    for (size_t i = 0; i < x_size; i++) {
+        c0_points[i] = x_cipher[i].get_c0().getPoint();
+        c1_points[i] = x_cipher[i].get_c1().getPoint();
+    }
+    
+    // 发送密文数据
+    size_t cipher_size = sizeof(G1) * 2 * x_size;
+    char* cipher_data = new char[cipher_size];
+    
+    // 将密文数据打包到连续内存
+    for (size_t i = 0; i < x_size; i++) {
+        memcpy(cipher_data + i * sizeof(G1) * 2, &c0_points[i], sizeof(G1));
+        memcpy(cipher_data + i * sizeof(G1) * 2 + sizeof(G1), &c1_points[i], sizeof(G1));
+    }
+    
+    // 并行发送密文数据
+    for (int p = 1; p <= num_party; p++) {
+        if (p != party) {
+            futures.push_back(pool->enqueue([this, p, cipher_data, cipher_size]() {
+                io->send_data(p, cipher_data, cipher_size);
+            }));
+        }
+    }
+    
+    // 等待所有密文发送完成
+    for (auto& fut : futures) fut.get();
+    futures.clear();
+    
+    // 安全释放密文数据
+    delete[] cipher_data;
+    
+    // 并行接收所有参与方的share数据
+    std::mutex uu_mutex;
+    vector<char*> recv_buffers;
+    
+    // 创建接收线程池，每个线程接收一个参与方的数据
+    for (int p = 1; p <= num_party; p++) {
+        if (p != party) {
+            futures.push_back(pool->enqueue([this, p, x_size, &uu, &uu_mutex, &recv_buffers]() {
+                // 接收shares数据
+                int recv_size;
+                void* recv_data = io->recv_data(p, recv_size, 0);
+                
+                if (recv_size != static_cast<int>(sizeof(Fr) * x_size)) {
+                    std::cerr << "Error: Received incorrect data size for shares from party " << p << std::endl;
+                    free(recv_data);
+                    return;
+                }
+                
+                // 直接处理接收到的Fr数据
+                Fr* shares = reinterpret_cast<Fr*>(recv_data);
+                
+                // 将接收到的share添加到uu
+                {
+                    std::lock_guard<std::mutex> lock(uu_mutex);
+                    for (size_t i = 0; i < x_size; i++) {
+                        // 这里直接把 Fr 添加到 Plaintext 中
+                        uu[i] += shares[i];
+                    }
+                }
+                
+                // 将接收缓冲区保存到列表中，稍后释放
+                recv_buffers.push_back(static_cast<char*>(recv_data));
+            }));
+        }
+    }
+    
+    // 等待所有share数据接收完成
+    for (auto& fut : futures) fut.get();
+    futures.clear();
+    
+    // 并行接收密文数据 - 这部分仅用于完整性，我们实际上不需要其他方的密文
+    for (int p = 1; p <= num_party; p++) {
+        if (p != party) {
+            futures.push_back(pool->enqueue([this, p, x_size, &recv_buffers]() {
+                // 接收密文数据
+                int recv_size;
+                void* recv_data = io->recv_data(p, recv_size, 0);
+                
+                if (recv_size != static_cast<int>(sizeof(G1) * 2 * x_size)) {
+                    std::cerr << "Error: Received incorrect data size for ciphers from party " << p << std::endl;
+                    free(recv_data);
+                    return;
+                }
+                
+                // 将接收缓冲区保存到列表中，稍后释放
+                recv_buffers.push_back(static_cast<char*>(recv_data));
+            }));
+        }
+    }
+    
+    // 等待所有密文接收完成
+    for (auto& fut : futures) fut.get();
+    futures.clear();
+    
+    // 计算索引查找和组装结果的最佳并行块大小
+    size_t num_threads = thread_num;
+    if (num_threads < 1) num_threads = 1;
+    
+    size_t block_size = (x_size + num_threads - 1) / num_threads;
+    if (block_size < 1) block_size = 1;
+    
+    // 准备tbs (table size) 用于索引计算
     mcl::Vint tbs;
     tbs.setStr(to_string(tb_size));
-    for (size_t i = 0; i < x_size; i++) {
-        res.push_back(pool->enqueue([this, i, &uu, &out, &out_ciphers, &tbs](){
-            mcl::Vint u_mpz = uu[i].get_message().getMpz(); 
-            mcl::gmp::mod(u_mpz, u_mpz, tbs);
-
-            mcl::Vint index_mpz;
-            index_mpz.setStr(u_mpz.getStr());
-            size_t index = static_cast<size_t>(index_mpz.getLow32bit());
-
-            out[i] = this->lut_share[index];
-            out_ciphers[i].resize(num_party);
-            for (size_t j = 0; j < num_party; j++){
-                Ciphertext tmp(this->user_pk[j].get_pk(), this->cip_lut[j][index]);
-                out_ciphers[i][j] = tmp;
+    
+    // 并行处理索引查找和结果组装
+    for (size_t t = 0; t < num_threads && t * block_size < x_size; t++) {
+        size_t start = t * block_size;
+        size_t end = std::min(x_size, start + block_size);
+        
+        futures.push_back(pool->enqueue([this, start, end, &uu, &out, &out_ciphers, &tbs]() {
+            // 预计算索引以提高性能
+            vector<size_t> indices(end - start);
+            
+            // 计算所有索引
+            for (size_t i = start; i < end; i++) {
+                mcl::Vint u_mpz = uu[i].get_message().getMpz(); 
+                mcl::gmp::mod(u_mpz, u_mpz, tbs);
+                indices[i - start] = static_cast<size_t>(u_mpz.getLow32bit());
+            }
+            
+            // 查表获取结果
+            for (size_t i = start; i < end; i++) {
+                size_t idx = indices[i - start];
+                out[i] = this->lut_share[idx];
+                
+                // 组装所有密文结果
+                for (size_t j = 0; j < static_cast<size_t>(num_party); j++) {
+                    out_ciphers[i][j].set(this->user_pk[j].get_pk(), this->cip_lut[j][idx]);
+                }
             }
         }));
     }
-    for (auto& v : res)
-        v.get();
-    res.clear();
-
-    int bytes_end = io->get_total_bytes_sent();
-    double comm_kb = double(bytes_end - bytes_start) / 1024.0;
-
+    
+    // 等待所有处理完成
+    for (auto& fut : futures) fut.get();
+    
+    // 释放所有接收缓冲区
+    for (char* buffer : recv_buffers) {
+        free(buffer);
+    }
+    
     return std::make_tuple(out, out_ciphers);
 }
 

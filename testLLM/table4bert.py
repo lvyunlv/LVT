@@ -1,6 +1,10 @@
 import numpy as np
 import os
 
+# 本文件自动为 BERT.py 中涉及的所有非线性函数（gelu, relu, sigmoid, tanh, inverse, sqrt, silu）生成查找表
+# 这些查找表用于LVT库在MPC-BERT推理中的激活函数查表加速
+# --------------------------------------------------
+
 # 配置定点数参数
 FRACTIONAL_BITS = 12
 TOTAL_BITS = 20
@@ -60,6 +64,11 @@ def sqrt(x):
 def silu(x):
     return x * sigmoid(x)
 
+# softmax查表为单点近似：softmax(x) = exp(x)/(exp(x)+1)，实际softmax为向量归一化，这里仅供查表演示
+
+def softmax(x):
+    return np.exp(x) / (np.exp(x) + 1)
+
 # 查表目标函数列表
 activation_functions = {
     "relu": relu,
@@ -69,6 +78,7 @@ activation_functions = {
     "inverse": inv,
     "sqrt": sqrt,
     "silu": silu,
+    "softmax": softmax,  # 新增softmax查表
 }
 
 # 输出路径
@@ -77,6 +87,7 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # 生成并保存每个函数的查表数据
 for name, func in activation_functions.items():
+    print(f"为 BERT.py 生成 {name} 查找表 (lookup table)")
     print(f"Generating lookup table for: {name}")
     
     # 生成从0到FIELD_SIZE-1的所有可能的定点整数

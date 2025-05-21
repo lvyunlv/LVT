@@ -10,22 +10,22 @@
 class FixedPointConverter {
 public:
     static constexpr int FRACTIONAL_BITS = 12;
-    static constexpr double SCALE = 1 << FRACTIONAL_BITS;
+    static constexpr float SCALE = 1 << FRACTIONAL_BITS;
     
-    static uint64_t double_to_fixed(double value) {
+    static uint64_t float_to_fixed(float value) {
         return static_cast<uint64_t>(std::round(value * SCALE));
     }
     
-    static double fixed_to_double(uint64_t value) {
-        return static_cast<double>(value) / SCALE;
+    static float fixed_to_float(uint64_t value) {
+        return static_cast<float>(value) / SCALE;
     }
 
     // 使用 Q8.16（24-bit 定点）
     static constexpr int total_bits = 20;
     static constexpr uint32_t FIELD_SIZE = 1UL << total_bits;  // 2^24 = 16,777,216
 
-    // 将 double 编码为 Vint
-    static uint64_t encode(double value) {
+    // 将 float 编码为 Vint
+    static uint64_t encode(float value) {
         int64_t fixed_val = static_cast<int64_t>(std::round(value * SCALE));
         if (fixed_val < 0) {
             fixed_val += FIELD_SIZE;  // 映射负数到 [2^23, 2^24-1]
@@ -34,13 +34,13 @@ public:
         return result;
     }
 
-    // 解码 Vint 为 double
-    static double decode(const uint64_t& fixed) {
+    // 解码 Vint 为 float
+    static float decode(const uint64_t& fixed) {
         uint64_t val = fixed;
         if (val >= (FIELD_SIZE >> 1)) { // 负数区间
             val = val - FIELD_SIZE;
         }
-        return static_cast<double>(static_cast<int64_t>(val)) / SCALE;
+        return static_cast<float>(static_cast<int64_t>(val)) / SCALE;
     }
 
     // 定点数乘法，处理缩放
@@ -60,17 +60,17 @@ public:
         return static_cast<uint64_t>(result) % FIELD_SIZE;
     }
 
-    static std::vector<uint64_t> encode_vector(const std::vector<double>& values) {
+    static std::vector<uint64_t> encode_vector(const std::vector<float>& values) {
         std::vector<uint64_t> encoded;
         encoded.reserve(values.size());
-        for (double v : values) {
+        for (float v : values) {
             encoded.push_back(encode(v));
         }
         return encoded;
     }
 
-    static std::vector<double> decode_vector(const std::vector<uint64_t>& fixed_values) {
-        std::vector<double> decoded;
+    static std::vector<float> decode_vector(const std::vector<uint64_t>& fixed_values) {
+        std::vector<float> decoded;
         decoded.reserve(fixed_values.size());
         for (const auto& v : fixed_values) {
             decoded.push_back(decode(v));
@@ -93,18 +93,18 @@ public:
 
     // 验证定点数乘法的正确性
     static bool verify_multiplication(uint64_t a, uint64_t b, uint64_t result) {
-        double a_val = decode(a);
-        double b_val = decode(b);
-        double result_val = decode(result);
-        double expected = a_val * b_val;
+        float a_val = decode(a);
+        float b_val = decode(b);
+        float result_val = decode(result);
+        float expected = a_val * b_val;
         return std::fabs(result_val - expected) < 1e-4;
     }
 
     // 验证截断操作的正确性
     static bool verify_truncation(uint64_t original, uint64_t truncated, int f) {
-        double orig_val = decode(original);
-        double trunc_val = decode(truncated);
-        double expected = std::round(orig_val * (1 << f)) / (1 << f);
+        float orig_val = decode(original);
+        float trunc_val = decode(truncated);
+        float expected = std::round(orig_val * (1 << f)) / (1 << f);
         bool result = std::fabs(trunc_val - expected) < 1e-4;
         
         if (!result) {
