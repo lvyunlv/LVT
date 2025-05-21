@@ -36,7 +36,7 @@ namespace emp{
 void deserializeTable(vector<int64_t>& table, const char* filename, size_t table_size = 1<<16) {
     ifstream inFile(filename, ios::binary);
     if (!inFile) {
-        cerr << "Error: Unable to open file for reading.\n";
+        cerr << "Error: Unable to open file for reading.\n Error in 'file: " << filename << "'.";
         exit(1);
     }
 
@@ -320,10 +320,10 @@ LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, EL
 // 在类外定义initialize函数
 template <typename IO>
 void LVT<IO>::initialize(std::string func_name, LVT<IO>*& lvt_ptr_ref, int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, ELGL<IO>* elgl, Fr& alpha_fr, int table_size, int m_bits) {
-    std::string full_state_path = "../../build/cache/lvt_" + func_name + "_size" + std::to_string(table_size) + "-P" + std::to_string(party) + ".bin";
+    std::string full_state_path = "/workspace/Baghaw/LVT/LVT/build/cache/lvt_" + func_name + "_size" + std::to_string(table_size) + "-P" + std::to_string(party) + ".bin";
     
     // 创建缓存目录
-    fs::create_directories("../../build/cache");
+    fs::create_directories("/workspace/Baghaw/LVT/LVT/build/cache");
     
     lvt_ptr_ref = new LVT<IO>(num_party, party, io, pool, elgl, func_name, alpha_fr, table_size, m_bits);
 
@@ -345,13 +345,10 @@ void LVT<IO>::initialize(std::string func_name, LVT<IO>*& lvt_ptr_ref, int num_p
 // 在类外定义initialize函数
 template <typename IO>
 void LVT<IO>::initialize_fake(std::string func_name, LVT<IO>*& lvt_ptr_ref, int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, ELGL<IO>* elgl, Fr& alpha_fr, int table_size, int m_bits) {
-    std::string full_state_path = "../../build/cache/lvt_fake_" + func_name + "_size" + std::to_string(table_size) + "-P" + std::to_string(party) + ".bin";
-    
+    std::string full_state_path = "/workspace/Baghaw/LVT/LVT/build/cache/lvt_fake_" + func_name + "_size" + std::to_string(table_size) + "-P" + std::to_string(party) + ".bin";
     // 创建缓存目录
-    fs::create_directories("../../build/cache");
-    
+    fs::create_directories("/workspace/Baghaw/LVT/LVT/build/cache");
     lvt_ptr_ref = new LVT<IO>(num_party, party, io, pool, elgl, func_name, alpha_fr, table_size, m_bits);
-
     // 检查缓存文件是否存在
     if (fs::exists(full_state_path)) {
         auto start = clock_start();
@@ -388,15 +385,14 @@ void build_safe_P_to_m(std::map<std::string, Fr>& P_to_m, int num_party, size_t 
 template <typename IO>
 LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, ELGL<IO>* elgl, string func_name, Fr& alpha, int table_size, int m_bits)
     : LVT(num_party, party, io, pool, elgl, alpha, table_size, m_bits) {
-    
     // 创建缓存目录
-    fs::create_directories("../../build/cache");
-    std::string tableFile = "../../build/bin/table_" + func_name + ".txt";
+    fs::create_directories("/workspace/Baghaw/LVT/LVT/build/cache");
+    std::string tableFile = "/workspace/Baghaw/LVT/LVT/build/bin/table_" + func_name + ".txt";
     
     // 缓存文件路径
-    std::string table_cache = "../../build/cache/table_" + func_name + "_" + std::to_string(table_size) + ".bin";
-    std::string p_to_m_cache = "../../build/cache/p_to_m_" + std::to_string(m_bits) + ".bin";
-    std::string bsgs_cache = "../../build/cache/bsgs_32.bin";
+    std::string table_cache = "/workspace/Baghaw/LVT/LVT/build/cache/table_" + func_name + "_" + std::to_string(table_size) + ".bin";
+    std::string p_to_m_cache = "/workspace/Baghaw/LVT/LVT/build/cache/p_to_m_" + std::to_string(m_bits) + ".bin";
+    std::string bsgs_cache = "/workspace/Baghaw/LVT/LVT/build/cache/bsgs_32.bin";
     
     // 1. 处理 table 数据
     if (fs::exists(table_cache)) {
@@ -411,6 +407,7 @@ LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, EL
         in.close();
     } else {
         // 生成新的 table 数据
+
         deserializeTable(table, tableFile.c_str(), tb_size);
         
         // 保存到缓存
