@@ -1,0 +1,14 @@
+========== Testing with 2 parties ==========
+ Launching Party 1: ../build/bin/test_lvt_fake 1 23233 2 sigmoid txt
+----- Results for N=2 (Party 1) -----
+Offline time: 1.824222 s, comm: 0.000000 MB
+Online time: 0.000737 s, comm: 0.000031 MB
+
+========== Testing with 4 parties ==========
+ Launching Party 1: ../build/bin/test_lvt_fake 1 23233 4 sigmoid txt
+----- Results for N=4 (Party 1) -----
+Offline time: 3.219357 s, comm: 0.000000 MB
+Online time: 0.002091 s, comm: 0.000092 MB
+
+========== Testing with 8 parties ==========
+ Launching Party 1: ../build/bin/test_lvt_fake 1 23233 8 sigmoid txt

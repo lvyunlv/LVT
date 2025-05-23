@@ -315,7 +315,7 @@ int main(int argc, char** argv) {
     cout << "Offline time: " << time_ms << " s, comm: " << comm_kb << " MB" << std::endl;
 
     // 准备输入和输出文件路径
-    std::string input_base = "../../build/Input/Input-P";
+    std::string input_base = "/workspace/Baghaw/LVT/LVT/build/Input/Input-P";
     std::string input_file = use_binary ? input_base + ".bin" : input_base + ".txt";
     
     // 读取输入数据
@@ -407,7 +407,7 @@ int main(int argc, char** argv) {
 
     // 输出结果
     if (party == 1) {
-        std::string output_base = "../../build/Output/Output";
+        std::string output_base = "/workspace/Baghaw/LVT/LVT/build/Output/Output";
         std::string output_file = use_binary ? output_base + ".bin" : output_base + ".txt";
         
         if (use_binary) {

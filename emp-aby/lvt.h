@@ -1180,10 +1180,10 @@ void LVT<IO>::generate_shares_fake(vector<Plaintext>& lut_share, Plaintext& rota
             for (size_t i = start; i < end; ++i) {
                 if (party == 1) {
                     lut_share[i].set_message(table[i]);
-                    cip_lut[party - 1][i] = g * lut_share[i].get_message() + tmp;
+                    // cip_lut[party - 1][i] = g * lut_share[i].get_message() + tmp;
                 } else {
                     lut_share[i].set_message(0);
-                    cip_lut[party - 1][i] = tmp;
+                    // cip_lut[party - 1][i] = tmp;
                 }
             }
         }));
@@ -1196,50 +1196,50 @@ void LVT<IO>::generate_shares_fake(vector<Plaintext>& lut_share, Plaintext& rota
 
     // 注意：打包发送比单个传输更快
     // Step 3: 广播自己的 cip_lut[party-1]
-    std::stringstream cip_lut_stream;
-    cr_i[party-1].pack(cip_lut_stream);
-    for (size_t i = 0; i < tb_size; ++i) {
-        cip_lut[party - 1][i].pack(cip_lut_stream);
-        // elgl->serialize_sendall(cip_lut[party - 1][i]);
-    }
-    std::string encoded = base64_encode(cip_lut_stream.str());
-    std::stringstream encoded_stream;
-    encoded_stream << encoded;
-    elgl->serialize_sendall_(encoded_stream);
+    // std::stringstream cip_lut_stream;
+    // cr_i[party-1].pack(cip_lut_stream);
+    // for (size_t i = 0; i < tb_size; ++i) {
+    //     cip_lut[party - 1][i].pack(cip_lut_stream);
+    //     // elgl->serialize_sendall(cip_lut[party - 1][i]);
+    // }
+    // std::string encoded = base64_encode(cip_lut_stream.str());
+    // std::stringstream encoded_stream;
+    // encoded_stream << encoded;
+    // elgl->serialize_sendall_(encoded_stream);
 
-    // Step 4: 接收其他 party 的 cip_lut
-    for (int i = 1; i <= num_party; ++i) {
-        if (i != party) {
-            // 多线程解包 cip_lut[i - 1][*]
-            // for (int t = 0; t < thread_num; ++t) {
-            //     size_t start = t * block_size;
-            //     size_t end = std::min(tb_size, start + block_size);
-            //     res.push_back(pool->enqueue([this, i, start, end]() {
-            //         for (size_t j = start; j < end; ++j) {
-            //             elgl->deserialize_recv(cip_lut[i - 1][j], i);
-            //         }
-            //     }));
-            // }
+    // // Step 4: 接收其他 party 的 cip_lut
+    // for (int i = 1; i <= num_party; ++i) {
+    //     if (i != party) {
+    //         // 多线程解包 cip_lut[i - 1][*]
+    //         // for (int t = 0; t < thread_num; ++t) {
+    //         //     size_t start = t * block_size;
+    //         //     size_t end = std::min(tb_size, start + block_size);
+    //         //     res.push_back(pool->enqueue([this, i, start, end]() {
+    //         //         for (size_t j = start; j < end; ++j) {
+    //         //             elgl->deserialize_recv(cip_lut[i - 1][j], i);
+    //         //         }
+    //         //     }));
+    //         // }
 
-            res.push_back(pool->enqueue([this, i]() {
-                std::stringstream cip_stream;
-                elgl->deserialize_recv_(cip_stream, i);
+    //         res.push_back(pool->enqueue([this, i]() {
+    //             std::stringstream cip_stream;
+    //             elgl->deserialize_recv_(cip_stream, i);
 
-                std::string decoded = base64_decode(cip_stream.str());
-                std::stringstream decoded_stream(decoded);
-                cr_i[i-1].unpack(decoded_stream);
+    //             std::string decoded = base64_decode(cip_stream.str());
+    //             std::stringstream decoded_stream(decoded);
+    //             cr_i[i-1].unpack(decoded_stream);
 
-                for (size_t j = 0; j < tb_size; ++j) {
-                    cip_lut[i - 1][j].unpack(decoded_stream);
-                }
-            }));
-        }
-    }
+    //             for (size_t j = 0; j < tb_size; ++j) {
+    //                 cip_lut[i - 1][j].unpack(decoded_stream);
+    //             }
+    //         }));
+    //     }
+    // }
 
-    for (auto& f : res) {
-        f.get();
-    }
-    res.clear();
+    // for (auto& f : res) {
+    //     f.get();
+    // }
+    // res.clear();
 
     // mcl::Vint fd(to_string(m_size)); 
     // for (size_t j = 0; j < tb_size; j++){
