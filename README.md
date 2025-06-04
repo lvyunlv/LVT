@@ -1,4 +1,4 @@
-# Scalable Mixed-Mode MPC
+# SMASH: Scalable Multi-party Maliciously Secure Hybrid Framework for Privacy-Preserving LLM Inference
 
 # Installation
 
