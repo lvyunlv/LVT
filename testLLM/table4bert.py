@@ -6,8 +6,8 @@ import os
 # --------------------------------------------------
 
 # 配置定点数参数
-FRACTIONAL_BITS = 12
-TOTAL_BITS = 20
+FRACTIONAL_BITS = 16
+TOTAL_BITS = 24
 SCALE = 1 << FRACTIONAL_BITS
 INT_MIN = -(1 << (TOTAL_BITS - 1))  # -2^19
 INT_MAX = (1 << (TOTAL_BITS - 1)) - 1  # 2^19 - 1

@@ -52,7 +52,7 @@ inline MASCOT<MultiIOBase>::LabeledShare B2A(
         Plaintext plain_i;
         plain_i.assign(std::to_string(r_bits[i].value));
         r_cipher[i] = lvt->global_pk.encrypt(plain_i);
-        lvt->lookup_online_easy(r_plain[i], plain_i, r_cipher[i], r_lut_ciphers);
+        lvt->lookup_online(r_plain[i], plain_i, r_cipher[i], r_lut_ciphers);
         shared_r[i] = L2A_mascot::L2A_for_B2A(elgl, lvt, mascot, party, num_party, io, pool, r_plain[i], r_lut_ciphers, FIELD_SIZE);
         if (shared_r[i].value == 0) shared_r[i].value = 0;
     }
@@ -64,7 +64,7 @@ inline MASCOT<MultiIOBase>::LabeledShare B2A(
         Plaintext plain_i;
         plain_i.assign(std::to_string(x_bits[i].value));
         x_cipher[i] = lvt->global_pk.encrypt(plain_i);
-        lvt->lookup_online_easy(x_plain[i], plain_i, x_cipher[i], x_lut_ciphers);
+        lvt->lookup_online(x_plain[i], plain_i, x_cipher[i], x_lut_ciphers);
     }
 
     int skip_bytes_start = io->get_total_bytes_sent();
@@ -168,13 +168,13 @@ inline MASCOT<MultiIOBase>::LabeledShare B2A_for_A2B(
 
         plain_i.assign(std::to_string(x_bits[i].value));
         x_cipher[i] = lvt->global_pk.encrypt(plain_i);
-        lvt->lookup_online_easy(x_plain[i], plain_i, x_cipher[i], x_lut_ciphers);
+        lvt->lookup_online(x_plain[i], plain_i, x_cipher[i], x_lut_ciphers);
         shared_x[i] = L2A_mascot::L2A_for_B2A(elgl, lvt, mascot, party, num_party, io, pool, x_plain[i], x_lut_ciphers, FIELD_SIZE);
         if (shared_x[i].value == 0) shared_x[i].value = 0;
 
         plain_i.assign(std::to_string(r_bits[i].value));
         r_cipher[i] = lvt->global_pk.encrypt(plain_i);
-        lvt->lookup_online_easy(r_plain[i], plain_i, r_cipher[i], r_lut_ciphers);
+        lvt->lookup_online(r_plain[i], plain_i, r_cipher[i], r_lut_ciphers);
         shared_r[i] = L2A_mascot::L2A_for_B2A(elgl, lvt, mascot, party, num_party, io, pool, r_plain[i], r_lut_ciphers, FIELD_SIZE);
         if (shared_r[i].value == 0) shared_r[i].value = 0;
     }

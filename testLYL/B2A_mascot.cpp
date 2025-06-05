@@ -26,21 +26,6 @@ const int num_bits = 32;
 const mcl::Vint FIELD_SIZE("4294967296");
 int m_bits = 1; // bits of message
 
-Fr alpha_init(int num) {
-    Plaintext alpha;
-    const mcl::Vint p("0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001");
-    const mcl::Vint g("5"); 
-    mcl::Vint n = mcl::Vint(1) << num;
-    mcl::Vint alpha_vint;
-    mcl::gmp::powMod(alpha_vint, g, (p - 1) / n, p);
-    alpha.assign(alpha_vint.getStr());
-    // std::cout << "alpha: " << alpha.get_message().getStr() << std::endl;
-    Fr alpha_fr = alpha.get_message();
-    vector<int64_t> lut_table = {0, 1};
-    serializeTable(lut_table, "table_2.txt", lut_table.size());
-    return alpha_fr;
-}
-
 int main(int argc, char** argv) {
     BLS12381Element::init();
     if (argc < 4) {

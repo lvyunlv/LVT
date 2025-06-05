@@ -292,19 +292,21 @@ int main(int argc, char** argv) {
     }
 
     ThreadPool pool(threads);
-    auto io = std::make_unique<MultiIO>(party, num_party, net_config);
-    auto elgl = std::make_unique<ELGL<MultiIOBase>>(num_party, io.get(), &pool, party);
-
+    MultiIO* io = new MultiIO(party, num_party, net_config);
+    ELGL<MultiIOBase>* elgl = new ELGL<MultiIOBase>(num_party, io, &pool, party);
     // 测试时间和通信
-    int bytes_start = io.get()->get_total_bytes_sent();
+    int bytes_start = io->get_total_bytes_sent();
     auto t1 = std::chrono::high_resolution_clock::now();
 
     Fr alpha_fr = alpha_init(num);
-    std::unique_ptr<LVT<MultiIOBase>> lvt;
-    LVT<MultiIOBase>* lvt_raw = nullptr;
-
-    LVT<MultiIOBase>::initialize_fake(func_name, lvt_raw, num_party, party, io.get(), &pool, elgl.get(), alpha_fr, num, m_bits);
-    lvt.reset(lvt_raw);
+   
+    // 直接创建 LVT 实例    
+    cout << "Generating new state..." << endl;
+    // 直接调用 generate_shares_fake
+    emp::LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, func_name, alpha_fr, num, m_bits);
+    cout << "Generate shares finished" << endl;
+    lvt->generate_shares_fake(lvt->lut_share, lvt->rotation, lvt->table);
+    
     Plaintext tb_field = Plaintext(tb_size);
     Plaintext value_field = Plaintext(m_size);
 
@@ -335,34 +337,52 @@ int main(int argc, char** argv) {
             close(fd);
             return 1;
         }
+        
+        // 计算数组长度（文件大小除以float大小）
+        x_size = (sb.st_size) / sizeof(float);
+        std::cout << "Total elements to read: " << x_size << std::endl;
+        
+        // 预分配向量空间
+        x_share.clear();
+        x_share.resize(x_size);
+        
+        // 使用mmap读取数据
         void* mapped = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
         if (mapped == MAP_FAILED) {
             std::cerr << "Error: mmap failed on input file: " << input_file << std::endl;
             close(fd);
             return 1;
         }
-        // 先读取长度信息（int32_t），再读取float数据
-        int32_t* len_ptr = reinterpret_cast<int32_t*>(mapped);
-        int32_t length = *len_ptr;
-        float* values = reinterpret_cast<float*>((char*)mapped + sizeof(int32_t));
-        x_size = length;
-        x_share.resize(x_size);
-        // 转换为Plaintext
-        for (int i = 0; i < x_size; ++i) {
-            if (party == 1) {
-                uint64_t xval_int = FixedPointConverter::encode(values[i]);
-                if (xval_int > (1ULL << m_bits) - 1) {
-                    std::cout << "Warning: input value exceeds table size: " << xval_int << std::endl;
-                    xval_int = (1ULL << m_bits) - 1;
+        
+        float* values = reinterpret_cast<float*>(mapped);
+        
+        // 分批处理数据
+        const size_t BATCH_SIZE = 10000;
+        std::vector<std::future<void>> futures;
+        
+        for (size_t batch_start = 0; batch_start < x_size; batch_start += BATCH_SIZE) {
+            size_t batch_end = std::min(batch_start + BATCH_SIZE, static_cast<size_t>(x_size));
+            futures.push_back(pool.enqueue([&, batch_start, batch_end, values]() {
+                for (size_t i = batch_start; i < batch_end; i++) {
+                    if (party == 1) {
+                        uint64_t xval_int = FixedPointConverter::encode(values[i]);
+                        if (xval_int > (1ULL << m_bits) - 1) {
+                            xval_int = (1ULL << m_bits) - 1;
+                        }
+                        x_share[i].assign(xval_int);
+                    } else {
+                        x_share[i].assign("0");
+                    }
                 }
-                x_share[i].assign(xval_int);
-            } else {
-                x_share[i].assign("0");
-            }
+            }));
         }
+        
+        // 等待所有批次处理完成
+        for (auto& fut : futures) fut.get();
+        
         munmap(mapped, sb.st_size);
         close(fd);
-        std::cout << "Read " << x_size << " values from binary file" << std::endl;
+        std::cout << "Successfully read " << x_size << " values from binary file" << std::endl;
     } else {
         // 文本模式读取
         x_share = parallel_load_input(input_file, party, m_bits, pool);
@@ -374,11 +394,11 @@ int main(int argc, char** argv) {
     
     // 每个参与方广播自己的输入个数，并验证一致性
     Plaintext x_size_pt; x_size_pt.assign(x_size);
-    elgl.get()->serialize_sendall(x_size_pt);
+    elgl->serialize_sendall(x_size_pt);
     for (int i = 1; i <= num_party; i++) {
         if (i != party) {
             Plaintext x_size_pt_recv;
-            elgl.get()->deserialize_recv(x_size_pt_recv, i);
+            elgl->deserialize_recv(x_size_pt_recv, i);
             if (int(x_size_pt_recv.get_message().getUint64()) != x_size) {
                 std::cerr << "Error: input size does not match in Party: " << party << std::endl;
                 return 1;
@@ -392,7 +412,6 @@ int main(int argc, char** argv) {
 
     int bytes_start1 = io->get_total_bytes_sent();
     auto t3 = std::chrono::high_resolution_clock::now();
-cout << "ewhidh?" << endl;
     // 准备空的x_ciphers向量
     std::vector<std::vector<Ciphertext>> x_ciphers(x_size);
     auto [out, out_ciphers] = lvt->lookup_online_batch(x_share, x_cipher, x_ciphers);
@@ -405,7 +424,7 @@ cout << "ewhidh?" << endl;
     cout << "Online time: " << time_ms1 << " s, comm: " << comm_kb1 << " MB" << std::endl;
 
     // 并行处理和验证结果
-    std::vector<float> out_sum_float = parallel_process_results(out, elgl.get(), io.get(), party, num_party, value_field, pool);
+    std::vector<float> out_sum_float = parallel_process_results(out, elgl, io, party, num_party, value_field, pool);
 
     // 输出结果
     if (party == 1) {

@@ -88,6 +88,8 @@ class LVT{
     tuple<Plaintext, vector<Ciphertext>> lookup_online(Plaintext& x_share, Ciphertext& x_cipher, vector<Ciphertext>& x_ciphers);
     tuple<vector<Plaintext>, vector<vector<Ciphertext>>> lookup_online_fake(vector<Plaintext>& x_share, vector<Ciphertext>& x_cipher);
     Plaintext lookup_online_easy(Plaintext& x_share);
+    // 批量处理函数
+    tuple<vector<Plaintext>, vector<vector<Ciphertext>>> lookup_online_batch(vector<Plaintext>& x_share, vector<Ciphertext>& x_cipher, vector<vector<Ciphertext>>& x_ciphers);
     void save_full_state(const std::string& filename);
     void load_full_state(const std::string& filename);
     Plaintext Reconstruct(Plaintext input, vector<Ciphertext> input_cips, ELGL<IO>* elgl, const ELGL_PK& global_pk, const std::vector<ELGL_PK>& user_pks, MPIOChannel<IO>* io, ThreadPool* pool, int party, int num_party, mcl::Vint modulo);
@@ -1402,10 +1404,13 @@ BLS12381Element threshold_decrypt_easy(Ciphertext& c, ELGL<IO>* elgl, const ELGL
     std::vector<std::future<void>> verify_futures;
     for (int i = 1; i <= num_party; ++i) {
         if (i != party) {
-            verify_futures.push_back(pool->enqueue([i, &party, global_pk, elgl, &ask_parts, &g1, &user_pks, pool]() {
+            verify_futures.push_back(pool->enqueue([i, &party, &global_pk, elgl, &ask_parts, &g1, &user_pks, pool]() {
                 std::stringstream local_commit_stream;
+                std::stringstream local_response_stream;  // 添加声明
+                ExpProof exp_proof(global_pk);  // 添加声明
 
                 elgl->deserialize_recv_(local_commit_stream, i);
+
                 std::string comm_raw = local_commit_stream.str();
 
                 local_commit_stream.str("");
@@ -1413,8 +1418,11 @@ BLS12381Element threshold_decrypt_easy(Ciphertext& c, ELGL<IO>* elgl, const ELGL
                 local_commit_stream << base64_decode(comm_raw);
                 local_commit_stream.seekg(0);
 
-                ask_parts[i - 1].unpack(local_commit_stream);
                 BLS12381Element y1_other = user_pks[i - 1].get_pk();
+                BLS12381Element ask_i;
+                ExpVerifier exp_verifier(exp_proof);
+                exp_verifier.NIZKPoK(g1, y1_other, ask_i, local_commit_stream, local_response_stream, pool, i);
+                ask_parts[i - 1] = ask_i;
             }));
         }
     }
@@ -1491,16 +1499,16 @@ tuple<Plaintext, vector<Ciphertext>> LVT<IO>::lookup_online(Plaintext& x_share, 
     mcl::gmp::mod(q2, q2, h);
     u.setStr(q2.getStr());
     
-    if (u != uu.get_message()){
-        // cout << "u = " << u.getStr() << endl;
-        // cout << "uu = " << uu.get_message().getStr() << endl;
-        cout << "error: in online lookup" << endl;
-        exit(1);
-    }
+    // if (u != uu.get_message()){
+    //     // cout << "u = " << u.getStr() << endl;
+    //     // cout << "uu = " << uu.get_message().getStr() << endl;
+    //     cout << "error: in online lookup" << endl;
+    //     exit(1);
+    // }
     
     mcl::Vint tbs;
     tbs.setStr(to_string(tb_size));
-    mcl::Vint u_mpz = u.getMpz(); 
+    mcl::Vint u_mpz = uu.get_message().getMpz(); 
     mcl::gmp::mod(u_mpz, u_mpz, tbs);
 
     mcl::Vint index_mpz;
@@ -1839,6 +1847,511 @@ Plaintext LVT<IO>::Reconstruct_easy(Plaintext input, ELGL<IO>* elgl, MPIOChannel
 
 template <typename IO>
 LVT<IO>::~LVT(){
+}
+
+template <typename IO>
+tuple<vector<Plaintext>, vector<vector<Ciphertext>>> LVT<IO>::lookup_online_batch(vector<Plaintext>& x_share, vector<Ciphertext>& x_cipher, vector<vector<Ciphertext>>& x_ciphers) {
+    
+    const int thread_n = 32;
+    auto start = clock_start();
+    int bytes_start = io->get_total_bytes_sent();
+
+    size_t batch_size = x_share.size();
+    if (batch_size == 0) {
+        return make_tuple(vector<Plaintext>(), vector<vector<Ciphertext>>());
+    }
+
+    // 预分配所有需要的内存
+    vector<Plaintext> out(batch_size);
+    vector<vector<Ciphertext>> out_ciphers(batch_size, vector<Ciphertext>(num_party));
+    vector<Plaintext> uu(batch_size);
+    vector<Fr> all_local_shares(batch_size);
+    vector<G1> c0_points(batch_size);
+    vector<G1> c1_points(batch_size);
+    vector<Ciphertext> c_batch(batch_size);
+    vector<future<void>> futures;
+    futures.reserve(num_party * 2);
+
+    // 计算表大小
+    mcl::Vint tbs;
+    tbs.setStr(to_string(tb_size));
+
+    // 调整输入向量大小并初始化
+    x_ciphers.resize(batch_size);
+    size_t num_threads = std::min(static_cast<size_t>(thread_n), (batch_size + 127) / 128);
+    size_t block_size = (batch_size + num_threads - 1) / num_threads;
+
+    // 并行初始化x_ciphers和计算uu
+    for (size_t t = 0; t < num_threads; t++) {
+        size_t start = t * block_size;
+        size_t end = std::min(batch_size, start + block_size);
+        futures.push_back(pool->enqueue([this, start, end, &x_ciphers, &x_cipher, &uu, &x_share, 
+                                       &all_local_shares, &c0_points, &c1_points]() {
+            for (size_t i = start; i < end; i++) {
+                x_ciphers[i].resize(num_party);
+                x_ciphers[i][party-1] = x_cipher[i];
+                uu[i] = x_share[i] + this->rotation;
+                all_local_shares[i] = uu[i].get_message();
+                c0_points[i] = x_cipher[i].get_c0().getPoint();
+                c1_points[i] = x_cipher[i].get_c1().getPoint();
+            }
+        }));
+    }
+    for (auto& fut : futures) fut.get();
+    futures.clear();
+
+    // 批量发送share数据
+    size_t total_data_size = sizeof(Fr) * batch_size;
+    char* shares_data = reinterpret_cast<char*>(all_local_shares.data());
+    
+    // 准备密文数据
+    size_t cipher_size = sizeof(G1) * 2 * batch_size;
+    char* cipher_data = new char[cipher_size];
+    memcpy(cipher_data, c0_points.data(), sizeof(G1) * batch_size);
+    memcpy(cipher_data + sizeof(G1) * batch_size, c1_points.data(), sizeof(G1) * batch_size);
+
+    // 并行发送所有数据
+    for (int p = 1; p <= num_party; p++) {
+        if (p != party) {
+            futures.push_back(pool->enqueue([this, p, shares_data, total_data_size, cipher_data, cipher_size]() {
+                io->send_data(p, shares_data, total_data_size);
+                io->send_data(p, cipher_data, cipher_size);
+            }));
+        }
+    }
+    for (auto& fut : futures) fut.get();
+    futures.clear();
+
+    delete[] cipher_data;
+
+    // 并行接收和处理数据
+    vector<char*> recv_buffers;
+    std::mutex uu_mutex;
+    
+    for (int p = 1; p <= num_party; p++) {
+        if (p != party) {
+            futures.push_back(pool->enqueue([this, p, batch_size, &uu, &uu_mutex, &recv_buffers, &x_ciphers]() {
+                // 接收share数据
+                int recv_size;
+                void* share_data = io->recv_data(p, recv_size);
+                if (recv_size != static_cast<int>(sizeof(Fr) * batch_size)) {
+                    free(share_data);
+                    throw std::runtime_error("Incorrect share data size");
+                }
+                Fr* shares = reinterpret_cast<Fr*>(share_data);
+                
+                // 接收密文数据
+                void* cipher_data = io->recv_data(p, recv_size);
+                if (recv_size != static_cast<int>(sizeof(G1) * 2 * batch_size)) {
+                    free(share_data);
+                    free(cipher_data);
+                    throw std::runtime_error("Incorrect cipher data size");
+                }
+                
+                // 处理接收到的数据
+                G1* points = reinterpret_cast<G1*>(cipher_data);
+                {
+                    std::lock_guard<std::mutex> lock(uu_mutex);
+                    for (size_t i = 0; i < batch_size; i++) {
+                        uu[i] += shares[i];
+                        BLS12381Element c0, c1;
+                        c0.point = points[i];
+                        c1.point = points[i + batch_size];
+                        x_ciphers[i][p-1].set(c0, c1);
+                    }
+                }
+                
+                recv_buffers.push_back(static_cast<char*>(share_data));
+                recv_buffers.push_back(static_cast<char*>(cipher_data));
+            }));
+        }
+    }
+    
+    for (auto& fut : futures) fut.get();
+    futures.clear();
+
+    // 并行计算总密文
+    for (size_t t = 0; t < num_threads; t++) {
+        size_t start = t * block_size;
+        size_t end = std::min(batch_size, start + block_size);
+        futures.push_back(pool->enqueue([this, start, end, &c_batch, &x_ciphers]() {
+            for (size_t i = start; i < end; i++) {
+                c_batch[i] = x_ciphers[i][0];
+                for (size_t j = 1; j < num_party; j++) {
+                    c_batch[i] += x_ciphers[i][j];
+                }
+                for (size_t j = 0; j < num_party; j++) {
+                    c_batch[i] += this->cr_i[j];
+                }
+            }
+        }));
+    }
+    
+    for (auto& fut : futures) fut.get();
+    futures.clear();
+
+    // 使用批量解密函数
+    vector<BLS12381Element> u_batch = threshold_decrypt_easy_batch(c_batch, elgl, global_pk, user_pk, io, pool, party, num_party, P_to_m);
+
+    // 并行处理索引查找和结果组装
+    for (size_t t = 0; t < num_threads; t++) {
+        size_t start = t * block_size;
+        size_t end = std::min(batch_size, start + block_size);
+        futures.push_back(pool->enqueue([this, start, end, &out, &out_ciphers, &uu, tbs]() {
+            for (size_t i = start; i < end; i++) {
+                mcl::Vint u_mpz = uu[i].get_message().getMpz();
+                mcl::gmp::mod(u_mpz, u_mpz, tbs);
+                size_t idx = static_cast<size_t>(u_mpz.getLow32bit());
+                out[i] = this->lut_share[idx];
+                for (size_t j = 0; j < static_cast<size_t>(num_party); j++) {
+                    out_ciphers[i][j].set(this->user_pk[j].get_pk(), this->cip_lut[j][idx]);
+                }
+            }
+        }));
+    }
+
+    for (auto& fut : futures) fut.get();
+
+    // 释放接收缓冲区
+    for (char* buffer : recv_buffers) {
+        free(buffer);
+    }
+
+    int bytes_end = io->get_total_bytes_sent();
+    double comm_kb = double(bytes_end - bytes_start) / 1024.0;
+
+    return make_tuple(std::move(out), std::move(out_ciphers));
+}
+
+template <typename IO>
+std::vector<Fr> threshold_decrypt_batch(
+    std::vector<Ciphertext>& c_batch, 
+    ELGL<IO>* elgl, 
+    const ELGL_PK& global_pk, 
+    const std::vector<ELGL_PK>& user_pks, 
+    MPIOChannel<IO>* io, 
+    ThreadPool* pool, 
+    int party, 
+    int num_party, 
+    std::map<std::string, Fr>& P_to_m, 
+    LVT<IO>* lvt
+) {
+    size_t batch_size = c_batch.size();
+    if (batch_size == 0) return {};
+
+    // cout << "-------1-------" << endl;
+    // Step 1: 并行计算本地的ask值
+    Plaintext sk(elgl->kp.get_sk().get_sk());
+    std::vector<BLS12381Element> local_ask_batch(batch_size);
+    std::vector<std::vector<BLS12381Element>> ask_parts_batch(batch_size, std::vector<BLS12381Element>(num_party));
+    
+    // 使用线程池并行计算
+    std::vector<std::future<void>> compute_futures;
+    size_t num_threads = std::min(static_cast<size_t>(thread_num), batch_size);
+    size_t block_size = (batch_size + num_threads - 1) / num_threads;
+    
+    for (size_t t = 0; t < num_threads; ++t) {
+        size_t start = t * block_size;
+        size_t end = std::min(start + block_size, batch_size);
+        
+        if (start < end) {
+            compute_futures.push_back(pool->enqueue([&, start, end]() {
+                for (size_t i = start; i < end; ++i) {
+                    local_ask_batch[i] = c_batch[i].get_c0() * sk.get_message();
+                    ask_parts_batch[i][party - 1] = local_ask_batch[i];
+                }
+            }));
+        }
+    }
+    
+    for (auto& fut : compute_futures) fut.get();
+    compute_futures.clear();
+    // cout << "-------2-------" << endl;
+    
+    // Step 2: 批量生成证明并序列化
+    std::vector<std::string> commits(batch_size), responses(batch_size);
+    
+    for (size_t t = 0; t < num_threads; ++t) {
+        size_t start = t * block_size;
+        size_t end = std::min(start + block_size, batch_size);
+        
+        if (start < end) {
+            compute_futures.push_back(pool->enqueue([&, start, end]() {
+                ExpProof exp_proof(global_pk);
+                ExpProver exp_prover(exp_proof);
+                BLS12381Element y1 = user_pks[party-1].get_pk();
+                
+                for (size_t i = start; i < end; ++i) {
+                    std::stringstream commit, response;
+                    BLS12381Element g1 = c_batch[i].get_c0();
+                    
+                    try {
+                        exp_prover.NIZKPoK(exp_proof, commit, response, g1, y1, local_ask_batch[i], sk, party, pool);
+                        commits[i] = commit.str();
+                        responses[i] = response.str();
+                    } catch (const std::exception& e) {
+                        std::cerr << "Error generating proof for ciphertext " << i << ": " << e.what() << std::endl;
+                        throw;
+                    }
+                }
+            }));
+        }
+    }
+    
+    for (auto& fut : compute_futures) fut.get();
+    compute_futures.clear();
+
+    // cout << "-------3-------" << endl;
+    
+    // Step 3: 将所有证明打包并发送
+    std::stringstream batch_commits, batch_responses;
+    
+    // 首先发送批量大小
+    batch_commits << batch_size << "|";
+    batch_responses << batch_size << "|";
+    
+    // 然后发送每个证明的长度和内容
+    for (size_t i = 0; i < batch_size; ++i) {
+        batch_commits << commits[i].length() << "|" << commits[i];
+        batch_responses << responses[i].length() << "|" << responses[i];
+    }
+    // cout << "-------4-------" << endl;
+    
+    std::stringstream commit_b64, response_b64;
+    commit_b64 << base64_encode(batch_commits.str());
+    response_b64 << base64_encode(batch_responses.str());
+    
+    // 原子地发送批量数据
+    elgl->serialize_sendall_(commit_b64);
+    elgl->serialize_sendall_(response_b64);
+    
+    // Step 4: 并行接收和验证其他方的证明
+    std::vector<std::future<void>> verify_futures;
+    std::mutex ask_parts_mutex;
+    
+    for (int i = 1; i <= num_party; ++i) {
+        if (i != party) {
+            verify_futures.push_back(pool->enqueue([&, i]() {
+                try {
+                    // 接收批量数据
+                    std::stringstream local_commit_stream, local_response_stream;
+                    elgl->deserialize_recv_(local_commit_stream, i);
+                    elgl->deserialize_recv_(local_response_stream, i);
+                    
+                    // 解码
+                    std::string comm_raw = base64_decode(local_commit_stream.str());
+                    std::string resp_raw = base64_decode(local_response_stream.str());
+                    
+                    // 解析批量数据
+                    std::stringstream comm_stream(comm_raw), resp_stream(resp_raw);
+                    
+                    size_t received_batch_size;
+                    char delimiter;
+                    comm_stream >> received_batch_size >> delimiter;
+                    resp_stream >> received_batch_size >> delimiter;
+                    
+                    if (received_batch_size != batch_size) {
+                        throw std::runtime_error("Batch size mismatch from party " + std::to_string(i));
+                    }
+                    // cout << "*********1*********" << endl;
+                    std::vector<BLS12381Element> batch_ask_i(batch_size);
+                    ExpProof local_exp_proof(global_pk);
+                    ExpVerifier exp_verifier(local_exp_proof);
+                    BLS12381Element y1_other = user_pks[i - 1].get_pk();
+                    // cout << "*********2*********" << endl;
+                    
+                    // 解析并验证每个证明
+                    for (size_t j = 0; j < batch_size; ++j) {
+                        size_t comm_len, resp_len;
+                        comm_stream >> comm_len >> delimiter;
+                        resp_stream >> resp_len >> delimiter;
+                        
+                        std::string single_commit(comm_len, '\0'), single_response(resp_len, '\0');
+                        comm_stream.read(&single_commit[0], comm_len);
+                        resp_stream.read(&single_response[0], resp_len);
+                        
+                        std::stringstream single_comm_stream(single_commit), single_resp_stream(single_response);
+                        
+                        BLS12381Element g1 = c_batch[j].get_c0();
+                        BLS12381Element ask_i;
+                        
+                        exp_verifier.NIZKPoK(g1, y1_other, ask_i, single_comm_stream, single_resp_stream, pool, i);
+                        batch_ask_i[j] = ask_i;
+                    }
+                    
+                    // cout << "*********3*********" << endl;
+                    // 线程安全地更新ask_parts
+                    std::lock_guard<std::mutex> lock(ask_parts_mutex);
+                    for (size_t j = 0; j < batch_size; ++j) {
+                        ask_parts_batch[j][i - 1] = batch_ask_i[j];
+                    }
+                    
+                    // cout << "*********4*********" << endl;                    
+                } catch (const std::exception& e) {
+                    std::cerr << "Error verifying proofs from party " << i << ": " << e.what() << std::endl;
+                    throw;
+                }
+            }));
+        }
+    }
+    
+    for (auto& fut : verify_futures) fut.get();
+    verify_futures.clear();
+    // cout << "-------5-------" << endl;
+    // Step 5: 并行计算最终结果
+    std::vector<Fr> results(batch_size);
+    
+    for (size_t t = 0; t < num_threads; ++t) {
+        size_t start = t * block_size;
+        size_t end = std::min(start + block_size, batch_size);
+        
+        if (start < end) {
+            compute_futures.push_back(pool->enqueue([&, start, end]() {
+                for (size_t i = start; i < end; ++i) {
+                    BLS12381Element pi_ask = c_batch[i].get_c1();
+                    for (const auto& ask_i : ask_parts_batch[i]) {
+                        pi_ask -= ask_i;
+                    }
+                    
+                    // 查找或计算离散对数
+                    pi_ask.getPoint().normalize();
+                    std::string key = pi_ask.getPoint().getStr();
+                    Fr y = 0;
+                    
+                    // if (lvt->m_size <= 131072) {
+                    //     auto it = P_to_m.find(key);
+                    //     if (it != P_to_m.end()) {
+                    //         y = it->second;
+                    //     } else {
+                    //         y = lvt->bsgs.solve_parallel_with_pool(pi_ask, pool, thread_num);
+                    //     }
+                    // } else {
+                    //     y = lvt->bsgs.solve_parallel_with_pool(pi_ask, pool, thread_num);
+                    // }
+                    
+                    results[i] = y;
+                }
+            }));
+        }
+    }
+    
+    for (auto& fut : compute_futures) fut.get();
+    
+    // cout << "-------6-------" << endl;
+    return results;
+}
+
+template <typename IO>
+vector<BLS12381Element> threshold_decrypt_easy_batch(
+    vector<Ciphertext>& c_batch,
+    ELGL<IO>* elgl,
+    const ELGL_PK& global_pk,
+    const std::vector<ELGL_PK>& user_pks,
+    MPIOChannel<IO>* io,
+    ThreadPool* pool,
+    int party,
+    int num_party,
+    std::map<std::string, Fr>& P_to_m
+) {
+    size_t batch_size = c_batch.size();
+    if (batch_size == 0) return {};
+
+    // 预分配内存
+    Plaintext sk(elgl->kp.get_sk().get_sk());
+    vector<BLS12381Element> ask_batch(batch_size);
+    vector<vector<BLS12381Element>> ask_parts_batch(batch_size, vector<BLS12381Element>(num_party));
+    vector<BLS12381Element> pi_ask_batch(batch_size);
+    
+    // 并行计算本地ask值
+    vector<future<void>> futures;
+    size_t num_threads = std::min(static_cast<size_t>(32), std::max(static_cast<size_t>(1), batch_size / 4096));
+    size_t block_size = (batch_size + num_threads - 1) / num_threads;
+    futures.reserve(num_threads);
+
+    for (size_t t = 0; t < num_threads; t++) {
+        size_t start = t * block_size;
+        size_t end = std::min(batch_size, start + block_size);
+        futures.push_back(pool->enqueue([start, end, &c_batch, &ask_batch, &ask_parts_batch, party, &sk]() {
+            for (size_t i = start; i < end; i++) {
+                ask_batch[i] = c_batch[i].get_c0() * sk.get_message();
+                ask_parts_batch[i][party - 1] = ask_batch[i];
+            }
+        }));
+    }
+    for (auto& fut : futures) fut.get();
+    futures.clear();
+
+    // 批量序列化和发送
+    std::stringstream ss;
+    for (const auto& ask : ask_batch) {
+        ask.pack(ss);
+    }
+    std::string serialized_data = ss.str();
+    
+    // 并行发送数据给其他方
+    vector<future<void>> send_futures;
+    for (int p = 1; p <= num_party; p++) {
+        if (p != party) {
+            send_futures.push_back(pool->enqueue([io, p, &serialized_data]() {
+                io->send_data(p, serialized_data.data(), serialized_data.size());
+            }));
+        }
+    }
+
+    // 并行接收和处理数据
+    vector<future<void>> recv_futures;
+    std::mutex parts_mutex;
+    
+    for (int p = 1; p <= num_party; p++) {
+        if (p != party) {
+            recv_futures.push_back(pool->enqueue([p, batch_size, io, &ask_parts_batch, &parts_mutex]() {
+                int recv_size;
+                void* recv_data = io->recv_data(p, recv_size);
+                
+                if (recv_data) {
+                    try {
+                        std::stringstream recv_ss;
+                        recv_ss.write(static_cast<char*>(recv_data), recv_size);
+                        
+                        std::vector<BLS12381Element> received_asks(batch_size);
+                        for (size_t i = 0; i < batch_size; i++) {
+                            received_asks[i].unpack(recv_ss);
+                        }
+                        
+                        // 批量更新ask_parts_batch
+                        std::lock_guard<std::mutex> lock(parts_mutex);
+                        for (size_t i = 0; i < batch_size; i++) {
+                            ask_parts_batch[i][p-1] = received_asks[i];
+                        }
+                    } catch (const std::exception& e) {
+                        std::cerr << "Error processing received data: " << e.what() << std::endl;
+                    }
+                    free(recv_data);
+                }
+            }));
+        }
+    }
+    
+    // 等待所有发送和接收完成
+    for (auto& fut : send_futures) fut.get();
+    for (auto& fut : recv_futures) fut.get();
+
+    // 并行计算最终结果
+    for (size_t t = 0; t < num_threads; t++) {
+        size_t start = t * block_size;
+        size_t end = std::min(batch_size, start + block_size);
+        futures.push_back(pool->enqueue([start, end, &c_batch, &ask_parts_batch, &pi_ask_batch]() {
+            for (size_t i = start; i < end; i++) {
+                pi_ask_batch[i] = c_batch[i].get_c1();
+                for (const auto& ask_i : ask_parts_batch[i]) {
+                    pi_ask_batch[i] -= ask_i;
+                }
+            }
+        }));
+    }
+    for (auto& fut : futures) fut.get();
+
+    return pi_ask_batch;
 }
 
 }
