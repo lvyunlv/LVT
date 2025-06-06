@@ -22,7 +22,7 @@ const static int threads = 8;
 int num_party;
 const int l = 24; // 比特长度，可根据q调整
 const int num_bits = 24;
-const uint64_t FIELD_SIZE = (1ULL << num_bits);
+const uint64_t FIELD_SIZE = (1ULL << 63);
 int m_bits = 1; // bits of message
 
 int main(int argc, char** argv) {
@@ -46,7 +46,7 @@ int main(int argc, char** argv) {
     // LUT查表表大小为2，0->0, 1->1
     int num = 1;
     Fr alpha_fr = alpha_init(num);
-    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../build/bin/table_2.txt", alpha_fr, num, m_bits);
+    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "2", alpha_fr, num, m_bits);
 
     lvt->DistKeyGen();
     TinyMAC<MultiIOBase> tiny(elgl);
