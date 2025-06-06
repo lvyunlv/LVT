@@ -958,7 +958,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
                     }
                 } else 
                 {   
-                    // cout << "solve_parallel_with_pool: " << i << endl;
+                    cout << "solve_parallel_with_pool: " << i << endl;
                     y = this->bsgs.solve_parallel_with_pool(Y, pool, thread_num);
                 }
                 mcl::Vint r_;
@@ -1380,43 +1380,59 @@ Fr threshold_decrypt(Ciphertext& c, ELGL<IO>* elgl, const ELGL_PK& global_pk, co
         }
         if (t) return it->second;
     } 
+    cout << "lvt->bsgs.solve_parallel_with_pool" << endl;
     y = lvt->bsgs.solve_parallel_with_pool(pi_ask, pool, thread_num);
+    cout << "lvt->bsgs.solve_parallel_with_pool end" << endl;
     return y;
 }
 
 
 template <typename IO>
-BLS12381Element threshold_decrypt_easy(Ciphertext& c, ELGL<IO>* elgl, const ELGL_PK& global_pk, const std::vector<ELGL_PK>& user_pks, MPIOChannel<IO>* io, ThreadPool* pool, int party, int num_party, std::map<std::string, Fr>& P_to_m, LVT<IO>* lvt) {
+BLS12381Element threshold_decrypt_(Ciphertext& c, ELGL<IO>* elgl, const ELGL_PK& global_pk, const std::vector<ELGL_PK>& user_pks, MPIOChannel<IO>* io, ThreadPool* pool, int party, int num_party, std::map<std::string, Fr>& P_to_m, LVT<IO>* lvt) {
     Plaintext sk(elgl->kp.get_sk().get_sk());
     BLS12381Element ask = c.get_c0() * sk.get_message();
     std::vector<BLS12381Element> ask_parts(num_party);
     ask_parts[party - 1] = ask;
 
-    std::stringstream commit;
+    ExpProof exp_proof(global_pk);
+    ExpProver exp_prover(exp_proof);
+    ExpVerifier exp_verifier(exp_proof);
+
+    std::stringstream commit, response;
     BLS12381Element g1 = c.get_c0();
-    BLS12381Element y1 = elgl->kp.get_pk().get_pk();
-    ask.pack(commit);
+    BLS12381Element y1 = user_pks[party-1].get_pk();
+    exp_prover.NIZKPoK(exp_proof, commit, response, g1, y1, ask, sk, party, pool);
 
-    std::stringstream commit_b64;
+    std::stringstream commit_b64, response_b64;
     commit_b64 << base64_encode(commit.str());
-    elgl->serialize_sendall_(commit_b64);
+    response_b64 << base64_encode(response.str());
 
+    elgl->serialize_sendall_(commit_b64);
+    elgl->serialize_sendall_(response_b64);
+
+    // 并行化处理验证过程
     std::vector<std::future<void>> verify_futures;
     for (int i = 1; i <= num_party; ++i) {
         if (i != party) {
-            verify_futures.push_back(pool->enqueue([i, &party, &global_pk, elgl, &ask_parts, &g1, &user_pks, pool]() {
-                std::stringstream local_commit_stream;
-                std::stringstream local_response_stream;  // 添加声明
-                ExpProof exp_proof(global_pk);  // 添加声明
+            verify_futures.push_back(pool->enqueue([i, &party, global_pk, elgl, &ask_parts, &g1, &user_pks, pool]() {
+                ExpProof exp_proof(global_pk);
+                std::stringstream local_commit_stream, local_response_stream;
 
                 elgl->deserialize_recv_(local_commit_stream, i);
+                elgl->deserialize_recv_(local_response_stream, i);
 
                 std::string comm_raw = local_commit_stream.str();
+                std::string resp_raw = local_response_stream.str();
 
                 local_commit_stream.str("");
                 local_commit_stream.clear();
                 local_commit_stream << base64_decode(comm_raw);
                 local_commit_stream.seekg(0);
+
+                local_response_stream.str("");
+                local_response_stream.clear();
+                local_response_stream << base64_decode(resp_raw);
+                local_response_stream.seekg(0);
 
                 BLS12381Element y1_other = user_pks[i - 1].get_pk();
                 BLS12381Element ask_i;
@@ -1428,6 +1444,7 @@ BLS12381Element threshold_decrypt_easy(Ciphertext& c, ELGL<IO>* elgl, const ELGL
     }
     for (auto& fut : verify_futures) fut.get();
     verify_futures.clear();
+
 
     BLS12381Element pi_ask = c.get_c1();
     for (auto& ask_i : ask_parts) {
@@ -1991,7 +2008,7 @@ tuple<vector<Plaintext>, vector<vector<Ciphertext>>> LVT<IO>::lookup_online_batc
     futures.clear();
 
     // 使用批量解密函数
-    vector<BLS12381Element> u_batch = threshold_decrypt_easy_batch(c_batch, elgl, global_pk, user_pk, io, pool, party, num_party, P_to_m);
+    vector<BLS12381Element> u_batch = threshold_decrypt__batch(c_batch, elgl, global_pk, user_pk, io, pool, party, num_party, P_to_m);
 
     // 并行处理索引查找和结果组装
     for (size_t t = 0; t < num_threads; t++) {
@@ -2242,7 +2259,7 @@ std::vector<Fr> threshold_decrypt_batch(
 }
 
 template <typename IO>
-vector<BLS12381Element> threshold_decrypt_easy_batch(
+vector<BLS12381Element> threshold_decrypt__batch(
     vector<Ciphertext>& c_batch,
     ELGL<IO>* elgl,
     const ELGL_PK& global_pk,

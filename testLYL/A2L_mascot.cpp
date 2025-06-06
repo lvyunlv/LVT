@@ -17,9 +17,9 @@ using namespace std;
 int party, port;
 const static int threads = 8;
 int num_party;
-// const mcl::Vint FIELD_SIZE("340282366920938463463374607431768211297");
-const mcl::Vint FIELD_SIZE("4294967296");
-const int num = 24; 
+const mcl::Vint FIELD_SIZE("340282366920938463463374607431768211297");
+// const mcl::Vint FIELD_SIZE("4294967296");
+const int num = 16; 
 int m_bits = 32; // bits of message
 
 int main(int argc, char** argv) {
@@ -50,8 +50,7 @@ int main(int argc, char** argv) {
     alpha.assign(alpha_vint.getStr());
     // std::cout << "alpha: " << alpha.get_message().getStr() << std::endl;
     Fr alpha_fr = alpha.get_message();
-    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../build/bin/table.txt", alpha_fr, num, m_bits);
-
+    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "init", alpha_fr, num, m_bits);
     lvt->DistKeyGen();
 
     MASCOT<MultiIOBase> mascot(elgl);
@@ -81,7 +80,7 @@ int main(int argc, char** argv) {
     double online_comm = 0;
     int times = 5;
     for (int i = 0; i < times; ++i) {
-        auto [x, vec_cx] = A2L_mascot::A2L(elgl, lvt, mascot, party, num_party, io, &pool, shared_x, num, online_time, online_comm);
+        auto [x, vec_cx] = A2L_mascot::A2L(elgl, lvt, mascot, party, num_party, io, &pool, shared_x, FIELD_SIZE, online_time, online_comm);
         total_time += online_time;
         total_comm += online_comm;
     }

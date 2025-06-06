@@ -12,8 +12,8 @@
 #include <mcl/vint.hpp>
 #include <mcl/fp.hpp>
 
-// const mcl::Vint field_size("340282366920938463463374607431768211297");
-const mcl::Vint field_size(to_string(1ULL << 32));
+const mcl::Vint field_size("340282366920938463463374607431768211297");
+// const mcl::Vint field_size(to_string(1ULL << 32));
 namespace emp {
 
 template <typename IO>
@@ -378,7 +378,6 @@ public:
         return LabeledShare(result_value, result_mac, party, &field_size);
     }
 
-    // [ADDED] ✅ 带截断的乘法协议：标准 Beaver Triple + 乘法后立即截断
     LabeledShare multiply_with_trunc(const LabeledShare& x, const LabeledShare& y, int f) {
         Triple t = get_triple();
 

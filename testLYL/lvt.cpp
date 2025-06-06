@@ -7,9 +7,9 @@ using namespace emp;
 int party, port;
 const static int threads = 32;
 int num_party;
-int m_bits = 22; // 表值比特数，在B2L和L2B中为1，在非线性函数计算调用时为24（表示Q8.16定点整数）
+int m_bits = 10; // 表值比特数，在B2L和L2B中为1，在非线性函数计算调用时为24（表示Q8.16定点整数）
 int m_size = 1 << m_bits; // 表值大小
-int num = 8;
+int num = 10;
 int tb_size = 1ULL << num; // 表的大小
 
 int main(int argc, char** argv) {
@@ -44,7 +44,7 @@ int main(int argc, char** argv) {
     ELGL<MultiIOBase>* elgl = new ELGL<MultiIOBase>(num_party, io, &pool, party);
 
     Fr alpha_fr = alpha_init(num);
-    std::string tablefile = "../../build/bin/table_init.txt";
+    std::string tablefile = "init";
     emp::LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, tablefile, alpha_fr, num, m_bits);
     lvt->DistKeyGen();
     cout << "dhsia" << endl;
@@ -53,7 +53,7 @@ int main(int argc, char** argv) {
     cout << "cdhkcdchdhjcks" << endl;
 
     std::vector<Plaintext> x_share;
-    std::string input_file = "../../TestLYL/Input/Input-P" + std::to_string(party) + ".txt";
+    std::string input_file = "../Input/Input-P" + std::to_string(party) + ".txt";
     {
         // 判断文件是否存在
         if (!fs::exists(input_file)) {

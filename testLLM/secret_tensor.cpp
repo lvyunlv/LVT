@@ -31,7 +31,7 @@ int main(int argc, char** argv) {
     ELGL<MultiIOBase>* elgl = new ELGL<MultiIOBase>(num_party, io, &pool, party);
 
     Fr alpha_fr = alpha_init(fixedpoint_bits);
-    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../build/bin/table.txt", alpha_fr, fixedpoint_bits, fixedpoint_bits);
+    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "init", alpha_fr, fixedpoint_bits, fixedpoint_bits);
     lvt->DistKeyGen();
     SPDZ2k<MultiIOBase> spdz2k(elgl);
 

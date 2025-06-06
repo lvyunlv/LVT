@@ -136,6 +136,7 @@ void ExpVerifier::NIZKPoK(BLS12381Element& g1, BLS12381Element& y1, BLS12381Elem
         s.unpack(cleartexts);
         v.unpack(ciphertexts);
         BLS12381Element Right1, Right2;
+
         Right1 = BLS12381Element(z.get_message()) + g1;
         Right1 = Right1 * s.get_message();
         Right2 = y1 * z.get_message() + y2;

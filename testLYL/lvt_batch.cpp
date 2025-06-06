@@ -392,7 +392,6 @@ int main(int argc, char** argv) {
 
     int bytes_start1 = io->get_total_bytes_sent();
     auto t3 = std::chrono::high_resolution_clock::now();
-cout << "ewhidh?" << endl;
     // 准备空的x_ciphers向量
     std::vector<std::vector<Ciphertext>> x_ciphers(x_size);
     auto [out, out_ciphers] = lvt->lookup_online_batch(x_share, x_cipher, x_ciphers);

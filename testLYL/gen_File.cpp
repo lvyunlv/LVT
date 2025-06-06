@@ -4,7 +4,7 @@
 #include "emp-aby/lvt.h"
 #include "libelgl/elgl/Plaintext.h"
 using namespace std;
-const size_t message_size = 1ULL << 24; // BLS12381Element length
+const size_t message_size = 1ULL << 22; // BLS12381Element length
 std::mt19937_64 rng;
 int main(int argc, char** argv) {
     if (argc < 2) {

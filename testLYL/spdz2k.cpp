@@ -14,7 +14,7 @@ using namespace std;
 int party, port;
 const static int threads = 8;
 int num_party;
-const uint64_t FIELD_SIZE = (1ULL << 63) - 1;
+const uint64_t FIELD_SIZE = (1ULL << 63);
 int m_bits = 32; // bits of message
 
 int main(int argc, char** argv) {
@@ -33,7 +33,8 @@ int main(int argc, char** argv) {
     MultiIO* io = new MultiIO(party, num_party, net_config);
     ELGL<MultiIOBase>* elgl = new ELGL<MultiIOBase>(num_party, io, &pool, party);
 
-    int num = 28;
+    std::cout << "party: " << party << std::endl;
+    int num = 16;
     Plaintext alpha;
     const mcl::Vint p("0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001");
     const mcl::Vint g("5");
@@ -42,10 +43,12 @@ int main(int argc, char** argv) {
     mcl::gmp::powMod(alpha_vint, g, (p - 1) / n, p);
     alpha.assign(alpha_vint.getStr());
     Fr alpha_fr = alpha.get_message();
-    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../build/bin/table.txt", alpha_fr, num, m_bits);
+    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "init", alpha_fr, num, m_bits);
     lvt->DistKeyGen();
+    std::cout << "party: " << party << std::endl;
 
     SPDZ2k<MultiIOBase> spdz2k(elgl);
+    std::cout << "party: " << party << std::endl;
 
     if(party == 1) {
         for(int i = 2; i <= num_party; i++) {
@@ -54,14 +57,17 @@ int main(int argc, char** argv) {
     } else {
         elgl->send_done(1);
     }
+    std::cout << "party: " << party << std::endl;
 
     std::cout << "\n==== Testing SPDZ2k Protocol ====\n" << std::endl;
-
+    std::cout << "party: " << party << std::endl;
+    std::cout << "party: " << party << std::endl;
     // 测试秘密共享和重构
     uint64_t test_input = party % FIELD_SIZE;
     SPDZ2k<MultiIOBase>::LabeledShare shared_value = spdz2k.distributed_share(test_input);
     uint64_t reconstructed = spdz2k.reconstruct(shared_value);
     std::cout << "Reconstructed value: " << reconstructed << std::endl;
+    std::cout << "party: " << party << std::endl;
 
     // 测试加法
     uint64_t x1 = party % FIELD_SIZE;
@@ -72,6 +78,7 @@ int main(int argc, char** argv) {
     auto sum_share = spdz2k.add(x1_share, x2_share);
     uint64_t sum_result = spdz2k.reconstruct(sum_share);
     std::cout << "Addition result: " << sum_result << std::endl;
+    std::cout << "party: " << party << std::endl;
 
     // 测试标量乘法
     uint64_t scalar = 2 % FIELD_SIZE;

@@ -16,7 +16,8 @@ using namespace std;
 int party, port;
 const static int threads = 8;
 int num_party;
-const int FIELD_SIZE = 1000000007; // A prime number for modular arithmetic
+const mcl::Vint FIELD_SIZE("340282366920938463463374607431768211297");
+// const int FIELD_SIZE = 1000000007; // A prime number for modular arithmetic
 int m_bits = 32; // bits of message
 
 int main(int argc, char** argv) {
@@ -48,7 +49,7 @@ int main(int argc, char** argv) {
     alpha.assign(alpha_vint.getStr());
     // std::cout << "alpha: " << alpha.get_message().getStr() << std::endl;
     Fr alpha_fr = alpha.get_message();
-    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../build/bin/table.txt", alpha_fr, num, m_bits);
+    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "init", alpha_fr, num, m_bits);
 
     lvt->DistKeyGen();
 

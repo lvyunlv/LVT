@@ -80,11 +80,11 @@ inline MASCOT<MultiIOBase>::LabeledShare L2A(
             count += vec_cx[i - 1];
         }
     }
-
-    // BLS12381Element u = threshold_decrypt_easy<MultiIOBase>(count, elgl, lvt->global_pk, lvt->user_pk, io, pool, party, num_party, lvt->P_to_m, lvt);
-    Fr u = threshold_decrypt(count, elgl, lvt->global_pk, lvt->user_pk, io, pool, party, num_party, lvt->P_to_m, lvt);
+    BLS12381Element u = threshold_decrypt_<MultiIOBase>(count, elgl, lvt->global_pk, lvt->user_pk, io, pool, party, num_party, lvt->P_to_m, lvt);
+    // BLS12381Element u = threshold_decrypt_<MultiIOBase>(count, elgl, lvt->global_pk, lvt->user_pk, io, pool, party, num_party, lvt->P_to_m, lvt);
+    // Fr u = threshold_decrypt(count, elgl, lvt->global_pk, lvt->user_pk, io, pool, party, num_party, lvt->P_to_m, lvt);
     mcl::Vint u_int;
-    u_int.setStr(u.getStr());
+    // u_int.setStr(u.getStr());
     MASCOT<MultiIOBase>::LabeledShare shared_u;
     shared_u = mascot.add(shared_x, shared_r);
     u_int = mascot.reconstruct(shared_u);
@@ -94,25 +94,24 @@ inline MASCOT<MultiIOBase>::LabeledShare L2A(
     u_int_fr.setStr(u_int.getStr());
     BLS12381Element uu(u_int_fr);
     
-    auto t2 = std::chrono::high_resolution_clock::now();
-    int bytes_end = io->get_total_bytes_sent();
-    double comm_kb = double(bytes_end - bytes_start) / 1024.0;
-    double time_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
-    std::cout << std::fixed << std::setprecision(3)
-              << "Communication: " << comm_kb << " KB, "
-              << "Time: " << time_ms << " ms" << std::endl;
-
-    online_time = time_ms;
-    online_comm = comm_kb;
-
-    BLS12381Element tmp = G_fd;
     for (int i = 0; i <= num_party * 2; i++) {
-        if (uu != tmp) {
+        if (u == uu) {
+
+            auto t2 = std::chrono::high_resolution_clock::now();
+            int bytes_end = io->get_total_bytes_sent();
+            double comm_kb = double(bytes_end - bytes_start) / 1024.0;
+            double time_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
+            // std::cout << std::fixed << std::setprecision(6)
+            //           << "Communication: " << comm_kb << " KB, "
+            //           << "Time: " << time_ms << " ms" << std::endl;
+
+            online_time = time_ms;
+            online_comm = comm_kb;
             return shared_x;
         }
-        tmp += G_fd;
+        uu += G_fd;
     }
-    throw std::runtime_error("A2L_spdz2k check failed: decrypted value != share sum");
+    throw std::runtime_error("L2A_mascot check failed: decrypted value != share sum");
 
 }
 
@@ -174,7 +173,7 @@ inline MASCOT<MultiIOBase>::LabeledShare L2A_for_B2A(
         }
     }
     
-    BLS12381Element u = threshold_decrypt_easy<MultiIOBase>(count, elgl, lvt->global_pk, lvt->user_pk, io, pool, party, num_party, lvt->P_to_m, lvt);
+    BLS12381Element u = threshold_decrypt_<MultiIOBase>(count, elgl, lvt->global_pk, lvt->user_pk, io, pool, party, num_party, lvt->P_to_m, lvt);
     mcl::Vint u_int;
     MASCOT<MultiIOBase>::LabeledShare shared_u;
     shared_u = mascot.add(shared_x, shared_r);
@@ -189,14 +188,14 @@ inline MASCOT<MultiIOBase>::LabeledShare L2A_for_B2A(
     BLS12381Element uu1 = uu - BLS12381Element(2);
     BLS12381Element uu2 = uu + BLS12381Element(2);
     for (int i = 0; i <= num_party * 2; i++) {
-        if (uu != tmp && uu1 != tmp && uu2 != tmp) {
+        if (uu == tmp || uu1 == tmp || uu2 == tmp) {
             return shared_x;
         }
         tmp += G_fd;
         uu1 += G_fd;
         uu2 += G_fd;
     }
-    throw std::runtime_error("A2L_spdz2k check failed: decrypted value != share sum");
+    throw std::runtime_error("L2A_mascot check failed: decrypted value != share sum");
 }
 
 } // namespace L2A_mascot

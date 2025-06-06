@@ -81,11 +81,8 @@ inline SPDZ2k<MultiIOBase>::LabeledShare L2A(
             count += vec_cx[i - 1];
         }
     }
-
-    // BLS12381Element u = threshold_decrypt_easy<MultiIOBase>(count, elgl, lvt->global_pk, lvt->user_pk, io, pool, party, num_party, lvt->P_to_m, lvt);
-    Fr u = threshold_decrypt<MultiIOBase>(count, elgl, lvt->global_pk, lvt->user_pk, io, pool, party, num_party, lvt->P_to_m, lvt);
-    uint64_t uu = u.getInt64();
-    uu %= fd; if (uu < 0) uu += fd;
+    
+    BLS12381Element u = threshold_decrypt_<MultiIOBase>(count, elgl, lvt->global_pk, lvt->user_pk, io, pool, party, num_party, lvt->P_to_m, lvt);
 
     uint64_t u_int;
     SPDZ2k<MultiIOBase>::LabeledShare shared_u;
@@ -93,41 +90,26 @@ inline SPDZ2k<MultiIOBase>::LabeledShare L2A(
     u_int = spdz2k.reconstruct(shared_u);
     u_int %= fd; if (u_int < 0) u_int += fd;
 
-    if (u_int != uu) {
-        throw std::runtime_error("A2L_spdz2k check failed: decrypted value != share sum");
+    BLS12381Element uu(u_int);
+
+    for (int i = 0; i <= num_party * 2; i++) {
+        if (u == uu) {
+
+            auto t2 = std::chrono::high_resolution_clock::now();
+            int bytes_end = io->get_total_bytes_sent();
+            double comm_kb = double(bytes_end - bytes_start) / 1024.0;
+            double time_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
+            // std::cout << std::fixed << std::setprecision(6)
+            //           << "Communication: " << comm_kb << " KB, "
+            //           << "Time: " << time_ms << " ms" << std::endl;
+
+            online_time = time_ms;
+            online_comm = comm_kb;
+            return shared_x;
+        }
+        uu += G_fd;
     }
-
-    auto t2 = std::chrono::high_resolution_clock::now();
-    int bytes_end = io->get_total_bytes_sent();
-    double comm_kb = double(bytes_end - bytes_start) / 1024.0;
-    double time_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
-    online_time = time_ms;
-    online_comm = comm_kb;
-    return shared_x;
-
-    // Fr u_int_fr; 
-    // u_int_fr.setStr(std::to_string(u_int));
-    // BLS12381Element uu(u_int_fr);
-    
-    // auto t2 = std::chrono::high_resolution_clock::now();
-    // int bytes_end = io->get_total_bytes_sent();
-    // double comm_kb = double(bytes_end - bytes_start) / 1024.0;
-    // double time_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
-    // // std::cout << std::fixed << std::setprecision(3)
-    // //           << "Communication: " << comm_kb << " KB, "
-    // //           << "Time: " << time_ms << " ms" << std::endl;
-
-    // online_time = time_ms;
-    // online_comm = comm_kb;
-
-    // BLS12381Element tmp = G_fd;
-    // for (int i = 0; i <= num_party * 2; i++) {
-    //     if (uu == tmp) {
-    //         return shared_x;
-    //     }
-    //     tmp += G_fd;
-    // }
-    // throw std::runtime_error("A2L_spdz2k check failed: decrypted value != share sum");
+    throw std::runtime_error("L2A_spdz2k check failed: decrypted value != share sum");
 
 }
 
@@ -189,7 +171,7 @@ inline SPDZ2k<MultiIOBase>::LabeledShare L2A_for_B2A(
         }
     }
     
-    BLS12381Element u = threshold_decrypt_easy<MultiIOBase>(count, elgl, lvt->global_pk, lvt->user_pk, io, pool, party, num_party, lvt->P_to_m, lvt);
+    BLS12381Element u = threshold_decrypt_<MultiIOBase>(count, elgl, lvt->global_pk, lvt->user_pk, io, pool, party, num_party, lvt->P_to_m, lvt);
     uint64_t u_int;
     SPDZ2k<MultiIOBase>::LabeledShare shared_u;
     shared_u = spdz2k.add(shared_x, shared_r);
@@ -204,7 +186,7 @@ inline SPDZ2k<MultiIOBase>::LabeledShare L2A_for_B2A(
     BLS12381Element uu1 = uu - BLS12381Element(2);
     BLS12381Element uu2 = uu + BLS12381Element(2);
     for (int i = 0; i <= num_party * 2; i++) {
-        if (uu != tmp && uu1 != tmp && uu2 != tmp) {
+        if (uu == tmp && uu1 == tmp && uu2 == tmp) {
             return shared_x;
         }
         tmp += G_fd;
