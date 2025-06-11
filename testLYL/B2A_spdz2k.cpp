@@ -16,14 +16,13 @@
 using namespace emp;
 using namespace std;
 
-// 参数
 int party, port;
 const static int threads = 8;
 int num_party;
-const int l = 24; // 比特长度，可根据q调整
+const int l = 24;
 const int num_bits = 24;
 const uint64_t FIELD_SIZE = (1ULL << 63);
-int m_bits = 1; // bits of message
+int m_bits = 1; 
 
 int main(int argc, char** argv) {
     BLS12381Element::init();
@@ -51,19 +50,13 @@ int main(int argc, char** argv) {
     lvt->DistKeyGen();
     TinyMAC<MultiIOBase> tiny(elgl);
     SPDZ2k<MultiIOBase> spdz2k(elgl);
-    lvt->generate_shares_fake(lvt->lut_share, lvt->rotation, lvt->table);
-
-    // ====================== setup 结束 ==========================
-
-    // input generation
+    lvt->generate_shares(lvt->lut_share, lvt->rotation, lvt->table);
     vector<TinyMAC<MultiIOBase>::LabeledShare> x_bits(l);
     for (int i = 0; i < l; ++i) 
     {
         uint8_t bit_dis = tiny.rng() % 2;
         x_bits[i] = tiny.distributed_share(bit_dis);
     }
-
-    // B2A_spdz2k output
     double total_time = 0;
     double total_comm = 0;
     double online_time = 0;

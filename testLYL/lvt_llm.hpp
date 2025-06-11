@@ -172,7 +172,7 @@ lvt_online_phase(
     auto t3 = std::chrono::high_resolution_clock::now();
     
     // Perform the actual LVT lookup
-    auto [out, out_ciphers] = lvt->lookup_online_fake(x_share, x_cipher);
+    auto [out, out_ciphers] = lvt->lookup_online_(x_share, x_cipher);
     
     int bytes_end = io->get_total_bytes_sent();
     auto t4 = std::chrono::high_resolution_clock::now();

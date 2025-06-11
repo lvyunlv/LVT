@@ -49,7 +49,7 @@ int main(int argc, char** argv) {
     lvt->DistKeyGen();
     TinyMAC<MultiIOBase> tiny(elgl);
     SPDZ2k<MultiIOBase> spdz2k(elgl);
-    lvt->generate_shares_fake(lvt->lut_share, lvt->rotation, lvt->table);
+    lvt->generate_shares_(lvt->lut_share, lvt->rotation, lvt->table);
 
     // 输入：算术份额
     uint64_t x_spdz2k = spdz2k.rng() % FIELD_SIZE;

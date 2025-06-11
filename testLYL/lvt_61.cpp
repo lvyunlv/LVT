@@ -302,10 +302,10 @@ int main(int argc, char** argv) {
    
     // 直接创建 LVT 实例    
     cout << "Generating new state..." << endl;
-    // 直接调用 generate_shares_fake
+    // 直接调用 generate_shares_
     emp::LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, func_name, alpha_fr, num, m_bits);
     cout << "Generate shares finished" << endl;
-    lvt->generate_shares_fake(lvt->lut_share, lvt->rotation, lvt->table);
+    lvt->generate_shares_(lvt->lut_share, lvt->rotation, lvt->table);
     
     Plaintext tb_field = Plaintext(tb_size);
     Plaintext value_field = Plaintext(m_size);

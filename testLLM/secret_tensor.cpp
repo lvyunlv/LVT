@@ -7,7 +7,7 @@ using namespace emp;
 int party, port;
 const static int threads = 8;
 int num_party;
-// const uint64_t FIELD_SIZE("340282366920938463463374607431768211297");
+// const uint64_t FIELD_SIZE("52435875175126190479447740508185965837690552500527637822603658699938581184512");
 // const uint64_t FIELD_SIZE = (1ULL << 63) - 1;
 // int m_bits = 32; // bits of message - 已在 secret_tensor.hpp 中定义
 int fixedpoint_bits = 24;

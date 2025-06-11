@@ -12,7 +12,8 @@
 #include <mcl/vint.hpp>
 #include <mcl/fp.hpp>
 
-const mcl::Vint field_size("340282366920938463463374607431768211297");
+const mcl::Vint field_size("52435875175126190479447740508185965837690552500527637822603658699938581184512");
+// const mcl::Vint field_size_2("340282366920938463463374607431768211297");
 // const mcl::Vint field_size(to_string(1ULL << 32));
 namespace emp {
 

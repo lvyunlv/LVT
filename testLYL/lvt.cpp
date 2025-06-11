@@ -7,10 +7,6 @@ using namespace emp;
 int party, port;
 const static int threads = 32;
 int num_party;
-int m_bits = 10; // 表值比特数，在B2L和L2B中为1，在非线性函数计算调用时为24（表示Q8.16定点整数）
-int m_size = 1 << m_bits; // 表值大小
-int num = 10;
-int tb_size = 1ULL << num; // 表的大小
 
 int main(int argc, char** argv) {
     BLS12381Element::init();
@@ -42,15 +38,18 @@ int main(int argc, char** argv) {
     ThreadPool pool(threads);
     MultiIO* io = new MultiIO(party, num_party, net_config);
     ELGL<MultiIOBase>* elgl = new ELGL<MultiIOBase>(num_party, io, &pool, party);
-
+    int m_bits = 10;
+    int m_size = 1 << m_bits; 
+    int num = 10;
+    int tb_size = 1ULL << num; 
     Fr alpha_fr = alpha_init(num);
     std::string tablefile = "init";
     emp::LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, tablefile, alpha_fr, num, m_bits);
     lvt->DistKeyGen();
-    cout << "dhsia" << endl;
+    cout << "Finish DistKeyGen" << endl;
     lvt->generate_shares(lvt->lut_share, lvt->rotation, lvt->table);
     mpz_class fd = m_size;
-    cout << "cdhkcdchdhjcks" << endl;
+    cout << "Finish generate_shares" << endl;
 
     std::vector<Plaintext> x_share;
     std::string input_file = "../Input/Input-P" + std::to_string(party) + ".txt";
@@ -74,8 +73,7 @@ int main(int argc, char** argv) {
         }
     }
     int x_size = x_share.size();
-    cout << "-====" << endl;
-    // 每个参与方广播自己的输入个数，判断所有参与方的输入个数是否一致
+    cout << "Finish input generation" << endl;
     Plaintext x_size_pt; x_size_pt.assign(x_size);
     elgl->serialize_sendall(x_size_pt);
     for (int i = 1; i <= num_party; i++) {
@@ -88,10 +86,9 @@ int main(int argc, char** argv) {
             }
         }
     }
-    // 计算当前party自己x的share的密文，共同恢复x明文
     Plaintext tb_field = Plaintext(tb_size);
     Plaintext value_field = Plaintext(m_size);
-    cout << "-====" << endl;
+    cout << "Finish input size check" << endl;
 
     for (int i = 0; i < x_size; ++i) {
         Plaintext x_sum = x_share[i];
@@ -120,8 +117,7 @@ int main(int argc, char** argv) {
             }
         }
     }
-    cout << "1" << endl;
-    //  ************* ************* 正式测试内容 ************* ************* 
+    //  ************* ************* testing ************* ************* 
     std::vector<Ciphertext> x_cipher(x_size);
     for (int i = 0; i < x_size; ++i) {
         x_cipher[i] = lvt->global_pk.encrypt(x_share[i]);
@@ -137,11 +133,11 @@ int main(int argc, char** argv) {
         // cout << "party: " << party << " out = " << out[i].get_message().getStr() << endl;
         out_ciphers[i] = output2;
     } 
-    //  ************* ************* 测试内容结束 ************* ************* 
+    //  ************* ************* testing ************* ************* 
 
-    cout << "2" << endl;
+    cout << "Finish online lookup" << endl;
     lvt->Reconstruct_interact(out[0], out_ciphers[0][party-1], elgl, lvt->global_pk, lvt->user_pk, io, &pool, party, num_party, fd);
-    cout << "3" << endl;
+    cout << "Finish Reconstruct_interact" << endl;
     lvt->Reconstruct(out[0], out_ciphers[0], elgl, lvt->global_pk, lvt->user_pk, io, &pool, party, num_party, fd);
     // 根据查表share结果恢复总体查表结果
     for (int i = 0; i < x_size; ++i) {

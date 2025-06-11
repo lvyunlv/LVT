@@ -84,7 +84,7 @@ class LVT{
     ELGL_PK DistKeyGen();
     ~LVT();
     void generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation, vector<int64_t> table);
-    void generate_shares_fake(vector<Plaintext>& lut_share, Plaintext& rotation, vector<int64_t> table);
+    void generate_shares_(vector<Plaintext>& lut_share, Plaintext& rotation, vector<int64_t> table);
     tuple<Plaintext, vector<Ciphertext>> lookup_online(Plaintext& x_share, Ciphertext& x_cipher, vector<Ciphertext>& x_ciphers);
     tuple<vector<Plaintext>, vector<vector<Ciphertext>>> lookup_online_fake(vector<Plaintext>& x_share, vector<Ciphertext>& x_cipher);
     Plaintext lookup_online_easy(Plaintext& x_share);
@@ -322,10 +322,10 @@ LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, EL
 // 在类外定义initialize函数
 template <typename IO>
 void LVT<IO>::initialize(std::string func_name, LVT<IO>*& lvt_ptr_ref, int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, ELGL<IO>* elgl, Fr& alpha_fr, int table_size, int m_bits) {
-    std::string full_state_path = "/workspace/Baghaw/LVT/LVT/build/cache/lvt_" + func_name + "_size" + std::to_string(table_size) + "-P" + std::to_string(party) + ".bin";
+    std::string full_state_path = "../cache/lvt_" + func_name + "_size" + std::to_string(table_size) + "-P" + std::to_string(party) + ".bin";
     
     // 创建缓存目录
-    fs::create_directories("/workspace/Baghaw/LVT/LVT/build/cache");
+    fs::create_directories("../cache");
     
     lvt_ptr_ref = new LVT<IO>(num_party, party, io, pool, elgl, func_name, alpha_fr, table_size, m_bits);
 
@@ -347,9 +347,9 @@ void LVT<IO>::initialize(std::string func_name, LVT<IO>*& lvt_ptr_ref, int num_p
 // 在类外定义initialize函数
 template <typename IO>
 void LVT<IO>::initialize_fake(std::string func_name, LVT<IO>*& lvt_ptr_ref, int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, ELGL<IO>* elgl, Fr& alpha_fr, int table_size, int m_bits) {
-    std::string full_state_path = "/workspace/Baghaw/LVT/LVT/build/cache/lvt_fake_" + func_name + "_size" + std::to_string(table_size) + "-P" + std::to_string(party) + ".bin";
+    std::string full_state_path = "../cache/lvt_fake_" + func_name + "_size" + std::to_string(table_size) + "-P" + std::to_string(party) + ".bin";
     // 创建缓存目录
-    fs::create_directories("/workspace/Baghaw/LVT/LVT/build/cache");
+    fs::create_directories("../cache");
     lvt_ptr_ref = new LVT<IO>(num_party, party, io, pool, elgl, func_name, alpha_fr, table_size, m_bits);
     // 检查缓存文件是否存在
     if (fs::exists(full_state_path)) {
@@ -359,7 +359,7 @@ void LVT<IO>::initialize_fake(std::string func_name, LVT<IO>*& lvt_ptr_ref, int 
     } else {
         auto start = clock_start();
         cout << "Generating new state..." << endl;
-        lvt_ptr_ref->generate_shares_fake(lvt_ptr_ref->lut_share, lvt_ptr_ref->rotation, lvt_ptr_ref->table);
+        lvt_ptr_ref->generate_shares_(lvt_ptr_ref->lut_share, lvt_ptr_ref->rotation, lvt_ptr_ref->table);
         cout << "Generate shares finished" << endl;
         lvt_ptr_ref->save_full_state(full_state_path);
         std::cout << "Generate and cache state time: " << std::fixed << std::setprecision(6) << time_from(start) / 1e6 << " seconds" << std::endl;
@@ -388,13 +388,13 @@ template <typename IO>
 LVT<IO>::LVT(int num_party, int party, MPIOChannel<IO>* io, ThreadPool* pool, ELGL<IO>* elgl, string func_name, Fr& alpha, int table_size, int m_bits)
     : LVT(num_party, party, io, pool, elgl, alpha, table_size, m_bits) {
     // 创建缓存目录
-    fs::create_directories("/workspace/Baghaw/LVT/LVT/build/cache");
-    std::string tableFile = "/workspace/Baghaw/LVT/LVT/build/bin/table_" + func_name + ".txt";
+    fs::create_directories("../cache");
+    std::string tableFile = "../bin/table_" + func_name + ".txt";
     
     // 缓存文件路径
-    std::string table_cache = "/workspace/Baghaw/LVT/LVT/build/cache/table_" + func_name + "_" + std::to_string(table_size) + ".bin";
-    std::string p_to_m_cache = "/workspace/Baghaw/LVT/LVT/build/cache/p_to_m_" + std::to_string(m_bits) + ".bin";
-    std::string bsgs_cache = "/workspace/Baghaw/LVT/LVT/build/cache/bsgs_32.bin";
+    std::string table_cache = "../cache/table_" + func_name + "_" + std::to_string(table_size) + ".bin";
+    std::string p_to_m_cache = "../cache/p_to_m_" + std::to_string(m_bits) + ".bin";
+    std::string bsgs_cache = "../cache/bsgs_32.bin";
     
     // 1. 处理 table 数据
     if (fs::exists(table_cache)) {
@@ -1159,7 +1159,7 @@ void LVT<IO>::generate_shares(vector<Plaintext>& lut_share, Plaintext& rotation,
 }
 
 template <typename IO>
-void LVT<IO>::generate_shares_fake(vector<Plaintext>& lut_share, Plaintext& rotation, vector<int64_t> table) {
+void LVT<IO>::generate_shares_(vector<Plaintext>& lut_share, Plaintext& rotation, vector<int64_t> table) {
     lut_share.resize(tb_size);
     cip_lut.resize(num_party, vector<BLS12381Element>(tb_size));
     for (int i = 0; i < num_party; ++i) {

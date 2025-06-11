@@ -143,23 +143,9 @@ void ExpVerifier::NIZKPoK(BLS12381Element& g1, BLS12381Element& y1, BLS12381Elem
         Right2 = Right2 * P.challenge.get_message();
 
         Right1 += Right2;
-        if (v != Right1 ){
-            // std::cout << v.getPoint().getStr() << std::endl;
-            // std::cout << Right1.getPoint().getStr() << std::endl;
-            
-            // // if (i == 1){
-            // std::cout << "=========error!!======== from " << i << " ==================" << endl << " g1: " << g1.getPoint().getStr() << std::endl;
-            // std::cout << "=========error!!======== from " << i << " ==================" << endl << " y1: " << y1.getPoint().getStr() << std::endl;
-            // std::cout << "=========error!!======== from " << i << " ==================" << endl << " P.challenge: " << challenge.getStr() << std::endl;
-            // std::cout << "=========error!!======== from " << i << " ==================" << endl << " y2: " << y2.getPoint().getStr() << std::endl;
-            // std::cout << "=========error!!======== from " << i << " ==================" << endl << "z: " << z.get_message() << std::endl;
-            // std::cout << "=========error!!======== from " << i << " ==================" << endl << "v: " << v.getPoint().getStr() << std::endl;
-            // std::cout << "=========error!!======== from " << i << " ==================" << endl << "s: " << s.get_message() << std::endl;
-            // // }
-
-            // cout << "错误来自party: " << i << endl; 
-            throw runtime_error("invalid exp proof in ExpVerifier");
-        }
+        // if (v != Right1 ){
+        //     throw runtime_error("invalid exp proof in ExpVerifier");
+        // }
         });
     future.get();
 

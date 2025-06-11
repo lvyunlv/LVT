@@ -21,41 +21,50 @@ int party, port;
 const static int threads = 8;
 int num_party;
 const int l = 32; // 比特长度，可根据q调整
-const int num_bits = 32;
-// const mcl::Vint FIELD_SIZE = (1 << num_bits);
-const mcl::Vint FIELD_SIZE("340282366920938463463374607431768211297");
+const mcl::Vint FIELD_SIZE("52435875175126190479447740508185965837690552500527637822603658699938581184512");
 // const mcl::Vint FIELD_SIZE("4294967296");
 int m_bits = 1; // bits of message
+int num = 1;
 
 int main(int argc, char** argv) {
     BLS12381Element::init();
     if (argc < 4) {
-        std::cout << "Usage: <party> <port> <num_party>" << std::endl;
+        std::cout << "Format: <PartyID> <port> <num_parties>" << std::endl;
         return 0;
     }
     parse_party_and_port(argv, &party, &port);
     num_party = std::stoi(argv[3]);
-    
+
     std::vector<std::pair<std::string, unsigned short>> net_config;
-    for (int i = 1; i <= num_party; ++i) {
-        net_config.emplace_back("127.0.0.1", static_cast<unsigned short>(port + i - 1));
+    if (argc == 5) {
+        const char* file = argv[4];
+        FILE* f = fopen(file, "r");
+        for (int i = 0; i < num_party; ++i) {
+            char* c = (char*)malloc(15 * sizeof(char));
+            uint p;
+            fscanf(f, "%s %d\tb_size", c, &p);
+            net_config.push_back(std::make_pair(std::string(c), p));
+            fflush(f);
+        }
+        fclose(f);
+    } else {
+        for (int i = 0; i < num_party; ++i) {
+            net_config.push_back({ "127.0.0.1", port + 4 * num_party * i });
+        }
     }
 
     ThreadPool pool(threads);
     MultiIO* io = new MultiIO(party, num_party, net_config);
     ELGL<MultiIOBase>* elgl = new ELGL<MultiIOBase>(num_party, io, &pool, party);
 
-    // LUT查表表大小为2，0->0, 1->1
-    int num = 1;
     Fr alpha_fr = alpha_init(num);
-    LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "2", alpha_fr, num, m_bits);
-
+    std::string tablefile = "2";
+    emp::LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, tablefile, alpha_fr, num, m_bits);
     lvt->DistKeyGen();
+    lvt->generate_shares(lvt->lut_share, lvt->rotation, lvt->table);
     TinyMAC<MultiIOBase> tiny(elgl);
     MASCOT<MultiIOBase> mascot(elgl);
-    lvt->generate_shares_fake(lvt->lut_share, lvt->rotation, lvt->table);
 
-    // B2A_mascot input generation
     vector<TinyMAC<MultiIOBase>::LabeledShare> x_bits(l);
     for (int i = 0; i < l; ++i) 
     {
@@ -63,7 +72,6 @@ int main(int argc, char** argv) {
         x_bits[i] = tiny.distributed_share(bit_dis);
     }
     
-    // B2A_mascot output
     double total_time = 0;
     double total_comm = 0;
     double online_time = 0;

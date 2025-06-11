@@ -16,7 +16,7 @@ using namespace std;
 int party, port;
 const static int threads = 8;
 int num_party;
-const mcl::Vint FIELD_SIZE("340282366920938463463374607431768211297");
+const mcl::Vint FIELD_SIZE("52435875175126190479447740508185965837690552500527637822603658699938581184512");
 // const int FIELD_SIZE = 1000000007; // A prime number for modular arithmetic
 int m_bits = 32; // bits of message
 
