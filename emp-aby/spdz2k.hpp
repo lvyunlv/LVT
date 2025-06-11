@@ -12,7 +12,7 @@
 #include <map>
 
 // SPDZ2k整数域，k=64
-const uint64_t spdz2k_field_size = (1ULL << 63) ; // 2^63-1，示例用素数
+const uint64_t spdz2k_field_size = (1ULL << 63); // 2^63-1，示例用素数
 
 namespace emp {
 

@@ -63,16 +63,11 @@ void Plaintext::sqr(Plaintext &z, const Plaintext &x) const{
 
 void Plaintext::pow(Plaintext &ret, const Plaintext &x, const Plaintext &exp){
     mpz_class a_mpz, b_mpz, p_mpz, result;
-
-    // 将FpT转换为mpz_class
     x.get_message().getMpz(a_mpz);
     exp.get_message().getMpz(b_mpz);
     std::string p;
     Fr::getModulo(p);
     p_mpz.setStr(p, 10);
-
-
-    // 计算a^b mod p
     mcl::gmp::powMod(result, a_mpz, b_mpz, p_mpz);
     ret.assign(result);
 }
@@ -94,17 +89,15 @@ void Plaintext::unpack(std::stringstream& os){
 }
 
 uint64_t Plaintext::to_uint64() const {
-    // 将 Fr 的值转换为字符串，然后解析为 uint64_t
-    std::string str = message.getStr(10); // 获取十进制字符串
+    std::string str = message.getStr(10); 
     return static_cast<uint64_t>(std::stoull(str));
 }
 
-// 异或操作实现
 void Plaintext::xor_op(Plaintext &z, const Plaintext &x, const Plaintext &y) const {
     uint64_t x_val = x.to_uint64();
     uint64_t y_val = y.to_uint64();
-    uint64_t result = x_val ^ y_val; // 逐位异或
-    z.assign(std::to_string(result)); // 将结果转换为字符串并赋值给 z
+    uint64_t result = x_val ^ y_val; 
+    z.assign(std::to_string(result)); 
 }
 
 Plaintext Plaintext::operator^(const Plaintext &other) const {
@@ -128,8 +121,8 @@ void Plaintext::mod(Plaintext &z, const Plaintext &x, const Plaintext &modulus) 
 
 void Plaintext::mod2(Plaintext &z, const Plaintext &x) const {
     uint64_t x_val = x.to_uint64();
-    uint64_t result = x_val & 1; // 取最低位
-    z.assign(std::to_string(result)); // 将结果赋值给 z
+    uint64_t result = x_val & 1;
+    z.assign(std::to_string(result));
 }
 
 Plaintext Plaintext::operator%(const Plaintext &modulus) const {
@@ -143,7 +136,6 @@ Plaintext Plaintext::operator%=(const Plaintext &modulus) {
     return *this;
 }
 
-// 重载 % 操作符，支持模2
 Plaintext Plaintext::operator%(int modulus) const {
     if (modulus == 2) {
         Plaintext result;
@@ -154,7 +146,6 @@ Plaintext Plaintext::operator%(int modulus) const {
     }
 }
 
-// 重载 %= 操作符，支持模2
 Plaintext Plaintext::operator%=(int modulus) {
     if (modulus == 2) {
         mod2(*this, *this);
@@ -165,7 +156,6 @@ Plaintext Plaintext::operator%=(int modulus) {
 }
 
 bool Plaintext::DeserializFromFile(std::string filepath, Plaintext& p){
-    // load message from file
     std::ifstream file(filepath);
     if (file.is_open()){
         p.message.load(file);
@@ -178,7 +168,6 @@ bool Plaintext::DeserializFromFile(std::string filepath, Plaintext& p){
 }
 
 bool Plaintext::SerializeToFile(std::string filepath, Plaintext& p){
-    // pack message into file
     std::ofstream file(filepath);
     if (file.is_open()){
         p.message.save(file);

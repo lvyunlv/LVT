@@ -6,11 +6,10 @@
 #include <vector>
 
 /**
- * 对 BLE12381 椭圆曲线 G1 群元素序列执行 FFT 运算。
- * @param input 输入的 G1 群元素序列，长度为 N。
- * @param output 输出的 G1 群元素序列，长度为 N。
- * @param alpha 阶为 N 的单位根（G1 群中的生成元）。
- * @param N 序列长度，必须为 2 的幂次。
+ * @param input 
+ * @param output 
+ * @param alpha 
+ * @param N 
  */
 void FFT(const std::vector<BLS12381Element>& input, 
     std::vector<BLS12381Element>& output, 

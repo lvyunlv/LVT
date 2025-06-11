@@ -39,14 +39,9 @@ inline tuple<Plaintext, vector<Ciphertext>> A2L(
 
     mcl::Vint r_mascot; r_mascot.setRand(fd);
     MASCOT<MultiIOBase>::LabeledShare shared_r = mascot.distributed_share(r_mascot);
-
-    // cout << "xval: " << xval << endl;
     mcl::Vint rval = shared_r.value; rval %= fd; if (rval < 0) rval += fd;
-    // cout << "rval: " << rval << endl;
     Plaintext r;
-    // cout << xval.getStr() << endl;
     r.assign(rval.getStr());
-    // cout << "x: " << x.get_message().getStr() << endl;
 
     Ciphertext cx, cr, count;
     cr = lvt->global_pk.encrypt(r);
@@ -97,10 +92,6 @@ inline tuple<Plaintext, vector<Ciphertext>> A2L(
             int bytes_end = io->get_total_bytes_sent();
             double comm_kb = double(bytes_end - bytes_start) / 1024.0;
             double time_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
-            // std::cout << std::fixed << std::setprecision(6)
-            //           << "Communication: " << comm_kb << " KB, "
-            //           << "Time: " << time_ms << " ms" << std::endl;
-
             online_time = time_ms;
             online_comm = comm_kb;
             return std::make_tuple(x, vec_cx);
@@ -108,7 +99,6 @@ inline tuple<Plaintext, vector<Ciphertext>> A2L(
         uu += G_fd;
     }
     throw std::runtime_error("A2L_mascot check failed: decrypted value != share sum");
-    // return std::make_tuple(x, vec_cx);
 }
 
 } // namespace A2L_mascot

@@ -17,9 +17,6 @@ using namespace emp;
 using std::vector;
 
 inline tuple<Plaintext, vector<Ciphertext>> B2L(ELGL<MultiIOBase>* elgl, LVT<MultiIOBase>* lvt, TinyMAC<MultiIOBase>& tiny, int party, int num_party, MultiIO* io, ThreadPool* pool, const vector<TinyMAC<MultiIOBase>::LabeledShare>& x_bits, const uint64_t& modulus) {
-    // int bytes_start = io->get_total_bytes_sent();
-    // auto t1 = std::chrono::high_resolution_clock::now();
-    // cout << "x: " << tiny.bits_to_decimal(x_bits, modulus) << endl;
 
     int l = x_bits.size();
     vector<Plaintext> shared_x(l); 
@@ -46,15 +43,6 @@ inline tuple<Plaintext, vector<Ciphertext>> B2L(ELGL<MultiIOBase>* elgl, LVT<Mul
         r_plain[i] = out1;
         rr[i] = r_plain[i].get_message().getUint64() % 2;
     }
-
-    // int bytes_end = io->get_total_bytes_sent();
-    // auto t2 = std::chrono::high_resolution_clock::now();
-    // double comm_kb = double(bytes_end - bytes_start) / 1024.0;
-    // double time_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
-    // cout << "Offline time: " << time_ms << " ms, comm: " << comm_kb << " KB" << std::endl;
-
-    // int bytes_start1 = io->get_total_bytes_sent();
-    // auto t3 = std::chrono::high_resolution_clock::now();
 
     vector<uint8_t> xx(l);
     for (int i = 0; i < l; ++i) {
@@ -88,9 +76,6 @@ inline tuple<Plaintext, vector<Ciphertext>> B2L(ELGL<MultiIOBase>* elgl, LVT<Mul
 
     vector<Ciphertext> x_cip(num_party);
     x_cip[party - 1] = lvt->global_pk.encrypt(x);
-    // Ciphertext r_cip = lvt->global_pk.encrypt(r);
-    // cout << "r: " << tiny.bits_to_decimal(r_bits, modulus) << endl;
-    // cout << "r: " << lvt->Reconstruct_interact(r, r_cip, elgl, lvt->global_pk, lvt->user_pk, io, pool, party, num_party, modulus).get_message().getUint64() << endl;
     elgl->serialize_sendall(x_cip[party - 1]);
 
     for (int i = 1; i <= num_party; ++i) {
@@ -98,15 +83,6 @@ inline tuple<Plaintext, vector<Ciphertext>> B2L(ELGL<MultiIOBase>* elgl, LVT<Mul
             elgl->deserialize_recv(x_cip[i - 1], i);
         }
     }
-    // cout << "x: " << lvt->Reconstruct(x, x_cip, elgl, lvt->global_pk, lvt->user_pk, io, pool, party, num_party, modulus).get_message().getUint64() << endl;
-
-
-    // int bytes_end1 = io->get_total_bytes_sent();
-    // auto t4 = std::chrono::high_resolution_clock::now();
-    // double comm_kb1 = double(bytes_end1 - bytes_start1) / 1024.0;
-    // double time_ms1 = std::chrono::duration<double, std::milli>(t4 - t3).count();
-    // cout << "Online time: " << time_ms1 << " ms, comm: " << comm_kb1 << " KB" << std::endl;
-    // cout << "x: " << lvt->Reconstruct_interact(x, x_cip[party-1], elgl, lvt->global_pk, lvt->user_pk, io, pool, party, num_party, modulus).get_message().getUint64() << endl << endl;
 
     return std::make_tuple(x, x_cip);
 }
@@ -123,8 +99,6 @@ inline tuple<Plaintext, vector<Ciphertext>> B2L_for_L2B(
     const vector<TinyMAC<MultiIOBase>::LabeledShare>& x_bits,
     const uint64_t& modulus
 ) {
-    // cout << "x: " << tiny.bits_to_decimal(x_bits, modulus) << endl;
-
     int l = x_bits.size();
     vector<Plaintext> shared_x(l); 
     Plaintext fd(modulus);
@@ -183,9 +157,6 @@ inline tuple<Plaintext, vector<Ciphertext>> B2L_for_L2B(
 
     vector<Ciphertext> x_cip(num_party);
     x_cip[party - 1] = lvt->global_pk.encrypt(x);
-    // Ciphertext r_cip = lvt->global_pk.encrypt(r);
-    // cout << "r: " << tiny.bits_to_decimal(r_bits, modulus) << endl;
-    // cout << "r: " << lvt->Reconstruct_interact(r, r_cip, elgl, lvt->global_pk, lvt->user_pk, io, pool, party, num_party, modulus).get_message().getUint64() << endl;
     elgl->serialize_sendall(x_cip[party - 1]);
 
     for (int i = 1; i <= num_party; ++i) {
@@ -193,8 +164,6 @@ inline tuple<Plaintext, vector<Ciphertext>> B2L_for_L2B(
             elgl->deserialize_recv(x_cip[i - 1], i);
         }
     }
-    // cout << "x: " << lvt->Reconstruct(x, x_cip, elgl, lvt->global_pk, lvt->user_pk, io, pool, party, num_party, modulus).get_message().getUint64() << endl;
-
     return std::make_tuple(x, x_cip);
 }
 

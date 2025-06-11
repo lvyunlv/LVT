@@ -18,8 +18,6 @@ RotationProver::RotationProver(RotationProof& proof) {
     yk.resize(proof.n_tilde);
 }
 
-
-// TODO: pk pk_tilde need to seperate
 size_t RotationProver::NIZKPoK(RotationProof& P, std::stringstream& ciphertexts, std::stringstream& cleartexts, const ELGL_PK& pk, const ELGL_PK& pk_tilde, 
     const std::vector<BLS12381Element> dx, const std::vector<BLS12381Element> ex, const std::vector<BLS12381Element> ax,const std::vector<BLS12381Element> bx, Plaintext& beta, const std::vector<Plaintext>& sk_k, ThreadPool* pool) {
     
@@ -110,16 +108,12 @@ size_t RotationProver::NIZKPoK(RotationProof& P, std::stringstream& ciphertexts,
             yk[i].setHashof(tmp_pack.str().c_str(), tmp_pack.str().size());
     
             PackResult result;
-    
-            // 计算 C 增量（线程安全）
             BLS12381Element CK_tmp = ck[i] * b.get_message();
             CK_tmp += pk.get_pk() * mk[i].get_message();
     
             Fr yki = yk[i].get_message();
 
             result.CK_inc = CK_tmp * yki;
-    
-            // 计算 M_k
             Plaintext exp_tmp;
             BLS12381Element M_k;
     
@@ -152,8 +146,6 @@ size_t RotationProver::NIZKPoK(RotationProof& P, std::stringstream& ciphertexts,
 
     C = C - g;
     C.pack(ciphertexts);
-
-
     // fiat shamir
 
     P.set_challenge(ciphertexts);

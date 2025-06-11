@@ -35,9 +35,9 @@ add_test_case_with_run(L2A_spdz2k)
 add_test_case_with_run(A2L_spdz2k)
 
 add_test_case_with_run(B2A_mascot)
-# add_test_case_with_run(B2A_spdz2k)
+add_test_case_with_run(B2A_spdz2k)
 add_test_case_with_run(A2B_mascot)
-# add_test_case_with_run(A2B_spdz2k)
+add_test_case_with_run(A2B_spdz2k)
 # add_test_case_with_run(BSGS)
 # add_test_case_with_run(P2M)
 

@@ -8,7 +8,6 @@
 #include <vector>
 #include <chrono>
 #include <iostream>
-// Include ThreadPool directly since it's not in emp namespace
 #include "emp-tool/emp-tool/utils/ThreadPool.h"
 
 namespace lvt_llm {

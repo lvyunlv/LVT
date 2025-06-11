@@ -9,9 +9,9 @@ namespace fs = std::experimental::filesystem;
 int party, port;
 const static int threads = 32;
 int num_party;
-int m_bits = 1; // 表值比特数，在B2L和L2B中为1，在非线性函数计算调用时为24（表示Q8.16定点整数）
+int m_bits = 1; 
 int num = 1;
-int tb_size = 1ULL << num; // 表的大小
+int tb_size = 1ULL << num;
 
 int main(int argc, char** argv) {
     BLS12381Element::init();
@@ -78,7 +78,6 @@ int main(int argc, char** argv) {
     for (int i = 0; i < x_size; ++i) {
         auto [output1, output2] = lvt->lookup_online(x_share[i], x_cipher[i], x_ciphers);
         out[i] = output1;
-        // cout << "party: " << party << " out = " << out[i].get_message().getStr() << endl;
         out_ciphers[i] = output2;
     }
 

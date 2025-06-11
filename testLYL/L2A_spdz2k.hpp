@@ -114,6 +114,7 @@ inline SPDZ2k<MultiIOBase>::LabeledShare L2A(
 }
 
 
+
 inline SPDZ2k<MultiIOBase>::LabeledShare L2A_for_B2A(
     ELGL<MultiIOBase>* elgl,
     LVT<MultiIOBase>* lvt,
@@ -123,7 +124,7 @@ inline SPDZ2k<MultiIOBase>::LabeledShare L2A_for_B2A(
     MultiIO* io,
     ThreadPool* pool,
     const Plaintext& x_plain,
-    const vector<Ciphertext>& vec_cx,
+    vector<Ciphertext>& vec_cx,
     const uint64_t& fd
 ) {
     SPDZ2k<MultiIOBase>::LabeledShare shared_x;
@@ -131,8 +132,7 @@ inline SPDZ2k<MultiIOBase>::LabeledShare L2A_for_B2A(
     fd_fr.setStr(std::to_string(fd));
     BLS12381Element G_fd(fd_fr);
 
-    uint64_t r_spdz2k; 
-    r_spdz2k = spdz2k.rng() % fd;
+    uint64_t r_spdz2k; r_spdz2k = spdz2k.rng() % fd; if(r_spdz2k < 0) r_spdz2k += fd;
     SPDZ2k<MultiIOBase>::LabeledShare shared_r;
     shared_r = spdz2k.distributed_share(r_spdz2k);
     uint64_t x_spdz2k;
@@ -164,15 +164,28 @@ inline SPDZ2k<MultiIOBase>::LabeledShare L2A_for_B2A(
         }
     }
 
+    vec_cx[party - 1] = lvt->global_pk.encrypt(x_plain);
+    elgl->serialize_sendall(vec_cx[party - 1]);
+
+    for(int i = 1; i <= num_party; i++) {
+        if(i != party) {
+            Ciphertext cx_i;
+            elgl->deserialize_recv(cx_i, i);
+            vec_cx[i - 1] = cx_i;
+        }
+    }
+
     count += vec_cx[party - 1];
     for(int i = 1; i <= num_party; i++) {
         if(i != party) {
             count += vec_cx[i - 1];
         }
     }
-    
     BLS12381Element u = threshold_decrypt_<MultiIOBase>(count, elgl, lvt->global_pk, lvt->user_pk, io, pool, party, num_party, lvt->P_to_m, lvt);
+    // BLS12381Element u = threshold_decrypt_<MultiIOBase>(count, elgl, lvt->global_pk, lvt->user_pk, io, pool, party, num_party, lvt->P_to_m, lvt);
+    // Fr u = threshold_decrypt(count, elgl, lvt->global_pk, lvt->user_pk, io, pool, party, num_party, lvt->P_to_m, lvt);
     uint64_t u_int;
+    // u_int.setStr(u.getStr());
     SPDZ2k<MultiIOBase>::LabeledShare shared_u;
     shared_u = spdz2k.add(shared_x, shared_r);
     u_int = spdz2k.reconstruct(shared_u);
@@ -181,19 +194,14 @@ inline SPDZ2k<MultiIOBase>::LabeledShare L2A_for_B2A(
     Fr u_int_fr; 
     u_int_fr.setStr(std::to_string(u_int));
     BLS12381Element uu(u_int_fr);
-
-    BLS12381Element tmp = G_fd;
-    BLS12381Element uu1 = uu - BLS12381Element(2);
-    BLS12381Element uu2 = uu + BLS12381Element(2);
+    
     for (int i = 0; i <= num_party * 2; i++) {
-        if (uu == tmp && uu1 == tmp && uu2 == tmp) {
+        if (u == uu) {
             return shared_x;
         }
-        tmp += G_fd;
-        uu1 += G_fd;
-        uu2 += G_fd;
+        uu += G_fd;
     }
-    throw std::runtime_error("A2L_spdz2k check failed: decrypted value != share sum");
+    throw std::runtime_error("L2A_for_B2A_spdz2k check failed: decrypted value != share sum");
 }
 
 } // namespace L2A_spdz2k

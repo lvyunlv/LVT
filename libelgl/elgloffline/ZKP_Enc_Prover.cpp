@@ -77,7 +77,5 @@ void EncProver::NIZKPoK(Proof& P, std::stringstream& ciphertexts, std::stringstr
         result.sx.pack(cleartexts);
         result.sr.pack(cleartexts);
     }
-
-  // 返回证明过程中使用的内存大小，包括容量和易失性内存
 //   return report_size();
 }

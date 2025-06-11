@@ -15,7 +15,6 @@ namespace A2B_mascot {
 using namespace emp;
 using std::vector;
 
-// 输入：算术份额（MASCOT），输出：布尔份额（TinyMAC）
 inline vector<TinyMAC<MultiIOBase>::LabeledShare> A2B(
     ELGL<MultiIOBase>* elgl,
     LVT<MultiIOBase>* lvt,

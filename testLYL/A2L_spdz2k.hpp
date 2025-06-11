@@ -41,14 +41,8 @@ inline tuple<Plaintext, vector<Ciphertext>> A2L(
     uint64_t r_spdz2k_mac = mulmod(r_spdz2k, spdz2k.mac_key, spdz2k_field_size);
     SPDZ2k<MultiIOBase>::LabeledShare shared_r;
     shared_r.value = r_spdz2k; shared_r.mac = r_spdz2k_mac; shared_r.owner = party; shared_r.field_size_ptr = &spdz2k_field_size;
-
-    // cout << "xval: " << xval << endl;
-    // uint64_t rval = shared_r.value; rval %= fd; if (rval < 0) rval += fd;
-    // cout << "rval: " << rval << endl;
     Plaintext r;
-    // cout << xval.getStr() << endl;
     r.assign(std::to_string(r_spdz2k));
-    // cout << "x: " << x.get_message().getStr() << endl;
 
     Ciphertext cx, cr, count;
     cr = lvt->global_pk.encrypt(r);
@@ -84,9 +78,6 @@ inline tuple<Plaintext, vector<Ciphertext>> A2L(
 
     
     BLS12381Element u = threshold_decrypt_<MultiIOBase>(count, elgl, lvt->global_pk, lvt->user_pk, io, pool, party, num_party, lvt->P_to_m, lvt);
-
-    // uint64_t uu(y.getStr());
-    // uu %= fd; if (uu < 0) uu += fd;
     
     SPDZ2k<MultiIOBase>::LabeledShare shared_u = spdz2k.add(shared_x, shared_r);
     uint64_t u_int = spdz2k.reconstruct(shared_u);
@@ -101,10 +92,6 @@ inline tuple<Plaintext, vector<Ciphertext>> A2L(
             int bytes_end = io->get_total_bytes_sent();
             double comm_kb = double(bytes_end - bytes_start) / 1024.0;
             double time_ms = std::chrono::duration<double, std::milli>(t2 - t1).count();
-            // std::cout << std::fixed << std::setprecision(6)
-            //           << "Communication: " << comm_kb << " KB, "
-            //           << "Time: " << time_ms << " ms" << std::endl;
-
             online_time = time_ms;
             online_comm = comm_kb;
             return std::make_tuple(x, vec_cx);

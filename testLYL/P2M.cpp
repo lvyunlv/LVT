@@ -9,11 +9,7 @@ using namespace std;
 
 std::map<std::string, Fr> test_P_to_m(size_t max_exponent) {
     std::map<std::string, Fr> P_to_m;
-    
-    // 计算时间
     auto start = std::chrono::high_resolution_clock::now();
-    
-    // 构建表
     for (size_t i = 0; i <= max_exponent; ++i) {
         BLS12381Element g_i(i);
         P_to_m[g_i.getPoint().getStr()] = Fr(i);
@@ -30,32 +26,27 @@ std::map<std::string, Fr> test_P_to_m(size_t max_exponent) {
 
 int main() {
     BLS12381Element::init();
-
-    // 设置参数
-    int num_party = 2;  // 参与方数量
-    int table_size = 17;  // 表大小，2^16
-    size_t max_exponent = (1ULL << table_size);  // 2 * tb_size * num_party
-    
+    int num_party = 2;  
+    int table_size = 17;  
+    size_t max_exponent = (1ULL << table_size);  
     std::map<std::string, Fr> P_to_m;
-    // 判断是否有表，如果有则读取表，否则构建表并保存表
-   {
+    if (file_exists("P_to_m_table.bin")) {
+        std::cout << "开始读取表..." << std::endl;
+        deserialize_P_to_m(P_to_m, "P_to_m_table.bin");
+    } else {
         std::cout << "开始构建表，max_exponent = " << max_exponent << std::endl;
         auto P_to_m = test_P_to_m(max_exponent);
         
-        // 保存表
         std::cout << "保存表到文件..." << std::endl;
         serialize_P_to_m(P_to_m, "P_to_m_table.bin");
     }
     
-    // 测试时间
     auto start_time = chrono::high_resolution_clock::now();
 
-    // 测试读取
     std::cout << "从文件读取表..." << std::endl;
     std::map<std::string, Fr> loaded_P_to_m;
     deserialize_P_to_m(loaded_P_to_m, "P_to_m_table.bin");
     
-    // 测试查找
     BLS12381Element g(100000);
     auto it = loaded_P_to_m.find(g.getPoint().getStr());
     if (it == loaded_P_to_m.end()) {

@@ -165,24 +165,16 @@ void RotationVerifier::NIZKPoK(std::vector<BLS12381Element> &dx, std::vector<BLS
                 tmp = P.challenge * z[2];
                 local_R += ex[i] * tmp.get_message();
         
-                // 检查 L 和 R 是否相等
                 if (local_L != local_R) {
-                    // 使用 critical 区域避免多线程输出冲突
                     #pragma omp critical
                     std::cout << "bugaole shuidajiao" << std::endl;
                 }
             }));
         }
-        
-        // 等待所有任务完成
         for (auto& future : futures) {
             future.get();
         }
 
-
-
-
-        // // 3.29 version
         L = pk_tilde.get_pk() * phi.get_message();
         // c_0^{sigma yk_0}
         tmp = yk[0] * sigma;

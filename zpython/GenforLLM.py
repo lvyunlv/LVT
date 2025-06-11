@@ -1,14 +1,12 @@
 import numpy as np
 import os
 
-# 配置定点数参数
 FRACTIONAL_BITS = 16
 TOTAL_BITS = 24
 SCALE = 1 << FRACTIONAL_BITS
-INT_MIN = -(1 << (TOTAL_BITS - 1))  # -2^23
-INT_MAX = (1 << (TOTAL_BITS - 1)) - 1  # 2^23 - 1
+INT_MIN = -(1 << (TOTAL_BITS - 1))
+INT_MAX = (1 << (TOTAL_BITS - 1)) - 1
 
-# 激活函数定义
 def relu(x):
     return np.maximum(0, x)
 
@@ -38,9 +36,8 @@ def log_fn(x):
         return np.where(x > 0, np.log(x), 0)
 
 def pow_fn(x):
-    return np.power(x, 2)  # 可按需替换为其他次幂
+    return np.power(x, 2)
 
-# 函数映射表
 activation_functions = {
     "relu": relu,
     "sigmoid": sigmoid,
@@ -53,7 +50,6 @@ activation_functions = {
     "pow": pow_fn,
 }
 
-# 每个函数的定义域范围
 activation_domains = {
     "relu": (-8.0, 8.0),
     "sigmoid": (-8.0, 8.0),
@@ -66,27 +62,21 @@ activation_domains = {
     "pow": (-8.0, 8.0),
 }
 
-# 查表粒度
-STEPS = 2**24  # 65536 个点
+STEPS = 2**24
 
-# 输出路径
 OUTPUT_DIR = "../build/bin"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# 执行生成
 for name, func in activation_functions.items():
     domain = activation_domains[name]
     x = np.linspace(domain[0], domain[1], STEPS)
     y = func(x)
 
-    # 转换为 Q8.16 定点整数
     y_fixed = np.round(y * SCALE).astype(np.int64)
 
-    # 映射到 unsigned 24-bit 格式
     y_fixed = np.where(y_fixed < 0, (1 << TOTAL_BITS) + y_fixed, y_fixed)
     y_fixed = y_fixed & ((1 << TOTAL_BITS) - 1)
 
-    # 保存文本文件
     table_path = os.path.join(OUTPUT_DIR, f"table_{name}.txt")
     with open(table_path, "w") as f:
         for val in y_fixed:

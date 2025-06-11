@@ -1,20 +1,12 @@
 import numpy as np
 import os
-
-# 本文件自动为 BERT.py 中涉及的所有非线性函数（gelu, relu, sigmoid, tanh, inverse, sqrt, silu）生成查找表
-# 这些查找表用于LVT库在MPC-BERT推理中的激活函数查表加速
-# --------------------------------------------------
-
-# 配置定点数参数
 FRACTIONAL_BITS = 16
 TOTAL_BITS = 24
 SCALE = 1 << FRACTIONAL_BITS
-INT_MIN = -(1 << (TOTAL_BITS - 1))  # -2^19
-INT_MAX = (1 << (TOTAL_BITS - 1)) - 1  # 2^19 - 1
+INT_MIN = -(1 << (TOTAL_BITS - 1))
+INT_MAX = (1 << (TOTAL_BITS - 1)) - 1  
 FIELD_SIZE = 1 << TOTAL_BITS
 
-
-# 定点编码（输出为 int64）
 def encode_fixed(val):
     fixed = int(np.round(val * SCALE))
     fixed = max(INT_MIN, min(INT_MAX, fixed))
@@ -28,8 +20,6 @@ def encode_fixed_np(val):
     fixed = np.where(fixed < 0, fixed + FIELD_SIZE, fixed)
     fixed = fixed.astype(np.int64)
     return fixed & (FIELD_SIZE - 1)
-
-# 解码定点
 def decode_fixed(val):
     if val >= (1 << (TOTAL_BITS - 1)):
         val -= FIELD_SIZE
@@ -40,8 +30,6 @@ def decode_fixed_np(val):
     mask = val_copy >= (1 << (TOTAL_BITS - 1))
     val_copy[mask] -= FIELD_SIZE
     return val_copy / SCALE
-
-# 非线性函数定义
 def relu(x):
     return np.maximum(0, x)
 
@@ -64,12 +52,9 @@ def sqrt(x):
 def silu(x):
     return x * sigmoid(x)
 
-# softmax查表为单点近似：softmax(x) = exp(x)/(exp(x)+1)，实际softmax为向量归一化，这里仅供查表演示
-
 def softmax(x):
     return np.exp(x) / (np.exp(x) + 1)
 
-# 查表目标函数列表
 activation_functions = {
     "relu": relu,
     "sigmoid": sigmoid,
@@ -78,22 +63,17 @@ activation_functions = {
     "inverse": inv,
     "sqrt": sqrt,
     "silu": silu,
-    "softmax": softmax,  # 新增softmax查表
+    "softmax": softmax,
 }
 
-# 输出路径
 OUTPUT_DIR = "../build/bin"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# 生成并保存每个函数的查表数据
 for name, func in activation_functions.items():
     print(f"为 BERT.py 生成 {name} 查找表 (lookup table)")
     print(f"Generating lookup table for: {name}")
     
-    # 生成从0到FIELD_SIZE-1的所有可能的定点整数
     encoded_inputs = np.arange(FIELD_SIZE, dtype=np.int64)
-    
-    # 解码到浮点数
     float_inputs = decode_fixed_np(encoded_inputs)
     
     a = -2
@@ -105,17 +85,10 @@ for name, func in activation_functions.items():
     faa = encode_fixed(fa)
     print(faa)
     
-    # 应用非线性函数
     float_outputs = func(float_inputs)
-    
-    # 编码回定点整数
     encoded_outputs = encode_fixed_np(float_outputs)
-    
-    # 输出表格的最大值和最小值
     print(f"  Output range: max = {np.max(encoded_outputs)}, min = {np.min(encoded_outputs)}")
     print(f"  Decoded float range: min = {np.min(float_inputs):.6f}, max = {np.max(float_inputs):.6f}")
-    
-    # 保存查找表（二进制格式）
     table_path = os.path.join(OUTPUT_DIR, f'table_{name}.txt')
     with open(table_path, 'wb') as f:
         f.write(encoded_outputs.tobytes())

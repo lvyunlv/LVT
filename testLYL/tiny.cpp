@@ -43,13 +43,11 @@ int main(int argc, char** argv) {
 
     std::cout << "\n==== Testing TinyMAC Protocol ====" << std::endl;
 
-    // 测试分发和重构
-    uint8_t test_input = party & 1; // 每方输入一个比特
+    uint8_t test_input = party & 1;
     TinyMAC<MultiIOBase>::LabeledShare shared_value = tinymac.distributed_share(test_input);
     uint8_t reconstructed = tinymac.reconstruct(shared_value);
     std::cout << "Reconstructed value: " << int(reconstructed) << std::endl;
 
-    // 测试异或
     uint8_t x1 = party & 1;
     uint8_t x2 = (party + 1) & 1;
     TinyMAC<MultiIOBase>::LabeledShare x1_share = tinymac.distributed_share(x1);
@@ -59,7 +57,6 @@ int main(int argc, char** argv) {
     uint8_t xor_result = tinymac.reconstruct(xor_share);
     std::cout << "XOR result: " << int(xor_result) << std::endl;
 
-    // 测试与
     std::cout << "\nTesting AND: " << int(x1) << " & " << int(x2) << std::endl;
     auto and_share = tinymac.multiply(x1_share, x2_share);
     uint8_t and_result = tinymac.reconstruct(and_share);

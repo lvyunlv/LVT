@@ -13,14 +13,12 @@
 using namespace emp;
 using namespace std;
 
-// Test constants
 int party, port;
 const static int threads = 8;
 int num_party;
 const mcl::Vint FIELD_SIZE("52435875175126190479447740508185965837690552500527637822603658699938581184512");
-// const mcl::Vint FIELD_SIZE("4294967296");
 const int num = 16; 
-int m_bits = 32; // bits of message
+int m_bits = 32; 
 
 int main(int argc, char** argv) {
 
@@ -53,20 +51,14 @@ int main(int argc, char** argv) {
     lvt->DistKeyGen();
 
     MASCOT<MultiIOBase> mascot(elgl);
-    
-    // std::cout << "Party " << party << " initialized" << std::endl;
-    
-    // 同步所有参与方
     if(party == 1) {
         for(int i = 2; i <= num_party; i++) {
             elgl->wait_for(i);
         }
-        // std::cout << "All parties connected!" << std::endl;
     } else {
         elgl->send_done(1);
     }
     
-    // input 声明
     mcl::Vint x_mascot; 
     x_mascot.setRand(FIELD_SIZE);
     Plaintext x;
@@ -85,11 +77,7 @@ int main(int argc, char** argv) {
             vec_cx[i - 1] = cx_i;
         }
     }
-
-    // output 声明
     MASCOT<MultiIOBase>::LabeledShare shared_x;
-
-    // 调用L2A
     double total_time = 0;
     double total_comm = 0;
     double online_time = 0;
@@ -101,8 +89,6 @@ int main(int argc, char** argv) {
         total_comm += online_comm;
     }
     std::cout << "Average time: " << (total_time/times) << "ms && Average communication: " << (total_comm/times) << "KB" << std::endl;
-
-    // 清理资源
     delete elgl;
     delete io;
     delete lvt;

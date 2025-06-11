@@ -16,14 +16,12 @@
 using namespace emp;
 using namespace std;
 
-// 参数
 int party, port;
 const static int threads = 8;
 int num_party;
-const int l = 32; // 比特长度，可根据q调整
+const int l = 32;
 const mcl::Vint FIELD_SIZE("52435875175126190479447740508185965837690552500527637822603658699938581184512");
-// const mcl::Vint FIELD_SIZE("4294967296");
-int m_bits = 1; // bits of message
+int m_bits = 1; 
 int num = 1;
 
 int main(int argc, char** argv) {

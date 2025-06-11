@@ -44,15 +44,10 @@ int main(int argc, char** argv) {
     Fr alpha_fr = alpha_init(num);
     LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../build/bin/table_2.txt", alpha_fr, num, num_bits);
 
-    // lvt->DistKeyGen();
     TinyMAC<MultiIOBase> tiny(elgl);
     lvt->generate_shares(lvt->lut_share, lvt->rotation, lvt->table);
-    // lvt->global_pk.get_pk().print_str();
-
-    // 输入：算术份额
     Plaintext x_arith;
     x_arith.assign(65549);
-    // cout << "arith share: " << x_arith.get_message().getUint64() << endl;
 
     vector<Ciphertext> x_cips(num_party);
     x_cips[party - 1] = lvt->global_pk.encrypt(x_arith);
@@ -63,17 +58,12 @@ int main(int argc, char** argv) {
         }
     }
     cout << "x_arith: " << lvt->Reconstruct(x_arith, x_cips, elgl, lvt->global_pk, lvt->user_pk, io, &pool, party, num_party, MODULUS).get_message().getUint64() << endl;
-    
-    // 调用L2B
-    // vector<TinyMAC<MultiIOBase>::LabeledShare> L2B(ELGL<MultiIOBase>* elgl, LVT<MultiIOBase>* lvt, TinyMAC<MultiIOBase>& tiny, int party, int num_party, MultiIO* io, ThreadPool* pool, const uint64_t& FIELD_SIZE, int l, Plaintext& x_arith, vector<Ciphertext>& x_cips);
     auto x_bool = L2B::L2B(elgl, lvt, tiny, party, num_party, io, &pool, FIELD_SIZE, num_bits, x_arith, x_cips);
     vector<int> bits;
     for (int j = 0; j < num_bits; ++j) {
         int bit = tiny.reconstruct(x_bool[j]);
         bits.push_back(bit);
     }
-
-        // 将 24 个比特转换为十进制数
     uint64_t decimal_value = bits_to_decimal(bits, FIELD_SIZE);
     cout << "x_bits" << decimal_value << endl;
     

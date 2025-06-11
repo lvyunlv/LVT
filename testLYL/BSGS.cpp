@@ -14,10 +14,8 @@ int main() {
     cout << "g " << g.getPoint().b_.getUint64() << endl; 
     ThreadPool pool(thread_num);
 
-    uint64_t N = 1ULL << 32; // 32-bit空间
+    uint64_t N = 1ULL << 32; 
     BSGSPrecomputation bsgs;
-
-    // 尝试从文件加载预计算数据
      {
         std::cout << "预计算数据不存在或损坏，开始预计算..." << std::endl;
         auto start_time = chrono::high_resolution_clock::now();

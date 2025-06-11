@@ -8,10 +8,10 @@ using namespace emp;
 int party, port;
 const static int threads = 32;
 int num_party;
-int m_bits = 22; // 表值比特数，在B2L和L2B中为1，在非线性函数计算调用时为24（表示Q8.16定点整数）
-int m_size = 1 << m_bits; // 表值大小
+int m_bits = 22; 
+int m_size = 1 << m_bits; 
 int num = 22;
-int tb_size = 1ULL << num; // 表的大小
+int tb_size = 1ULL << num; 
 
 int main(int argc, char** argv) {
     BLS12381Element::init();
@@ -56,7 +56,6 @@ int main(int argc, char** argv) {
     std::vector<Plaintext> x_share;
     std::string input_file = "../../build/Input/Input-P.txt";
     {
-        // 判断文件是否存在
         if (!fs::exists(input_file)) {
             std::cerr << "Error: input file does not exist: " << input_file << std::endl;
             return 1;
@@ -71,7 +70,6 @@ int main(int argc, char** argv) {
                 Plaintext x;
                 x.assign(xval_int);
                 x_share.push_back(x);
-                // cout << "xval = " << xval_int << endl;
                 if (x.get_message().getUint64() > (1ULL << m_bits) - 1) {
                     std::cerr << "Error: input value exceeds table size in Party: " << party << std::endl;
                     cout << "Error value: " << x.get_message().getUint64() << ", tb_size = " << (1ULL << m_bits) << endl;
@@ -87,7 +85,6 @@ int main(int argc, char** argv) {
                 Plaintext x;
                 x.assign("0");
                 x_share.push_back(x);
-                // cout << "xval = " << xval_int << endl;
                 if (x.get_message().getUint64() > (1ULL << m_bits) - 1) {
                     std::cerr << "Error: input value exceeds table size in Party: " << party << std::endl;
                     cout << "Error value: " << x.get_message().getUint64() << ", tb_size = " << (1ULL << m_bits) << endl;
@@ -97,7 +94,6 @@ int main(int argc, char** argv) {
         }
     }
     int x_size = x_share.size();
-    // 每个参与方广播自己的输入个数，判断所有参与方的输入个数是否一致
     Plaintext x_size_pt; x_size_pt.assign(x_size);
     elgl.get()->serialize_sendall(x_size_pt);
     for (int i = 1; i <= num_party; i++) {
@@ -110,7 +106,6 @@ int main(int argc, char** argv) {
             }
         }
     }
-    // 计算当前party自己x的share的密文，共同恢复x明文
     Plaintext tb_field = Plaintext(tb_size);
     Plaintext value_field = Plaintext(m_size);
 
@@ -126,8 +121,6 @@ int main(int argc, char** argv) {
             }
         }
         uint64_t table_x = lvt->table[x_sum.get_message().getUint64()];
-        // std::cout << "x: " << x_sum.get_message().getUint64() << ", lut[x]: " << table_x << endl;
-        // cout << "table_x = " << FixedPointConverter::decode(table_x) << endl;
         Plaintext table_pt = Plaintext(table_x);
         elgl.get()->serialize_sendall(table_pt);
         for (int i = 1; i <= num_party; i++) {
@@ -141,7 +134,6 @@ int main(int argc, char** argv) {
             }
         }
     }
-    //  ************* ************* 正式测试内容 ************* ************* 
     std::vector<Ciphertext> x_cipher(x_size);
     for (int i = 0; i < x_size; ++i) {
         x_cipher[i] = lvt->global_pk.encrypt(x_share[i]);
@@ -154,12 +146,8 @@ int main(int argc, char** argv) {
     for (int i = 0; i < x_size; ++i) {
         auto [output1, output2] = lvt->lookup_online(x_share[i], x_cipher[i], x_ciphers);
         out[i] = output1;
-        // cout << "party: " << party << " out = " << out[i].get_message().getStr() << endl;
         out_ciphers[i] = output2;
     } 
-    //  ************* ************* 测试内容结束 ************* ************* 
-
-    // 根据查表share结果恢复总体查表结果
     vector<double> out_sum_double(x_size);
     for (int i = 0; i < x_size; ++i) {
         Plaintext out_sum = out[i];
@@ -181,7 +169,6 @@ int main(int argc, char** argv) {
                     std::cerr << "Error output" << std::endl;
                     return 1;
                 }
-                // cout << "party: " << party << " out_sum = " << out_sum.get_message().getStr() << endl;
             }
         }
         out_sum_double[i] = FixedPointConverter::decode(out_sum.get_message().getUint64());
@@ -198,8 +185,5 @@ int main(int argc, char** argv) {
         }
     }
 
-    // delete lvt;
-    // delete elgl.get();
-    // delete io.get();
     return 0;
 }

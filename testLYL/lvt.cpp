@@ -38,10 +38,8 @@ int main(int argc, char** argv) {
     ThreadPool pool(threads);
     MultiIO* io = new MultiIO(party, num_party, net_config);
     ELGL<MultiIOBase>* elgl = new ELGL<MultiIOBase>(num_party, io, &pool, party);
-    int m_bits = 10;
-    int m_size = 1 << m_bits; 
-    int num = 10;
-    int tb_size = 1ULL << num; 
+    int m_bits = 10; int m_size = 1 << m_bits; 
+    int num = 10; int tb_size = 1ULL << num; 
     Fr alpha_fr = alpha_init(num);
     std::string tablefile = "init";
     emp::LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, tablefile, alpha_fr, num, m_bits);
@@ -117,7 +115,6 @@ int main(int argc, char** argv) {
             }
         }
     }
-    //  ************* ************* testing ************* ************* 
     std::vector<Ciphertext> x_cipher(x_size);
     for (int i = 0; i < x_size; ++i) {
         x_cipher[i] = lvt->global_pk.encrypt(x_share[i]);
@@ -130,16 +127,13 @@ int main(int argc, char** argv) {
     for (int i = 0; i < x_size; ++i) {
         auto [output1, output2] = lvt->lookup_online(x_share[i], x_cipher[i], x_ciphers);
         out[i] = output1;
-        // cout << "party: " << party << " out = " << out[i].get_message().getStr() << endl;
         out_ciphers[i] = output2;
     } 
-    //  ************* ************* testing ************* ************* 
 
     cout << "Finish online lookup" << endl;
     lvt->Reconstruct_interact(out[0], out_ciphers[0][party-1], elgl, lvt->global_pk, lvt->user_pk, io, &pool, party, num_party, fd);
     cout << "Finish Reconstruct_interact" << endl;
     lvt->Reconstruct(out[0], out_ciphers[0], elgl, lvt->global_pk, lvt->user_pk, io, &pool, party, num_party, fd);
-    // 根据查表share结果恢复总体查表结果
     for (int i = 0; i < x_size; ++i) {
         Plaintext out_sum = out[i];
         elgl->serialize_sendall(out_sum);

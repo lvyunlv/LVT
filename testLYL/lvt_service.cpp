@@ -14,7 +14,6 @@
 constexpr int BACKLOG = 2;
 constexpr int MAX_OPTYPE_LEN = 32;
 
-// 全局LVT状态
 struct LVTContext {
     std::unique_ptr<emp::LVT<emp::MultiIOBase>> lvt;
     std::unique_ptr<emp::MultiIO> io;
@@ -24,8 +23,6 @@ struct LVTContext {
 };
 std::map<std::string, std::unique_ptr<LVTContext>> g_lvt_map;
 std::mutex g_lvt_map_mutex;
-
-// 离线初始化
 void initialize_lvt(int party, int num_party, int lvt_port, const std::string& func_name) {
     if (g_lvt_map[func_name]->initialized) return;
     auto tup = lvt_llm::lvt_offline_phase(party, num_party, lvt_port, func_name);
@@ -55,8 +52,6 @@ LVTContext* get_or_init_lvt(const std::string& op_type, int party, int num_party
     std::cout << "[LVT Service] Offline phase done for op: " << op_type << std::endl;
     return ptr;
 }
-
-// 处理单个请求
 std::vector<float> process_vector(const std::vector<float>& input, const std::string& op_type, int party, int num_party, int lvt_port) {
     LVTContext* ctx = get_or_init_lvt(op_type, party, num_party, lvt_port);
     if (!ctx) {
@@ -78,9 +73,7 @@ int main(int argc, char** argv) {
     std::string func_name = argv[5];
 
     std::cout << "[LVT Service] 启动参数: python_port=" << python_port << ", party=" << party << ", lvt_port=" << lvt_port << ", num_party=" << num_party << ", func=" << func_name << std::endl;
-    // 离线初始化
     get_or_init_lvt(func_name, party, num_party, lvt_port);
-    // 启动TCP服务
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0) { perror("socket"); return 1; }
     int opt = 1;
@@ -96,16 +89,13 @@ int main(int argc, char** argv) {
     while (true) {
         int client_fd = accept(server_fd, nullptr, nullptr);
         if (client_fd < 0) { perror("accept"); continue; }
-        // 1. 读op_type（32字节）
         char op_type_buf[33] = {0};
         if (read(client_fd, op_type_buf, 32) != 32) { close(client_fd); continue; }
         std::string op_type(op_type_buf, strnlen(op_type_buf, 32));
         if (op_type == "exit") { close(client_fd); break; }
-        // 2. 读数据长度
         int32_t data_len = 0;
         if (read(client_fd, &data_len, sizeof(data_len)) != sizeof(data_len)) { close(client_fd); continue; }
         if (data_len <= 0 || data_len > 2*1000*1000) { close(client_fd); continue; }
-        // 3. 读float32数据
         std::vector<float> input(data_len);
         size_t to_read = data_len * sizeof(float);
         char* ptr = reinterpret_cast<char*>(input.data());
@@ -116,10 +106,8 @@ int main(int argc, char** argv) {
             total += n;
         }
         if (total != to_read) { close(client_fd); continue; }
-        // 4. 处理
         std::vector<float> result = process_vector(input, op_type, party, num_party, lvt_port);
         int32_t result_len = result.size();
-        // 5. 返回长度+数据
         write(client_fd, &result_len, sizeof(result_len));
         write(client_fd, result.data(), result_len * sizeof(float));
         close(client_fd);

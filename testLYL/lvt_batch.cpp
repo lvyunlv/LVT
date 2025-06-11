@@ -13,19 +13,17 @@ using namespace emp;
 int party, port;
 const static int threads = 32;
 int num_party;
-int m_bits = 24; // 表值比特数，在B2L和L2B中为1，在非线性函数计算调用时为24（表示Q8.16定点整数）
-int m_size = 1 << m_bits; // 表值大小
+int m_bits = 24; 
+int m_size = 1 << m_bits; 
 int num = 24;
-int tb_size = 1ULL << num; // 表的大小
+int tb_size = 1ULL << num; 
 
-// 并行读取和处理输入文件
 std::vector<Plaintext> parallel_load_input(const std::string& input_file, int party, int m_bits, ThreadPool& pool) {
     if (!fs::exists(input_file)) {
         std::cerr << "Error: input file does not exist: " << input_file << std::endl;
         return {};
     }
     
-    // 首先读取整个文件内容
     std::vector<std::string> lines;
     {
         std::ifstream in_file(input_file);
@@ -34,12 +32,9 @@ std::vector<Plaintext> parallel_load_input(const std::string& input_file, int pa
             lines.push_back(line);
         }
     }
-    
-    // 预分配结果向量
     size_t line_count = lines.size();
     std::vector<Plaintext> x_share(line_count);
     
-    // 并行处理每一行
     std::vector<std::future<void>> futures;
     size_t block_size = (line_count + threads - 1) / threads;
     
@@ -55,7 +50,6 @@ std::vector<Plaintext> parallel_load_input(const std::string& input_file, int pa
                     
                     if (xval_int > (1ULL << m_bits) - 1) {
                         std::cout << "Warning: input value exceeds table size: " << xval_int << std::endl;
-                        // 截断为表大小
                         xval_int = (1ULL << m_bits) - 1;
                     }
                     
@@ -67,13 +61,11 @@ std::vector<Plaintext> parallel_load_input(const std::string& input_file, int pa
         }));
     }
     
-    // 等待所有处理完成
     for (auto& fut : futures) fut.get();
     
     return x_share;
 }
 
-// 并行生成密文
 std::vector<Ciphertext> parallel_encrypt(const std::vector<Plaintext>& x_share, 
                                         const ELGL_PK& global_pk, 
                                         ThreadPool& pool) {
@@ -94,13 +86,10 @@ std::vector<Ciphertext> parallel_encrypt(const std::vector<Plaintext>& x_share,
         }));
     }
     
-    // 等待所有加密完成
     for (auto& fut : futures) fut.get();
     
     return x_cipher;
 }
-
-// 并行处理结果
 std::vector<float> parallel_process_results(std::vector<Plaintext>& out, 
                                            ELGL<MultiIOBase>* elgl, 
                                            MPIOChannel<MultiIOBase>* io,
@@ -112,23 +101,19 @@ std::vector<float> parallel_process_results(std::vector<Plaintext>& out,
     std::vector<float> out_sum_float(x_size);
     std::vector<Plaintext> out_sum(x_size);
     
-    // 第1阶段: 所有方交换shares并计算总和
     for (int i = 0; i < x_size; ++i) {
         out_sum[i] = out[i];
     }
     
-    // 批量序列化本地shares为一个字符串流
     std::stringstream shares_stream;
     for (int i = 0; i < x_size; ++i) {
         out[i].pack(shares_stream);
     }
     
-    // 获取序列化数据
     std::string shares_str = shares_stream.str();
     const char* shares_data = shares_str.c_str();
     int shares_size = shares_str.size();
     
-    // 并行发送shares给其他方
     std::vector<std::future<void>> send_futures;
     for (int j = 1; j <= num_party; j++) {
         if (j != party) {
@@ -137,30 +122,22 @@ std::vector<float> parallel_process_results(std::vector<Plaintext>& out,
             }));
         }
     }
-    
-    // 并行接收和处理其他方的shares
     std::vector<std::future<void>> recv_futures;
     std::mutex out_sum_mutex;
     
     for (int j = 1; j <= num_party; j++) {
         if (j != party) {
             recv_futures.push_back(pool.enqueue([&out_sum, &out_sum_mutex, io, j, x_size, &value_field]() {
-                // 接收数据
                 int data_len = 0;
                 void* recv_data = io->recv_data(j, data_len);
                 
                 if (recv_data) {
-                    // 反序列化接收到的数据
                     std::stringstream ss;
                     ss.write(static_cast<char*>(recv_data), data_len);
                     free(recv_data);
-                    
-                    // 逐一解包并累加
                     std::vector<Plaintext> recv_shares(x_size);
                     for (int i = 0; i < x_size; ++i) {
                         recv_shares[i].unpack(ss);
-                        
-                        // 线程安全地累加到out_sum
                         std::lock_guard<std::mutex> lock(out_sum_mutex);
                         out_sum[i] += recv_shares[i];
                         out_sum[i] = out_sum[i] % value_field;
@@ -169,24 +146,15 @@ std::vector<float> parallel_process_results(std::vector<Plaintext>& out,
             }));
         }
     }
-    
-    // 等待所有发送和接收完成
     for (auto& fut : send_futures) fut.get();
     for (auto& fut : recv_futures) fut.get();
-    
-    // 第2阶段: 验证所有方的结果一致性并转换为float
-    // 批量序列化结果
     std::stringstream result_stream;
     for (int i = 0; i < x_size; ++i) {
         out_sum[i].pack(result_stream);
     }
-    
-    // 获取序列化数据
     std::string result_str = result_stream.str();
     const char* result_data = result_str.c_str();
     int result_size = result_str.size();
-    
-    // 并行发送结果给其他方
     send_futures.clear();
     for (int j = 1; j <= num_party; j++) {
         if (j != party) {
@@ -196,24 +164,19 @@ std::vector<float> parallel_process_results(std::vector<Plaintext>& out,
         }
     }
     
-    // 接收并验证结果
     recv_futures.clear();
     std::atomic<bool> results_match(true);
     
     for (int j = 1; j <= num_party; j++) {
         if (j != party) {
             recv_futures.push_back(pool.enqueue([&results_match, io, j, x_size, &out_sum]() {
-                // 接收数据
                 int data_len = 0;
                 void* recv_data = io->recv_data(j, data_len);
                 
                 if (recv_data) {
-                    // 反序列化接收到的数据
                     std::stringstream ss;
                     ss.write(static_cast<char*>(recv_data), data_len);
                     free(recv_data);
-                    
-                    // 逐一解包并验证
                     std::vector<Plaintext> recv_results(x_size);
                     for (int i = 0; i < x_size; ++i) {
                         recv_results[i].unpack(ss);
@@ -226,8 +189,6 @@ std::vector<float> parallel_process_results(std::vector<Plaintext>& out,
             }));
         }
     }
-    
-    // 等待所有发送和接收完成
     for (auto& fut : send_futures) fut.get();
     for (auto& fut : recv_futures) fut.get();
     
@@ -235,7 +196,6 @@ std::vector<float> parallel_process_results(std::vector<Plaintext>& out,
         std::cerr << "Error: Results don't match across parties" << std::endl;
     }
     
-    // 并行转换结果为float
     std::vector<std::future<void>> convert_futures;
     size_t block_size = (x_size + threads - 1) / threads;
     
@@ -250,7 +210,6 @@ std::vector<float> parallel_process_results(std::vector<Plaintext>& out,
         }));
     }
     
-    // 等待所有转换完成
     for (auto& fut : convert_futures) fut.get();
     
     return out_sum_float;
@@ -266,7 +225,6 @@ int main(int argc, char** argv) {
     num_party = std::stoi(argv[3]);
     std::string func_name = argv[4];
     
-    // Default to text format if not specified
     std::string file_format = "txt";
     if (argc >= 6) {
         file_format = argv[5];
@@ -295,7 +253,6 @@ int main(int argc, char** argv) {
     auto io = std::make_unique<MultiIO>(party, num_party, net_config);
     auto elgl = std::make_unique<ELGL<MultiIOBase>>(num_party, io.get(), &pool, party);
 
-    // 测试时间和通信
     int bytes_start = io.get()->get_total_bytes_sent();
     auto t1 = std::chrono::high_resolution_clock::now();
 
@@ -314,16 +271,13 @@ int main(int argc, char** argv) {
     float time_ms = std::chrono::duration<float, std::milli>(t2 - t1).count() / 1000.0;
     cout << "Offline time: " << time_ms << " s, comm: " << comm_kb << " MB" << std::endl;
 
-    // 准备输入和输出文件路径
     std::string input_base = "/workspace/Baghaw/LVT/LVT/build/Input/Input-P";
     std::string input_file = use_binary ? input_base + ".bin" : input_base + ".txt";
     
-    // 读取输入数据
     std::vector<Plaintext> x_share;
     int x_size = 0;
     
     if (use_binary) {
-        // 二进制模式读取（使用mmap优化）
         int fd = open(input_file.c_str(), O_RDONLY);
         if (fd < 0) {
             std::cerr << "Error: Cannot open binary input file: " << input_file << std::endl;
@@ -341,13 +295,11 @@ int main(int argc, char** argv) {
             close(fd);
             return 1;
         }
-        // 先读取长度信息（int32_t），再读取float数据
         int32_t* len_ptr = reinterpret_cast<int32_t*>(mapped);
         int32_t length = *len_ptr;
         float* values = reinterpret_cast<float*>((char*)mapped + sizeof(int32_t));
         x_size = length;
         x_share.resize(x_size);
-        // 转换为Plaintext
         for (int i = 0; i < x_size; ++i) {
             if (party == 1) {
                 uint64_t xval_int = FixedPointConverter::encode(values[i]);
@@ -364,15 +316,13 @@ int main(int argc, char** argv) {
         close(fd);
         std::cout << "Read " << x_size << " values from binary file" << std::endl;
     } else {
-        // 文本模式读取
         x_share = parallel_load_input(input_file, party, m_bits, pool);
         if (x_share.empty()) {
-            return 1; // 加载输入失败
+            return 1; 
         }
         x_size = x_share.size();
     }
     
-    // 每个参与方广播自己的输入个数，并验证一致性
     Plaintext x_size_pt; x_size_pt.assign(x_size);
     elgl.get()->serialize_sendall(x_size_pt);
     for (int i = 1; i <= num_party; i++) {
@@ -385,17 +335,12 @@ int main(int argc, char** argv) {
             }
         }
     }
-    
-    //  ************* ************* 正式测试内容 ************* ************* 
-    // 并行生成密文
     std::vector<Ciphertext> x_cipher = parallel_encrypt(x_share, lvt->global_pk, pool);
 
     int bytes_start1 = io->get_total_bytes_sent();
     auto t3 = std::chrono::high_resolution_clock::now();
-    // 准备空的x_ciphers向量
     std::vector<std::vector<Ciphertext>> x_ciphers(x_size);
     auto [out, out_ciphers] = lvt->lookup_online_batch(x_share, x_cipher, x_ciphers);
-    //  ************* ************* 测试内容结束 ************* ************* 
 
     int bytes_end1 = io->get_total_bytes_sent();
     auto t4 = std::chrono::high_resolution_clock::now();
@@ -403,29 +348,24 @@ int main(int argc, char** argv) {
     float time_ms1 = std::chrono::duration<float, std::milli>(t4 - t3).count() / 1000.0;
     cout << "Online time: " << time_ms1 << " s, comm: " << comm_kb1 << " MB" << std::endl;
 
-    // 并行处理和验证结果
     std::vector<float> out_sum_float = parallel_process_results(out, elgl.get(), io.get(), party, num_party, value_field, pool);
-
-    // 输出结果
     if (party == 1) {
         std::string output_base = "/workspace/Baghaw/LVT/LVT/build/Output/Output";
         std::string output_file = use_binary ? output_base + ".bin" : output_base + ".txt";
         
         if (use_binary) {
-            // 二进制模式输出（优化：一次性写入长度和数据）
             std::ofstream outfile(output_file, std::ios::binary | std::ios::trunc);
             if (!outfile) {
                 std::cerr << "Error: Cannot open binary output file: " << output_file << std::endl;
                 return 1;
             }
             int32_t length = static_cast<int32_t>(out_sum_float.size());
-            outfile.write(reinterpret_cast<const char*>(&length), sizeof(int32_t)); // 写入长度头
+            outfile.write(reinterpret_cast<const char*>(&length), sizeof(int32_t));
             if (!out_sum_float.empty()) {
-                outfile.write(reinterpret_cast<const char*>(out_sum_float.data()), out_sum_float.size() * sizeof(float)); // 批量写入float数据
+                outfile.write(reinterpret_cast<const char*>(out_sum_float.data()), out_sum_float.size() * sizeof(float));
             }
             std::cout << "Wrote " << out_sum_float.size() << " values to binary file" << std::endl;
         } else {
-            // 文本模式输出
             std::stringstream output_content;
             for (int i = 0; i < x_size; ++i) {
                 output_content << out_sum_float[i] << std::endl;

@@ -7,13 +7,12 @@
 
 using namespace mcl::bn;
 
-// -------------------- 递归 + 并行 FFT 实现 --------------------
 void FFT_recursive_para(
     const std::vector<BLS12381Element>& a,
     std::vector<BLS12381Element>& A,
     const Fr& omega,
     size_t n,
-    int depth = 2 // 控制递归并行深度，>0时启用并行
+    int depth = 2
 ) {
     if (n == 1) {
         A[0] = a[0];
@@ -55,7 +54,7 @@ void FFT_Para(
     const Fr& omega,
     size_t n
 ) {
-    assert((n & (n - 1)) == 0); // n must be power of 2
+    assert((n & (n - 1)) == 0); 
     assert(n == input.size());
     output.resize(n);
     FFT_recursive_para(input, output, omega, n, 3);

@@ -1,7 +1,0 @@
-# A2B_spdz2k.txt
-Party number: 2\tAverage time: 3.489ms && Average communication: 0.438KB
-Party number: 4\tAverage time: 10.275ms && Average communication: 1.315KB
-Party number: 8\tAverage time: 28.125ms && Average communication: 3.069KB
-Party number: 16\tAverage time: 67.222ms && Average communication: 6.577KB
-Party number: 32\tAverage time: 184.282ms && Average communication: 13.593KB
-Party number: 64\tAverage time: 608.806ms && Average communication: 27.624KB

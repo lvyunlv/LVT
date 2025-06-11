@@ -53,25 +53,17 @@ int main(int argc, char** argv) {
 
     lvt->DistKeyGen();
 
-
-////////////////////////////////////////////////////
     MASCOT<MultiIOBase> mascot(elgl);
     
-    // std::cout << "Party " << party << " initialized" << std::endl;
-    
-    // 同步所有参与方
     if(party == 1) {
         for(int i = 2; i <= num_party; i++) {
             elgl->wait_for(i);
         }
-        // std::cout << "All parties connected!" << std::endl;
     } else {
         elgl->send_done(1);
     }
     
     std::cout << "\n==== Testing MASCOT Protocol ====\n" << std::endl;
-    
-    // 测试秘密共享和重构
     mcl::Vint test_input; 
     test_input = party; 
     test_input %= FIELD_SIZE;
@@ -82,7 +74,6 @@ int main(int argc, char** argv) {
     
     std::cout << "Reconstructed value: " << reconstructed.getStr() << std::endl;
     
-    // 测试加法
     mcl::Vint x1, x2; 
     x1 = party; x1 %= FIELD_SIZE; 
     x2 = party; x2 %= FIELD_SIZE;
@@ -97,7 +88,6 @@ int main(int argc, char** argv) {
     
     std::cout << "Addition result: " << sum_result.getStr() << std::endl;
     
-    // 测试标量乘法
     mcl::Vint scalar; scalar = 2; scalar %= FIELD_SIZE;
     
     auto scalar_mul_share = mascot.mul_const(x1_share, scalar);
@@ -106,7 +96,6 @@ int main(int argc, char** argv) {
     std::cout << "\nTesting scalar multiplication: " << x1.getStr() << " * " << scalar.getStr() << std::endl;
     std::cout << "Scalar multiplication result: " << scalar_mul_result.getStr() << std::endl;
     
-    // 测试乘法
     std::cout << "\nTesting multiplication..." << std::endl;
     auto mul_share = mascot.multiply(x1_share, x2_share);
 
@@ -117,7 +106,6 @@ int main(int argc, char** argv) {
     std::cout << "\nTesting multiplication: " << k1.getStr() << " * " << k2.getStr() << std::endl;
     std::cout << "Multiplication result: " << k3.getStr() << std::endl;
     
-    // 清理资源
     delete elgl;
     delete io;
     delete lvt;

@@ -1,6 +1,0 @@
-Party number: 2\tAverage time: 3.572ms && Average communication: 0.438KB
-Party number: 4\tAverage time: 10.613ms && Average communication: 1.312KB
-Party number: 8\tAverage time: 27.858ms && Average communication: 3.069KB
-Party number: 16\tAverage time: 68.502ms && Average communication: 6.562KB
-Party number: 32\tAverage time: 207.014ms && Average communication: 13.532KB
-Party number: 64\tAverage time: 620.882ms && Average communication: 27.624KB

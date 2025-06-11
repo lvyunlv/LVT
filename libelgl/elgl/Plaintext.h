@@ -93,7 +93,6 @@ class Plaintext{
     static bool SerializeToFile(std::string filepath, Plaintext& p);
 
     uint64_t to_uint64() const;
-    // 如果明文都是0 1比特，增加异或操作
     void xor_op(Plaintext &z, const Plaintext &x, const Plaintext &y) const;
     Plaintext operator^(const Plaintext &other) const;
     Plaintext operator^=(const Plaintext &other);

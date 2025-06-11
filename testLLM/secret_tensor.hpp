@@ -31,7 +31,6 @@ class SecretTensor {
 public:
     using Share = typename SPDZ2k<IO>::LabeledShare;
 
-    // 构造函数
     SecretTensor(const std::vector<size_t>& shape, SPDZ2k<MultiIOBase>& spdz2k, ELGL<MultiIOBase>* elgl, LVT<MultiIOBase>* lvt, MPIOChannel<MultiIOBase>* io, ThreadPool* pool, int party, int num_party, const uint64_t& fd, ShareType type = ShareType::SPDZ2k) : shape(shape), spdz2k(spdz2k), elgl(elgl), lvt(lvt), io(io), pool(pool), party(party), num_party(num_party), fd(fd), type(type) {
         total_size = 1;
         for (auto dim : shape) total_size *= dim;
@@ -43,8 +42,6 @@ public:
             data_lut_cipher.resize(total_size);
         }
     }
-
-    // 从明文初始化
     static SecretTensor from_plaintext(const std::vector<size_t>& shape, const std::vector<uint64_t>& values, SPDZ2k<MultiIOBase>& spdz2k, ELGL<MultiIOBase>* elgl, LVT<MultiIOBase>* lvt, MPIOChannel<MultiIOBase>* io, ThreadPool* pool, int party, int num_party, const uint64_t& fd, ShareType type = ShareType::SPDZ2k)
     {
         assert(values.size() == product(shape));
@@ -66,22 +63,17 @@ public:
         return tensor;
     }
 
-    // 向量加法 - 使用安全的MPC加法
     SecretTensor add(const SecretTensor& other) const {
         assert(type == ShareType::SPDZ2k && other.type == ShareType::SPDZ2k);
         assert(shape == other.shape);
 
         SecretTensor result(shape, spdz2k, elgl, lvt, io, pool, party, num_party, fd);
-        
-        // 直接进行加法，不使用线程池
         for (size_t i = 0; i < total_size; ++i) {
             result.data_spdz2k[i] = spdz2k.add(data_spdz2k[i], other.data_spdz2k[i]);
         }
 
         return result;
     }
-
-    // 矩阵乘法 - 使用安全的MPC乘法和截断
     SecretTensor matmul(const SecretTensor& other) const {
         assert(type == ShareType::SPDZ2k && other.type == ShareType::SPDZ2k);
         assert(shape.size() == 2 && other.shape.size() == 2);
@@ -90,9 +82,6 @@ public:
         size_t m = shape[0], k = shape[1], n = other.shape[1];
         std::vector<size_t> result_shape = {m, n};
         SecretTensor result(result_shape, spdz2k, elgl, lvt, io, pool, party, num_party, fd);
-
-        // 对每个结果元素进行多方乘法
-        // TODO: 多线程
         for (size_t i = 0; i < m; ++i) {
             for (size_t j = 0; j < n; ++j) {
                 Share acc = spdz2k.get_zero_share();
@@ -108,8 +97,6 @@ public:
 
         return result;
     }
-
-    // 转换 SPDZ2k → LUT
     void to_lut() {
         assert(type == ShareType::SPDZ2k);
         data_lut_plain.resize(total_size);
@@ -124,8 +111,6 @@ public:
         data_spdz2k.clear();
         type = ShareType::LUT;
     }
-
-    // 转换 LUT → SPDZ2k
     void to_spdz2k() {
         assert(type == ShareType::LUT);
         data_spdz2k.resize(total_size);
@@ -138,11 +123,7 @@ public:
         data_lut_cipher.clear();
         type = ShareType::SPDZ2k;
     }
-
-    // 获取总尺寸
     size_t size() const { return total_size; }
-
-    // 张量减法
     SecretTensor sub(const SecretTensor& other) const {
         assert(type == ShareType::SPDZ2k && other.type == ShareType::SPDZ2k);
         assert(shape == other.shape);
@@ -152,8 +133,6 @@ public:
         }
         return result;
     }
-
-    // 逐元素乘法
     SecretTensor mul(const SecretTensor& other) const {
         assert(type == ShareType::SPDZ2k && other.type == ShareType::SPDZ2k);
         assert(shape == other.shape);
@@ -174,15 +153,9 @@ private:
 public:
     std::vector<size_t> shape;
     ShareType type;
-
-    // spdz2k share
     std::vector<Share> data_spdz2k;
-
-    // LUT share
     std::vector<Plaintext> data_lut_plain;
     std::vector<std::vector<Ciphertext>> data_lut_cipher;
-
-    // MPC 环境依赖
     SPDZ2k<IO>& spdz2k;
     ELGL<IO>* elgl;
     LVT<IO>* lvt;
@@ -191,8 +164,6 @@ public:
     int party;
     int num_party;
     uint64_t fd;
-
-    // Dummy 测试数据
     double time_dummy = 0.0;
     double comm_dummy = 0.0;
 

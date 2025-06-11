@@ -12,13 +12,12 @@
 using namespace emp;
 using namespace std;
 
-// Test constants
 int party, port;
 const static int threads = 8;
 int num_party;
 const uint64_t FIELD_SIZE = 1ULL << 63;
 const int num = 16; 
-int m_bits = 32; // bits of message
+int m_bits = 32; 
 
 int main(int argc, char** argv) {
 
@@ -46,27 +45,20 @@ int main(int argc, char** argv) {
     mcl::Vint alpha_vint;
     mcl::gmp::powMod(alpha_vint, g, (p - 1) / n, p);
     alpha.assign(alpha_vint.getStr());
-    // std::cout << "alpha: " << alpha.get_message().getStr() << std::endl;
     Fr alpha_fr = alpha.get_message();
     LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "init", alpha_fr, num, m_bits);
 
     lvt->DistKeyGen();
 
     SPDZ2k<MultiIOBase> spdz2k(elgl);
-    
-    // std::cout << "Party " << party << " initialized" << std::endl;
-    
-    // 同步所有参与方
     if(party == 1) {
         for(int i = 2; i <= num_party; i++) {
             elgl->wait_for(i);
         }
-        // std::cout << "All parties connected!" << std::endl;
     } else {
         elgl->send_done(1);
     }
     
-    // input 声明
     uint64_t x_spdz2k = spdz2k.rng() % FIELD_SIZE;
     Plaintext x;
     x.assign(to_string(x_spdz2k));
@@ -84,8 +76,6 @@ int main(int argc, char** argv) {
             vec_cx[i - 1] = cx_i;
         }
     }
-
-    // 调用L2A
     double total_time = 0;
     double total_comm = 0;
     double online_time = 0;
@@ -97,8 +87,6 @@ int main(int argc, char** argv) {
         total_comm += online_comm;
     }
     std::cout << "Average time: " << (total_time/times) << "ms && Average communication: " << (total_comm/times) << "KB" << std::endl;
-
-    // 清理资源
     delete elgl;
     delete io;
     delete lvt;

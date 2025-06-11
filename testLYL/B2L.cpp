@@ -15,12 +15,11 @@
 using namespace emp;
 using namespace std;
 
-// 参数
 int party, port;
 const static int threads = 8;
 int num_party;
-const int l = 24; // 比特长度，可根据q调整
-int m_bits = 24; // bits of message
+const int l = 24; 
+int m_bits = 24; 
 int num = 1;
 
 int main(int argc, char** argv) {
@@ -37,8 +36,6 @@ int main(int argc, char** argv) {
         net_config.emplace_back("127.0.0.1", static_cast<unsigned short>(port + i - 1));
     }
 
-    // 测试时间和通信
-
     ThreadPool pool(threads);
     MultiIO* io = new MultiIO(party, num_party, net_config);
     ELGL<MultiIOBase>* elgl = new ELGL<MultiIOBase>(num_party, io, &pool, party);
@@ -46,14 +43,12 @@ int main(int argc, char** argv) {
     int skip_bytes_start = io->get_total_bytes_sent();
     auto skip_t1 = std::chrono::high_resolution_clock::now();
 
-    // LUT查表表大小为2，0->0, 1->1
     Fr alpha_fr = alpha_init(num);
     LVT<MultiIOBase>* lvt = new LVT<MultiIOBase>(num_party, party, io, &pool, elgl, "../../build/bin/table_2.txt", alpha_fr, num, m_bits);
     lvt->DistKeyGen();
     lvt->generate_shares(lvt->lut_share, lvt->rotation, lvt->table);
 
     TinyMAC<MultiIOBase> tiny(elgl);
-    // input generation
     vector<TinyMAC<MultiIOBase>::LabeledShare> x_bits(l);
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -62,15 +57,12 @@ int main(int argc, char** argv) {
         x_bits[i] = tiny.distributed_share(bit_dis(gen));
     }
 
-    // 调用B2L函数
-    // tuple<Plaintext, vector<Ciphertext>> B2L(ELGL<MultiIOBase>* elgl, LVT<MultiIOBase>* lvt, TinyMAC<MultiIOBase>& tiny, int party, int num_party, MultiIO* io, ThreadPool* pool, const vector<TinyMAC<MultiIOBase>::LabeledShare>& x_bits)
     auto [shared_x, cips] = B2L::B2L(elgl, lvt, tiny, party, num_party, io, &pool, x_bits, 1ULL << l);
 
     int skip_bytes_end = io->get_total_bytes_sent();
     auto skip_t2 = std::chrono::high_resolution_clock::now();
     double skip_comm_kb = double(skip_bytes_end - skip_bytes_start) / 1024.0;
     double skip_time_ms = std::chrono::duration<double, std::milli>(skip_t2 - skip_t1).count();
-    // cout << "time: " << skip_time_ms << " ms, comm: " << skip_comm_kb << " KB" << std::endl;
 
     delete elgl;
     delete io;

@@ -7,11 +7,11 @@ def sigmoid_derivative(x):
     s = sigmoid(x)
     return s * (1 - s)
 
-num_entries = 512 # 定点整数总长度24比特
-xmin, xmax = -8.0, 8.0  # 定义域范围（常见于模型中）
+num_entries = 512
+xmin, xmax = -8.0, 8.0  
 x_values = np.linspace(xmin, xmax, num_entries)
 
-scale = 1 << 16  # 定点整数：16位精度
+scale = 1 << 16  
 
 with open("table_main.txt", "w") as f_main, open("table_derivative.txt", "w") as f_der:
     for x in x_values:

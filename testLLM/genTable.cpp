@@ -11,10 +11,8 @@ using namespace std;
 constexpr uint32_t TABLE_SIZE = FixedPointConverter::FIELD_SIZE;
 const std::string OUTPUT_DIR = "./";
 
-// 输出函数类型
 using ActivationFn = std::function<double(double)>;
 
-// 生成并写表函数
 void generate_table(const std::string& name, const ActivationFn& func) {
     std::string path = OUTPUT_DIR + "/table_" + name + ".txt";
     std::ofstream fout(path);

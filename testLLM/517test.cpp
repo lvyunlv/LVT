@@ -14,22 +14,17 @@
 using namespace emp;
 namespace fs = std::experimental::filesystem;
 
-// Function implementations
 static double sigmoid(double x) { return 1.0/(1.0+std::exp(-x)); }
 static double tanh_f(double x) { return std::tanh(x); }
-
-// Fixed-point parameters (matching 515.py)
 const int FRACTIONAL_BITS = 16;
 const int TOTAL_BITS = 24;
 const int SCALE = 1 << FRACTIONAL_BITS;
 const uint64_t FIELD_SIZE = 1ULL << TOTAL_BITS;
 const int64_t MAX_VAL = (1LL << (TOTAL_BITS - 1)) - 1;
 const int64_t MIN_VAL = -(1LL << (TOTAL_BITS - 1));
-const int TABLE_SIZE = 1 << 12;  // 4096
+const int TABLE_SIZE = 1 << 12;  
 const int DELTA_BITS = 4;
-const int DELTA_TABLE_SIZE = 1 << DELTA_BITS;  // 16
-
-// Define input ranges for functions (same as in 515.py)
+const int DELTA_TABLE_SIZE = 1 << DELTA_BITS; 
 const double XMIN_SIGMOID = -16.0;
 const double XMAX_SIGMOID = 16.0;
 const double XMIN_TANH = -16.0;
@@ -37,32 +32,21 @@ const double XMAX_TANH = 16.0;
 
 int num_party, party, port;
 const static int threads = 8;
-const int m_bits = 24; // Table value bits, 24 for Q8.16 fixed-point integer
+const int m_bits = 24; 
 const int m_size = 1UL << m_bits;
-const int num = 12; // Number of bits for table index
-const size_t tb_size = 1ULL << num; // Table size
-const int frac = 16; // Fractional bits
+const int num = 12;
+const size_t tb_size = 1ULL << num; 
+const int frac = 16;
 
-// Function to compute table index from real value (same logic as 515.py)
 std::pair<int, int> compute_table_indices(double x, double xmin, double xmax) {
-    // Normalize to [0, 1] range
     double normalized = (x - xmin) / (xmax - xmin);
-    
-    // Scale to table size
     double index_float = normalized * TABLE_SIZE;
-    
-    // Clamp to valid table range
     index_float = std::max(0.0, std::min(TABLE_SIZE - 1.0, index_float));
-    
-    // Calculate base index and delta (same as in Python)
     int base_index = static_cast<int>(index_float);
     if (base_index >= TABLE_SIZE - 1) base_index = TABLE_SIZE - 2;
-    
-    // Calculate position within the cell
     double delta = index_float - base_index;
     int delta_index = static_cast<int>(delta * DELTA_TABLE_SIZE);
     delta_index = std::min(delta_index, DELTA_TABLE_SIZE - 1);
-    
     return {base_index, delta_index};
 }
 
@@ -76,15 +60,9 @@ int main(int argc, char** argv) {
     num_party = std::stoi(argv[3]);
     std::string func_name = argv[4];
     std::string filebit = "2";
-    
-    // Table files (base and delta tables)
-    std::string fileA = func_name + "_A";  // Base table
-    std::string fileB = func_name + "_delta";  // Delta table
-    
-    // Input file path
+    std::string fileA = func_name + "_A";  
+    std::string fileB = func_name + "_delta";  
     std::string input_file = "../../TestLLM/Input/Input-P" + std::to_string(party) + ".txt";
-
-    // Set function range based on function name
     double xmin = 0.0, xmax = 0.0;
     if (func_name == "sigmoid") {
         xmin = XMIN_SIGMOID;
@@ -96,8 +74,6 @@ int main(int argc, char** argv) {
         std::cerr << "Unknown function: " << func_name << std::endl;
         return 1;
     }
-
-    // Network configuration
     std::vector<std::pair<std::string, unsigned short>> net_config;
     if (argc == 6) {
         const char* file = argv[5];
@@ -115,34 +91,26 @@ int main(int argc, char** argv) {
             net_config.push_back({ "127.0.0.1", port + 4 * num_party * i });
         }
     }
-
-    // Initialize multi-party computation environment
     ThreadPool pool(threads);
     auto io = std::make_unique<MultiIO>(party, num_party, net_config);
     auto elgl = std::make_unique<ELGL<MultiIOBase>>(num_party, io.get(), &pool, party);
     TinyMAC<MultiIOBase> tiny(elgl.get());
     SPDZ2k<MultiIOBase> spdz2k(elgl.get());
     mcl::Vint modulo = m_size;
-    
-    // Initialize alpha values for LVT
-    Fr alpha_fr_bit = alpha_init(1); // For bit tables
-    Fr alpha_frA = alpha_init(num);  // For base table
-    Fr alpha_frB = alpha_init(num + DELTA_BITS);  // For delta table (combined index)
+    Fr alpha_fr_bit = alpha_init(1); 
+    Fr alpha_frA = alpha_init(num);  
+    Fr alpha_frB = alpha_init(num + DELTA_BITS);  
     
     std::unique_ptr<LVT<MultiIOBase>> lvt_bit, lvtA, lvtB;
     LVT<MultiIOBase>* lvt_raw_bit = nullptr;
     LVT<MultiIOBase>* lvt_rawA = nullptr;
     LVT<MultiIOBase>* lvt_rawB = nullptr;
-
-    // Initialize LVT protocols with the tables
     LVT<MultiIOBase>::initialize(filebit, lvt_raw_bit, num_party, party, io.get(), &pool, elgl.get(), alpha_fr_bit, 1, m_bits);
     lvt_bit.reset(lvt_raw_bit);
     LVT<MultiIOBase>::initialize(fileA, lvt_rawA, num_party, party, io.get(), &pool, elgl.get(), alpha_frA, num, m_bits);
     lvtA.reset(lvt_rawA);
     LVT<MultiIOBase>::initialize(fileB, lvt_rawB, num_party, party, io.get(), &pool, elgl.get(), alpha_frB, num + DELTA_BITS, m_bits);
     lvtB.reset(lvt_rawB);
-
-    // Read input values
     std::vector<Plaintext> x_share;
     {
         if (!fs::exists(input_file)) {
@@ -167,8 +135,6 @@ int main(int argc, char** argv) {
     }
     
     int x_size = x_share.size();
-    
-    // Broadcast input size and verify all parties have same size
     Plaintext x_size_pt; x_size_pt.assign(x_size);
     elgl->serialize_sendall(x_size_pt);
     for (int i = 1; i <= num_party; i++) {
@@ -181,16 +147,12 @@ int main(int argc, char** argv) {
             }
         }
     }
-
-    // Compute ciphertext of the share and recover x plaintext
     std::vector<Ciphertext> x_cipher(x_size);
     std::vector<uint64_t> x_int(x_size);
     for (int i = 0; i < x_size; ++i) {
         x_cipher[i] = lvtA->global_pk.encrypt(x_share[i]);
         x_int[i] = lvtA->Reconstruct_interact(x_share[i], x_cipher[i], elgl.get(), lvtA->global_pk, lvtA->user_pk, io.get(), &pool, party, num_party, modulo).get_message().getUint64();
     }
-
-    // Decode x and compute actual function values for comparison
     std::vector<double> x_real, real_fx;
     std::vector<std::pair<int, int>> table_indices;
     
@@ -200,12 +162,10 @@ int main(int argc, char** argv) {
         double func_result;
         if (func_name == "sigmoid") {
             func_result = sigmoid(x_real[i]);
-        } else { // tanh
+        } else { 
             func_result = tanh_f(x_real[i]);
         }
         real_fx.push_back(func_result);
-        
-        // Compute correct table indices for this input
         table_indices.push_back(compute_table_indices(x_real[i], xmin, xmax));
         
         if (party == 1) {
@@ -215,23 +175,14 @@ int main(int argc, char** argv) {
                       << std::endl;
         }
     }
-
-    // For each input, we need to compute table indices (securely)
-    // Then perform table lookups using these indices
-    
-    // Step 1: Share table indices with all parties
     std::vector<Plaintext> base_idx_share(x_size);
     std::vector<Plaintext> delta_idx_share(x_size);
     std::vector<std::vector<Ciphertext>> base_idx_cips(x_size, std::vector<Ciphertext>(num_party));
     std::vector<std::vector<Ciphertext>> delta_idx_cips(x_size, std::vector<Ciphertext>(num_party));
     
     for (int i = 0; i < x_size; ++i) {
-        // For simplicity in this version, each party knows the indices directly
-        // In a fully secure version, this would be computed from secret shared inputs
         base_idx_share[i].assign(table_indices[i].first);
         delta_idx_share[i].assign(table_indices[i].second);
-        
-        // Encrypt and share with all parties
         base_idx_cips[i][party - 1] = lvtA->global_pk.encrypt(base_idx_share[i]);
         delta_idx_cips[i][party - 1] = lvtB->global_pk.encrypt(delta_idx_share[i]);
         
@@ -245,8 +196,6 @@ int main(int argc, char** argv) {
             }
         }
     }
-
-    // Step 2: Lookup base table values using base indices
     std::vector<Plaintext> base_share(x_size);
     std::vector<std::vector<Ciphertext>> base_cips(x_size, std::vector<Ciphertext>(num_party));
     
@@ -255,18 +204,13 @@ int main(int argc, char** argv) {
         base_share[i] = base_val;
         base_cips[i] = base_val_cips;
     }
-    
-    // Step 3: Lookup delta table values using combined indices
     std::vector<Plaintext> delta_share(x_size);
     std::vector<std::vector<Ciphertext>> delta_cips(x_size, std::vector<Ciphertext>(num_party));
     
     for (int i = 0; i < x_size; ++i) {
-        // Create combined index: (base_index * DELTA_TABLE_SIZE + delta_index)
         Plaintext combined_idx;
         uint64_t idx_val = (table_indices[i].first * DELTA_TABLE_SIZE) + table_indices[i].second;
         combined_idx.assign(idx_val);
-        
-        // Create and share ciphertext
         Ciphertext combined_cip = lvtB->global_pk.encrypt(combined_idx);
         std::vector<Ciphertext> combined_cips(num_party);
         combined_cips[party - 1] = combined_cip;
@@ -277,39 +221,26 @@ int main(int argc, char** argv) {
                 elgl->deserialize_recv(combined_cips[j], j + 1);
             }
         }
-        
-        // Lookup in delta table
         auto [delta_val, delta_val_cips] = lvtB->lookup_online(combined_idx, combined_cips[party-1], combined_cips);
         delta_share[i] = delta_val;
         delta_cips[i] = delta_val_cips;
     }
-
-    // Step 4: Combine base and delta values for final result
     std::vector<double> interpolated_result(x_size);
     
     for (int i = 0; i < x_size; ++i) {
-        // Reconstruct base and delta values
         Plaintext base_val = lvtA->Reconstruct(base_share[i], base_cips[i], elgl.get(), lvtA->global_pk, lvtA->user_pk, io.get(), &pool, party, num_party, modulo);
         Plaintext delta_val = lvtB->Reconstruct(delta_share[i], delta_cips[i], elgl.get(), lvtB->global_pk, lvtB->user_pk, io.get(), &pool, party, num_party, modulo);
-        
-        // Debug output to see the raw values
         if (party == 1) {
             std::cout << "o_ " << base_val.get_message().getUint64() << std::endl;
             std::cout << "o_ " << delta_val.get_message().getUint64() << std::endl;
         }
-        
-        // Decode to float
         double base_float = FixedPointConverter::decode(base_val.get_message().getUint64());
         double delta_float = FixedPointConverter::decode(delta_val.get_message().getUint64());
-        
-        // Linear interpolation - fraction is delta_index / DELTA_TABLE_SIZE
         double fraction = static_cast<double>(table_indices[i].second) / DELTA_TABLE_SIZE;
         interpolated_result[i] = base_float + delta_float * fraction;
         
         cout << "[INTERPOLATED] f(x_" << i << ") = " << interpolated_result[i] << endl;
     }
-
-    // Error analysis
     std::vector<double> abs_error(x_size);
     double max_error = 0, total_error = 0;
     
@@ -326,14 +257,6 @@ int main(int argc, char** argv) {
     cout << "\n====== Interpolation Error Summary ======\n";
     cout << "Max Error: " << max_error << endl;
     cout << "Mean Error: " << total_error / x_size << endl;
- 
-    // // std::string output_file = "../../TestLYL/Output/Output-P" + std::to_string(party) + ".txt";
-    // // {
-    // //     std::ofstream out_file(output_file, std::ios::trunc);
-    // //     for (int i = 0; i < x_size; ++i) {
-    // //         out_file << X_H[i].get_message().getStr() << X_L[i].get_message().getStr() << std::endl;
-    // //     }
-    // // }
 
     return 0;
 }
