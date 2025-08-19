@@ -1,4 +1,5 @@
-# SMASH: Scalable Multi-party Maliciously Secure Hybrid Framework for Privacy-Preserving LLM Inference
+# SMASH: Scalable Maliciously Secure Hybrid Multi-party Computation Framework for Privacy-Preserving Large Language Model
+    This repository is built on ScalableMixedModeMPC (https://github.com/radhika1601/ScalableMixedModeMPC)
 
 # Installation
 
@@ -20,8 +21,8 @@
 1. Clone the repository and build using cmake.
 
 ```console
-git clone https://github.com/radhika1601/ScalableMixedModeMPC.git
-cd ScalableMixedModeMPC
+git clone https://github.com/lvyunlv/LVT.git
+cd LVT
 cmake .
 make
 ```
@@ -34,6 +35,3 @@ To run the tests across multiple servers you can pass the ip configuration as a 
 <ip1> <port1>
 <ip2> <port2>
 ```
-
-### Question
-Please send email to radhikaradhika2028@u.northwestern.edu
